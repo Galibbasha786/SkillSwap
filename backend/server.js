@@ -1,16 +1,13 @@
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const helmet = require('helmet');
 const dotenv = require('dotenv');
 
 // Load environment variables
 dotenv.config();
 
-// Import database connection
-const connectDB = require('./config/db');
-
-// Import routes (we'll create these later)
+// Import routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const skillRoutes = require('./routes/skillRoutes');
@@ -21,14 +18,35 @@ const adminRoutes = require('./routes/adminRoutes');
 // Initialize express
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+// ✅ SIMPLE CORS CONFIGURATION (No problematic lines)
+/*app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));*/
+app.use(cors());
 
 // Middleware
-app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Connect to MongoDB
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/SkillSwap');
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    
+    // Create admin if not exists
+    try {
+      const seedAdmin = require('./config/adminSeed');
+      await seedAdmin();
+    } catch (seedError) {
+      console.log('Admin seed skipped:', seedError.message);
+    }
+  } catch (error) {
+    console.error(`❌ MongoDB Error: ${error.message}`);
+  }
+};
+connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -47,22 +65,21 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check route
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date(),
-    uptime: process.uptime(),
+    message: 'Server is healthy',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('❌ Error:', err.stack);
   res.status(err.status || 500).json({
-    message: err.message || 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err : {}
+    message: err.message || 'Something went wrong!'
   });
 });
 
@@ -75,6 +92,6 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
   console.log(`🔗 http://localhost:${PORT}`);
+  console.log(`✅ CORS enabled for: http://localhost:5173`);
 });
