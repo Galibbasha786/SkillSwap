@@ -76,11 +76,11 @@ export const userAPI = {
 };
 
 // Skill APIs
-export const skillAPI = {
+/*export const skillAPI = {
   getAll: (params) => api.get('/skills', { params }),
   getCategories: () => api.get('/skills/categories'),
   search: (query) => api.get('/skills/search', { params: { q: query } }),
-};
+};*/
 
 // Session APIs
 export const sessionAPI = {
@@ -96,6 +96,56 @@ export const chatAPI = {
   getConversations: () => api.get('/chats'),
   getMessages: (chatId) => api.get(`/chats/${chatId}/messages`),
   sendMessage: (chatId, message) => api.post(`/chats/${chatId}/messages`, { message }),
+};
+// Add to your existing api.js file
+
+// Skill APIs
+export const skillAPI = {
+  // Get all skills with optional filters
+  getAll: (params) => api.get('/skills', { params }),
+  
+  // Get skill categories
+  getCategories: () => api.get('/skills/categories'),
+  
+  // Search skills
+  search: (query) => api.get('/skills/search', { params: { q: query } }),
+  
+  // Get popular skills
+  getPopular: () => api.get('/skills/popular'),
+  
+  // Add a new skill (admin only)
+  create: (skillData) => api.post('/skills', skillData),
+};
+
+// User Skills APIs
+export const userSkillAPI = {
+  // Add skill user wants to teach
+  addTeachingSkill: (skillData) => api.post('/users/skills/teach', skillData),
+  
+  // Add skill user wants to learn
+  addLearningSkill: (skillData) => api.post('/users/skills/learn', skillData),
+  
+  // Remove a teaching skill
+  removeTeachingSkill: (skillId) => api.delete(`/users/skills/teach/${skillId}`),
+  
+  // Remove a learning skill
+  removeLearningSkill: (skillId) => api.delete(`/users/skills/learn/${skillId}`),
+  
+  // Update skill experience level
+  updateSkillExperience: (skillId, experience) => 
+    api.put(`/users/skills/teach/${skillId}`, { experience }),
+};
+
+// Matching APIs
+export const matchAPI = {
+  // Get potential matches based on skills
+  getMatches: () => api.get('/users/matches'),
+  
+  // Get mutual matches (two-way exchange)
+  getMutualMatches: () => api.get('/users/matches/mutual'),
+  
+  // Get skill suggestions based on user's skills
+  getSuggestions: () => api.get('/users/matches/suggestions'),
 };
 
 export default api;

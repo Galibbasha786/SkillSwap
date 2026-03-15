@@ -2,7 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiLogOut, FiUser, FiBook, FiMessageSquare, FiCalendar } from 'react-icons/fi';
-
+import { Link } from 'react-router-dom';
+import { FiSearch, FiUsers } from 'react-icons/fi';
 const Dashboard = () => {
   const { user, logout } = useAuth();
 
@@ -94,6 +95,21 @@ const Dashboard = () => {
             <h3 className="text-xl font-semibold mb-4">Upcoming Sessions</h3>
             <p className="text-gray-500 text-center py-8">No upcoming sessions</p>
           </div>
+          <div className="space-y-3">
+  <Link to="/marketplace">
+    <button className="w-full btn-primary flex items-center justify-center gap-2">
+      <FiSearch />
+      Browse Skill Marketplace
+    </button>
+  </Link>
+  <Link to="/matches">
+    <button className="w-full btn-secondary flex items-center justify-center gap-2">
+      <FiUsers />
+      View Your Matches
+    </button>
+  </Link>
+  <button className="w-full btn-outline">Schedule Session</button>
+</div>
         </motion.div>
       </main>
     </div>

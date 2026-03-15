@@ -9,6 +9,9 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Text from './pages/Text';
+import SkillMarketplace from './pages/SkillMarketplace';
+import Matches from './pages/Matches';
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -73,8 +76,18 @@ function AppContent() {
               <Dashboard />
             </ProtectedRoute>
           } />
-          
-          <Route path="/test" element={<Text />} />
+          <Route path="/marketplace" element={
+  <ProtectedRoute>
+    <SkillMarketplace />
+  </ProtectedRoute>
+} />
+<Route path="/matches" element={
+  <ProtectedRoute>
+    <Matches />
+  </ProtectedRoute>
+} />
+
+       
         </Routes>
       </AnimatePresence>
     </div>
