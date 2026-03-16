@@ -14,7 +14,7 @@ const skillRoutes = require('./routes/skillRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-
+const paymentRoutes = require('./routes/paymentRoutes');
 // Initialize express
 const app = express();
 
@@ -55,7 +55,7 @@ app.use('/api/skills', skillRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use('/api/payments', paymentRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 
