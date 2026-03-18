@@ -1,11 +1,20 @@
+// backend/server.js
 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { initializeSocket } = require('./socket');
 
 // Load environment variables
 dotenv.config();
+
+// Log environment variables (without exposing secrets)
+console.log('✅ Environment loaded:');
+console.log('- PORT:', process.env.PORT || 5000);
+console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Using default');
+console.log('- RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? '✅ Present' : '❌ Missing');
+console.log('- RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET ? '✅ Present' : '❌ Missing');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -15,15 +24,16 @@ const sessionRoutes = require('./routes/sessionRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const razorpayRoutes = require('./routes/razorpayRoutes');
+
 // Initialize express
 const app = express();
 
-// ✅ SIMPLE CORS CONFIGURATION (No problematic lines)
-/*app.use(cors({
+// CORS configuration
+app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
-}));*/
-app.use(cors());
+}));
 
 // Middleware
 app.use(express.json());
@@ -56,6 +66,8 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/razorpay', razorpayRoutes);
+
 // Base route
 app.get('/', (req, res) => {
   res.json({ 
@@ -90,8 +102,14 @@ app.use((req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 http://localhost:${PORT}`);
   console.log(`✅ CORS enabled for: http://localhost:5173`);
 });
+
+// Initialize Socket.io
+const io = initializeSocket(server);
+console.log('🔌 Socket.io initialized');
+
+module.exports = { app, server, io };

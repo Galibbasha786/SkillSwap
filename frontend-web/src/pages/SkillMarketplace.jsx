@@ -1,7 +1,7 @@
-// frontend-web/src/pages/SkillMarketplace.jsx
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   FiSearch, 
   FiFilter, 
@@ -10,70 +10,101 @@ import {
   FiChevronDown,
   FiX,
   FiTrendingUp,
-  FiStar
+  FiStar,
+  FiUsers
 } from 'react-icons/fi';
-import SkillCard from '../components/skills/SkillCard';
-import { skillCategories, allSkills } from '../data/skillCategories';
+import { userAPI, skillAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 const SkillMarketplace = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [sortBy, setSortBy] = useState('popular');
-  
-  // Mock data - will be replaced with real API calls
-  const [skills, setSkills] = useState([]);
+  const [sortBy, setSortBy] = useState('rating');
+  const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(['all']);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockSkills = allSkills.map((skill, index) => ({
-        id: index,
-        name: skill,
-        category: getSkillCategory(skill),
-        rating: (Math.random() * 2 + 3).toFixed(1),
-        students: Math.floor(Math.random() * 1000),
-        experience: ['Beginner', 'Intermediate', 'Expert'][Math.floor(Math.random() * 3)],
-        description: `Learn ${skill} from expert teachers`
-      }));
-      setSkills(mockSkills);
-      setLoading(false);
-    }, 1000);
+    // Get current user ID to filter out self
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCurrentUserId(user.id || user._id);
+    }
+    
+    fetchTeachers();
+    fetchCategories();
   }, []);
 
-  const getSkillCategory = (skill) => {
-    for (const cat of skillCategories) {
-      if (cat.skills.includes(skill)) {
-        return cat.name;
-      }
+  const fetchTeachers = async () => {
+    try {
+      setLoading(true);
+      // Fetch all users who have teaching skills
+      const response = await userAPI.getAllTeachers();
+      console.log('Fetched teachers:', response.data);
+      
+      // Get current user ID from localStorage
+      const savedUser = localStorage.getItem('user');
+      const currentUser = savedUser ? JSON.parse(savedUser) : null;
+      const currentUserId = currentUser?.id || currentUser?._id;
+      
+      // Filter out current user
+      const otherTeachers = response.data.filter(teacher => {
+        const teacherId = teacher._id || teacher.id;
+        return teacherId !== currentUserId;
+      });
+      
+      console.log('Other teachers:', otherTeachers);
+      setTeachers(otherTeachers);
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
+      toast.error('Failed to load teachers');
+      // Set empty array on error
+      setTeachers([]);
+    } finally {
+      setLoading(false);
     }
-    return 'Other';
   };
 
-  const categories = ['all', ...skillCategories.map(c => c.name)];
+  const fetchCategories = async () => {
+    try {
+      const response = await skillAPI.getCategories();
+      if (response.data && Array.isArray(response.data)) {
+        setCategories(['all', ...response.data]);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
-  const filteredSkills = skills.filter(skill => {
-    const matchesSearch = skill.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || skill.category === selectedCategory;
+  const filteredTeachers = teachers.filter(teacher => {
+    // Search in teacher name and skills
+    const matchesSearch = searchTerm === '' || 
+      teacher.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.skillsTeach?.some(skill => 
+        skill.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    // Filter by category
+    const matchesCategory = selectedCategory === 'all' || 
+      teacher.skillsTeach?.some(skill => skill.category === selectedCategory);
+    
     return matchesSearch && matchesCategory;
   });
 
-  const sortedSkills = [...filteredSkills].sort((a, b) => {
-    if (sortBy === 'popular') return b.students - a.students;
-    if (sortBy === 'rating') return b.rating - a.rating;
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
+  const sortedTeachers = [...filteredTeachers].sort((a, b) => {
+    if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+    if (sortBy === 'sessions') return (b.totalSessions || 0) - (a.totalSessions || 0);
+    if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
     return 0;
   });
 
-  const handleSkillSelect = (skill) => {
-    if (selectedSkills.find(s => s.id === skill.id)) {
-      setSelectedSkills(selectedSkills.filter(s => s.id !== skill.id));
-    } else {
-      setSelectedSkills([...selectedSkills, skill]);
-    }
+  const handleTeacherClick = (teacherId) => {
+    navigate(`/teacher/${teacherId}`);
   };
 
   if (loading) {
@@ -81,7 +112,7 @@ const SkillMarketplace = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading skills...</p>
+          <p className="text-gray-600">Finding teachers...</p>
         </div>
       </div>
     );
@@ -98,7 +129,7 @@ const SkillMarketplace = () => {
               <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search for skills to learn or teach..."
+                placeholder="Search for teachers or skills..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -173,27 +204,12 @@ const SkillMarketplace = () => {
                         onChange={(e) => setSortBy(e.target.value)}
                         className="appearance-none pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
-                        <option value="popular">Most Popular</option>
-                        <option value="rating">Highest Rated</option>
+                        <option value="rating">Top Rated</option>
+                        <option value="sessions">Most Experienced</option>
                         <option value="name">Name A-Z</option>
                       </select>
                       <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     </div>
-
-                    {/* Active Filters */}
-                    {selectedSkills.length > 0 && (
-                      <div className="flex items-center gap-2 ml-auto">
-                        <span className="text-sm text-gray-600">
-                          {selectedSkills.length} selected
-                        </span>
-                        <button
-                          onClick={() => setSelectedSkills([])}
-                          className="text-sm text-red-500 hover:text-red-600"
-                        >
-                          Clear all
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               </motion.div>
@@ -207,7 +223,7 @@ const SkillMarketplace = () => {
         {/* Results Count */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-gray-600">
-            Showing <span className="font-semibold">{sortedSkills.length}</span> skills
+            Found <span className="font-semibold">{sortedTeachers.length}</span> teachers
           </p>
           
           {/* Trending Tags */}
@@ -227,120 +243,134 @@ const SkillMarketplace = () => {
           </div>
         </div>
 
-        {/* Skills Grid/List */}
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {/* Teachers Grid/List */}
+        {sortedTeachers.length === 0 ? (
+          <div className="text-center py-12">
+            <FiUsers className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No teachers found</h3>
+            <p className="text-gray-600">Try adjusting your search or filters</p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <AnimatePresence>
-              {sortedSkills.map((skill, index) => (
+              {sortedTeachers.map((teacher, index) => (
                 <motion.div
-                  key={skill.id}
+                  key={teacher._id || teacher.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => handleTeacherClick(teacher._id || teacher.id)}
+                  className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
                 >
-                  <SkillCard
-                    skill={skill}
-                    onSelect={handleSkillSelect}
-                    isSelected={selectedSkills.some(s => s.id === skill.id)}
-                    userCount={skill.students}
-                  />
+                  <div className="h-24 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                  
+                  <div className="px-4 pb-4">
+                    <div className="flex justify-center -mt-12 mb-2">
+                      <img
+                        src={teacher.profileImage || 'https://via.placeholder.com/80'}
+                        alt={teacher.name}
+                        className="w-20 h-20 rounded-full border-4 border-white shadow-lg"
+                      />
+                    </div>
+                    
+                    <h3 className="text-lg font-semibold text-center text-gray-900 mb-1">
+                      {teacher.name}
+                    </h3>
+                    
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <div className="flex items-center gap-1">
+                        <FiStar className="w-4 h-4 text-yellow-500 fill-current" />
+                        <span className="text-sm text-gray-600">
+                          {teacher.rating?.toFixed(1) || 'New'}
+                        </span>
+                      </div>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-sm text-gray-600">
+                        {teacher.totalSessions || 0} sessions
+                      </span>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <p className="text-xs text-gray-500 mb-1">Teaches:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {teacher.skillsTeach?.slice(0, 3).map((skill, i) => (
+                          <span
+                            key={i}
+                            className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full"
+                          >
+                            {skill.name}
+                          </span>
+                        ))}
+                        {teacher.skillsTeach?.length > 3 && (
+                          <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                            +{teacher.skillsTeach.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <span className="text-sm text-gray-500">
+                        From ${Math.min(...(teacher.skillsTeach?.map(s => s.hourlyRate) || [0]))}/hr
+                      </span>
+                      <button className="text-blue-500 hover:text-blue-600 text-sm font-medium">
+                        View Profile →
+                      </button>
+                    </div>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <AnimatePresence>
-              {sortedSkills.map((skill, index) => (
+              {sortedTeachers.map((teacher, index) => (
                 <motion.div
-                  key={skill.id}
+                  key={teacher._id || teacher.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ delay: index * 0.03 }}
-                  className="bg-white rounded-lg p-4 hover:shadow-md transition-shadow border border-gray-100"
+                  onClick={() => handleTeacherClick(teacher._id || teacher.id)}
+                  className="bg-white rounded-lg p-4 hover:shadow-md transition-shadow border border-gray-100 cursor-pointer"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={teacher.profileImage || 'https://via.placeholder.com/60'}
+                      alt={teacher.name}
+                      className="w-16 h-16 rounded-full"
+                    />
+                    
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-800">{skill.name}</h3>
-                      <p className="text-sm text-gray-600">{skill.description}</p>
-                      <div className="flex items-center gap-4 mt-2">
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
-                          {skill.category}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <FiStar className="w-4 h-4 text-yellow-500" />
-                          <span className="text-sm text-gray-700">{skill.rating}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FiUsers className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">{skill.students} learners</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-semibold text-gray-900">{teacher.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <FiStar className="w-4 h-4 text-yellow-500 fill-current" />
+                          <span className="text-sm text-gray-600">{teacher.rating?.toFixed(1) || 'New'}</span>
                         </div>
                       </div>
+                      
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-1">{teacher.bio}</p>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {teacher.skillsTeach?.map((skill, i) => (
+                          <span
+                            key={i}
+                            className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full"
+                          >
+                            {skill.name} (${skill.hourlyRate}/hr)
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleSkillSelect(skill)}
-                      className={`ml-4 px-4 py-2 rounded-lg transition-colors ${
-                        selectedSkills.some(s => s.id === skill.id)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {selectedSkills.some(s => s.id === skill.id) ? 'Selected' : 'Select'}
-                    </button>
                   </div>
                 </motion.div>
               ))}
             </AnimatePresence>
           </div>
         )}
-
-        {/* Selected Skills Bar (for adding to profile) */}
-        <AnimatePresence>
-          {selectedSkills.length > 0 && (
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 p-4"
-            >
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-600 mb-2">
-                      Selected skills ({selectedSkills.length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedSkills.map(skill => (
-                        <span
-                          key={skill.id}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
-                        >
-                          {skill.name}
-                          <button
-                            onClick={() => handleSkillSelect(skill)}
-                            className="ml-1 hover:text-blue-800"
-                          >
-                            <FiX className="w-4 h-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-3 ml-4">
-                    <button className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                      Cancel
-                    </button>
-                    <button className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-colors">
-                      Add to Profile
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );

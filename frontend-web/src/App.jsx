@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
@@ -8,10 +9,10 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Text from './pages/Text';
 import SkillMarketplace from './pages/SkillMarketplace';
 import Matches from './pages/Matches';
-
+import TeacherProfile from './pages/TeacherProfile';  // ✅ Add this import
+import Sessions from './pages/Sessions';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -27,7 +28,7 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-// Public Route Component (redirect if already authenticated)
+// Public Route Component
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   return !isAuthenticated ? children : <Navigate to="/dashboard" />;
@@ -61,33 +62,54 @@ function AppContent() {
       
       <AnimatePresence mode="wait">
         <Routes>
+          {/* Root route */}
+          <Route path="/" element={<Navigate to="/dashboard" />} />
+          
+          {/* Auth routes */}
           <Route path="/login" element={
             <PublicRoute>
               <Login />
             </PublicRoute>
           } />
+          
           <Route path="/register" element={
             <PublicRoute>
               <Register />
             </PublicRoute>
           } />
+          
+          {/* Protected routes */}
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
           } />
+          
           <Route path="/marketplace" element={
+            <ProtectedRoute>
+              <SkillMarketplace />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/matches" element={
+            <ProtectedRoute>
+              <Matches />
+            </ProtectedRoute>
+          } />
+          
+          {/* ✅ Teacher Profile route - dynamic with ID */}
+          <Route path="/teacher/:id" element={
+            <ProtectedRoute>
+              <TeacherProfile />
+            </ProtectedRoute>
+          } />
+          <Route path="/sessions" element={
   <ProtectedRoute>
-    <SkillMarketplace />
+    <Sessions />
   </ProtectedRoute>
 } />
-<Route path="/matches" element={
-  <ProtectedRoute>
-    <Matches />
-  </ProtectedRoute>
-} />
-
-       
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </AnimatePresence>
     </div>

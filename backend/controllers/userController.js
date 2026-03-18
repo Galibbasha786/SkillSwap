@@ -249,5 +249,23 @@ exports.getMutualMatches = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+// @desc    Get all teachers (users with teaching skills)
+// @route   GET /api/users/teachers
+// @access  Private
+exports.getAllTeachers = async (req, res) => {
+  try {
+    const teachers = await User.find({
+      'skillsTeach.0': { $exists: true }, // Has at least one teaching skill
+      isActive: true
+    })
+    .select('name email profileImage skillsTeach skillsLearn rating bio totalSessions')
+    .sort({ rating: -1 });
+    
+    res.json(teachers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 module.exports = exports;

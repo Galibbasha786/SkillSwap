@@ -14,10 +14,12 @@ const sessionSchema = new mongoose.Schema({
   },
   skillId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Skill',
+    ref: 'Skill'
+  },
+  skillName: {
+    type: String,
     required: true
   },
-  skillName: String,
   
   // Session details
   title: {
@@ -36,7 +38,7 @@ const sessionSchema = new mongoose.Schema({
     max: 240
   },
   
-  // 💰 Payment details
+  // 💰 Payment details - THESE WERE MISSING
   hourlyRate: {
     type: Number,
     required: true
@@ -77,6 +79,16 @@ const sessionSchema = new mongoose.Schema({
     enum: ['scheduled', 'ongoing', 'completed', 'cancelled', 'no-show'],
     default: 'scheduled'
   },
+  
+  // Video call tracking
+  videoCallStarted: {
+    type: Boolean,
+    default: false
+  },
+  videoCallStartedAt: Date,
+  videoCallEndedAt: Date,
+  recordingUrl: String,
+  roomName: String,
   
   // Ratings
   teacherRating: {

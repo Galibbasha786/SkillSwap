@@ -1,3 +1,4 @@
+
 const Session = require('../models/Session');
 const User = require('../models/User');
 
@@ -22,6 +23,8 @@ exports.createSession = async (req, res) => {
     
     const hourlyRate = teachingSkill.hourlyRate;
     const totalAmount = (hourlyRate * duration) / 60;
+    const platformFee = totalAmount * 0.1;
+    const teacherEarnings = totalAmount * 0.9;
     
     // Create session
     const session = await Session.create({
@@ -34,18 +37,28 @@ exports.createSession = async (req, res) => {
       duration,
       hourlyRate,
       totalAmount,
+      platformFee,
+      teacherEarnings,
       meetingLink: `https://meet.jit.si/skillswap-${Date.now()}`,
-      paymentStatus: 'pending'
+      paymentStatus: 'pending',
+      status: 'scheduled'
     });
     
     // Populate user details
     await session.populate('teacherId', 'name email profileImage');
     await session.populate('learnerId', 'name email profileImage');
     
+    console.log('Session created successfully:', {
+      id: session._id,
+      totalAmount: session.totalAmount,
+      teacherId: session.teacherId._id,
+      learnerId: session.learnerId._id
+    });
+    
     res.status(201).json(session);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error creating session:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -79,6 +92,32 @@ exports.getSessions = async (req, res) => {
       .sort({ date: -1 });
     
     res.json(sessions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get session by ID
+// @route   GET /api/sessions/:id
+// @access  Private
+exports.getSessionById = async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id)
+      .populate('teacherId', 'name email profileImage skillsTeach')
+      .populate('learnerId', 'name email profileImage');
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Check if user is part of the session
+    if (session.teacherId._id.toString() !== req.user.id && 
+        session.learnerId._id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    res.json(session);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -183,30 +222,4 @@ exports.rateSession = async (req, res) => {
   }
 };
 
-// @desc    Get session by ID
-// @route   GET /api/sessions/:id
-// @access  Private
-exports.getSessionById = async (req, res) => {
-  try {
-    const session = await Session.findById(req.params.id)
-      .populate('teacherId', 'name email profileImage skillsTeach')
-      .populate('learnerId', 'name email profileImage');
-    
-    if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-    
-    // Check if user is part of the session
-    if (session.teacherId._id.toString() !== req.user.id && 
-        session.learnerId._id.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    
-    res.json(session);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
 
-module.exports = exports;

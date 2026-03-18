@@ -1,35 +1,143 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { FiLogOut, FiUser, FiBook, FiMessageSquare, FiCalendar } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { FiSearch, FiUsers } from 'react-icons/fi';
+import { 
+  FiLogOut, 
+  FiUser, 
+  FiBook, 
+  FiMessageSquare, 
+  FiCalendar,
+  FiSearch,
+  FiUsers,
+  FiDollarSign,
+  FiStar,
+  FiClock,
+  FiAward
+} from 'react-icons/fi';
+import AddTeachingSkill from '../components/skills/AddTeachingSkill';
+import AddLearningSkill from '../components/skills/AddLearningSkill';
+import { userAPI } from '../services/api';
+import toast from 'react-hot-toast';
+
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getUserId } = useAuth();
+  const [userData, setUserData] = useState(null);
+  const [refresh, setRefresh] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const userId = getUserId();
+      if (userId) {
+        await fetchUserData(userId);
+      } else {
+        // Try to get from localStorage directly
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+          try {
+            const parsedUser = JSON.parse(savedUser);
+            const id = parsedUser.id || parsedUser._id;
+            if (id) {
+              await fetchUserData(id);
+            }
+          } catch (e) {
+            console.error('Error parsing saved user:', e);
+          }
+        }
+      }
+    };
+    
+    fetchData();
+  }, [refresh]);
+
+  const fetchUserData = async (userId) => {
+    try {
+      if (!userId) {
+        console.error('No user ID available');
+        return;
+      }
+      console.log('Fetching profile for user ID:', userId);
+      const response = await userAPI.getProfile(userId);
+      console.log('Profile data:', response.data);
+      setUserData(response.data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      toast.error('Failed to load user data');
+    }
+  };
+
+  const handleSkillAdded = () => {
+    setRefresh(!refresh);
+    toast.success('Skill added successfully!');
+  };
+
+  // Get user ID from multiple sources for the teacher profile link
+  const getTeacherProfileId = () => {
+    return (
+      userData?._id || 
+      userData?.id || 
+      user?.id || 
+      user?._id || 
+      JSON.parse(localStorage.getItem('user') || '{}').id ||
+      JSON.parse(localStorage.getItem('user') || '{}')._id
+    );
+  };
 
   const stats = [
-    { label: 'Skills Teaching', value: user?.skillsTeach?.length || 0, icon: FiBook, color: 'blue' },
-    { label: 'Skills Learning', value: user?.skillsLearn?.length || 0, icon: FiUser, color: 'purple' },
-    { label: 'Messages', value: '3', icon: FiMessageSquare, color: 'green' },
-    { label: 'Sessions', value: '5', icon: FiCalendar, color: 'orange' },
+    { 
+      label: 'Teaching Skills', 
+      value: userData?.skillsTeach?.length || 0, 
+      icon: FiBook, 
+      color: 'blue',
+      details: userData?.skillsTeach?.map(s => `${s.name} ($${s.hourlyRate}/hr)`).join(', ') 
+    },
+    { 
+      label: 'Learning Goals', 
+      value: userData?.skillsLearn?.length || 0, 
+      icon: FiUser, 
+      color: 'purple',
+      details: userData?.skillsLearn?.map(s => `${s.name} ($${s.budget}/hr)`).join(', ')
+    },
+    { 
+      label: 'Total Sessions', 
+      value: userData?.totalSessions || 0, 
+      icon: FiCalendar, 
+      color: 'green' 
+    },
+    { 
+      label: 'Earnings', 
+      value: userData?.totalEarnings ? `$${userData.totalEarnings}` : '$0', 
+      icon: FiDollarSign, 
+      color: 'orange' 
+    },
   ];
+
+  const teacherId = getTeacherProfileId();
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold gradient-text">SkillSwap</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+              SkillSwap
+            </h1>
             
             <div className="flex items-center gap-4">
-              <span className="text-gray-700">Welcome, {user?.name}</span>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                  {userData?.name?.charAt(0) || user?.name?.charAt(0) || 'U'}
+                </div>
+                <span className="text-gray-700 hidden sm:inline">{userData?.name || user?.name}</span>
+              </div>
               <button
                 onClick={logout}
-                className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
               >
                 <FiLogOut />
-                Logout
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
@@ -45,7 +153,7 @@ const Dashboard = () => {
           className="mb-8"
         >
           <h2 className="text-3xl font-bold text-gray-900">
-            Welcome back, {user?.name}! 👋
+            Welcome back, {userData?.name || user?.name}! 👋
           </h2>
           <p className="text-gray-600 mt-2">
             Ready to learn and share knowledge today?
@@ -53,64 +161,240 @@ const Dashboard = () => {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {stats.map((stat, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow"
+              whileHover={{ y: -5 }}
+              className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer group"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">{stat.label}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                </div>
-                <div className={`p-3 bg-${stat.color}-100 rounded-lg`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-3 bg-${stat.color}-100 rounded-lg group-hover:scale-110 transition-transform`}>
                   <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
                 </div>
+                {stat.label === 'Earnings' && (
+                  <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
+                    +10% fee
+                  </span>
+                )}
+              </div>
+              <div>
+                <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                {stat.details && (
+                  <p className="text-xs text-gray-500 mt-2 truncate" title={stat.details}>
+                    {stat.details}
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              <button className="w-full btn-primary">Find a Teacher</button>
-              <button className="w-full btn-secondary">Offer to Teach</button>
-              <button className="w-full btn-outline">Schedule Session</button>
+        {/* Add Skills Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Teaching Skills */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-white rounded-xl shadow-md p-6"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <FiBook className="text-blue-500" />
+              Skills You Teach <span className="text-sm text-gray-500">(Earn money)</span>
+            </h3>
+            
+            {/* List existing teaching skills */}
+            <div className="space-y-2 mb-4">
+              {userData?.skillsTeach?.map((skill, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div>
+                    <span className="font-medium text-gray-900">{skill.name}</span>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <FiAward className="w-3 h-3" />
+                        {skill.experience}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <FiClock className="w-3 h-3" />
+                        {skill.yearsOfExperience}yrs
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-green-600">${skill.hourlyRate}/hr</span>
+                    {skill.rating > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-gray-600">
+                        <FiStar className="w-3 h-3 text-yellow-500 fill-current" />
+                        {skill.rating}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+            
+            {/* Add Teaching Skill Component */}
+            <AddTeachingSkill 
+              onAdd={handleSkillAdded} 
+              existingSkills={userData?.skillsTeach} 
+            />
+          </motion.div>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          {/* Learning Skills */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-white rounded-xl shadow-md p-6"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <FiUser className="text-purple-500" />
+              Skills You Want to Learn <span className="text-sm text-gray-500">(Set budget)</span>
+            </h3>
+            
+            {/* List existing learning skills */}
+            <div className="space-y-2 mb-4">
+              {userData?.skillsLearn?.map((skill, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                  <div>
+                    <span className="font-medium text-gray-900">{skill.name}</span>
+                    <div className="flex mt-1">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        skill.priority === 'High' ? 'bg-red-100 text-red-600' :
+                        skill.priority === 'Medium' ? 'bg-yellow-100 text-yellow-600' :
+                        'bg-green-100 text-green-600'
+                      }`}>
+                        {skill.priority} Priority
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-purple-600">${skill.budget}/hr</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Add Learning Skill Component */}
+            <AddLearningSkill 
+              onAdd={handleSkillAdded} 
+              existingSkills={userData?.skillsLearn} 
+            />
+          </motion.div>
+        </div>
+
+        {/* Quick Actions & Upcoming Sessions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Quick Actions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl shadow-md p-6"
+          >
+            <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Link to="/marketplace">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full p-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2"
+                >
+                  <FiSearch className="w-6 h-6" />
+                  <span className="text-sm">Find Teacher</span>
+                </motion.button>
+              </Link>
+              
+              <Link to="/matches">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2"
+                >
+                  <FiUsers className="w-6 h-6" />
+                  <span className="text-sm">Your Matches</span>
+                </motion.button>
+              </Link>
+              <Link to="/sessions">
+  <motion.button
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+    className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2"
+  >
+    <FiCalendar className="w-6 h-6" />
+    <span className="text-sm">My Sessions</span>
+  </motion.button>
+</Link>
+              
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2"
+              >
+                <FiCalendar className="w-6 h-6" />
+                <span className="text-sm">Schedule</span>
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2"
+              >
+                <FiMessageSquare className="w-6 h-6" />
+                <span className="text-sm">Messages</span>
+              </motion.button>
+            </div>
+          </motion.div>
+
+          {/* Upcoming Sessions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-md p-6"
+          >
             <h3 className="text-xl font-semibold mb-4">Upcoming Sessions</h3>
-            <p className="text-gray-500 text-center py-8">No upcoming sessions</p>
-          </div>
-          <div className="space-y-3">
-  <Link to="/marketplace">
-    <button className="w-full btn-primary flex items-center justify-center gap-2">
-      <FiSearch />
-      Browse Skill Marketplace
-    </button>
-  </Link>
-  <Link to="/matches">
-    <button className="w-full btn-secondary flex items-center justify-center gap-2">
-      <FiUsers />
-      View Your Matches
-    </button>
-  </Link>
-  <button className="w-full btn-outline">Schedule Session</button>
-</div>
-        </motion.div>
+            <div className="text-center py-8">
+              <FiCalendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No upcoming sessions</p>
+              <Link to="/marketplace">
+                <button className="mt-4 text-blue-500 hover:text-blue-600 text-sm font-medium">
+                  Find a teacher to get started →
+                </button>
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Teacher Profile Preview (if user is a teacher) */}
+        {userData?.skillsTeach?.length > 0 && teacherId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-6 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-6 text-white"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold mb-2">Your Teacher Profile is Live! 🎉</h3>
+                <p className="text-blue-100 mb-4">
+                  Students can find you and book sessions
+                </p>
+                <Link to={`/teacher/${teacherId}`}>
+                  <button className="bg-white text-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50 transition-colors font-medium">
+                    View Your Public Profile
+                  </button>
+                </Link>
+              </div>
+              <div className="hidden md:block">
+                <FiUsers className="w-16 h-16 text-white/30" />
+              </div>
+            </div>
+          </motion.div>
+        )}
       </main>
     </div>
   );

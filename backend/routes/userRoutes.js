@@ -10,7 +10,8 @@ const {
   removeTeachingSkill,
   removeLearningSkill,
   getMatches,
-  getMutualMatches
+  getMutualMatches,
+  getAllTeachers
 } = require('../controllers/userController');
 
 // All routes are protected
@@ -31,5 +32,5 @@ router.delete('/skills/learn/:skillName', removeLearningSkill);
 // Match routes
 router.get('/matches', getMatches);
 router.get('/matches/mutual', getMutualMatches);
-
+router.get('/teachers', auth, getAllTeachers);
 module.exports = router;

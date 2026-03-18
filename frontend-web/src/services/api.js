@@ -1,15 +1,33 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+console.log('🔌 API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 second timeout
 });
 
+getProfile: (userId) => {
+  if (!userId) {
+    console.error('getProfile called with undefined userId');
+    // Try to get from localStorage as fallback
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      userId = parsedUser.id;
+      console.log('Using userId from localStorage:', userId);
+    } else {
+      return Promise.reject(new Error('User ID is required and not available'));
+    }
+  }
+  return api.get(`/users/profile/${userId}`);
+},
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
@@ -17,43 +35,62 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('🚀 Request:', {
+      method: config.method.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      data: config.data,
+      token: token ? 'Present' : 'Missing'
+    });
     return config;
   },
   (error) => {
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ Response:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data
+    });
+    return response;
+  },
   (error) => {
-    if (error.response) {
-      // Handle specific error status codes
-      switch (error.response.status) {
-        case 401:
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-            toast.error('Session expired. Please login again.');
-          }
-          break;
-        case 403:
-          toast.error('You do not have permission to perform this action');
-          break;
-        case 404:
-          toast.error('Resource not found');
-          break;
-        case 500:
-          toast.error('Server error. Please try again later.');
-          break;
-        default:
-          toast.error(error.response.data?.message || 'Something went wrong');
+    if (error.code === 'ECONNABORTED') {
+      console.error('❌ Timeout Error');
+      toast.error('Request timeout. Please try again.');
+    } else if (error.response) {
+      // Server responded with error
+      console.error('❌ Server Error:', {
+        status: error.response.status,
+        data: error.response.data,
+        url: error.config?.url
+      });
+      
+      const message = error.response.data?.message || 'Server error';
+      toast.error(message);
+      
+      if (error.response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
       }
     } else if (error.request) {
-      toast.error('Cannot connect to server. Please check your connection.');
+      // Request made but no response
+      console.error('❌ Network Error - No Response:', {
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
+      });
+      toast.error('Cannot connect to server. Make sure backend is running on port 5001');
     } else {
+      // Something else happened
+      console.error('❌ Error:', error.message);
       toast.error('An error occurred');
     }
     return Promise.reject(error);
@@ -69,83 +106,46 @@ export const authAPI = {
 
 // User APIs
 export const userAPI = {
-  getProfile: (userId) => api.get(`/users/profile/${userId}`),
+  getProfile: (userId) => {
+    if (!userId) {
+      return Promise.reject(new Error('User ID is required'));
+    }
+    return api.get(`/users/profile/${userId}`);
+  },
   updateProfile: (data) => api.put('/users/profile', data),
-  addSkill: (data) => api.post('/users/skills', data),
-  getMatches: () => api.get('/users/matches'),
+  getAllTeachers: () => api.get('/users/teachers'),
+  addTeachingSkill: (skillData) => {
+    console.log('Adding teaching skill:', skillData);
+    return api.post('/users/skills/teach', skillData);
+  },
+  addLearningSkill: (skillData) => {
+    console.log('Adding learning skill:', skillData);
+    return api.post('/users/skills/learn', skillData);
+  },
+  removeTeachingSkill: (skillName) => api.delete(`/users/skills/teach/${encodeURIComponent(skillName)}`),
+  removeLearningSkill: (skillName) => api.delete(`/users/skills/learn/${encodeURIComponent(skillName)}`),
 };
-
-// Skill APIs
-/*export const skillAPI = {
-  getAll: (params) => api.get('/skills', { params }),
-  getCategories: () => api.get('/skills/categories'),
-  search: (query) => api.get('/skills/search', { params: { q: query } }),
-};*/
-
-// Session APIs
-export const sessionAPI = {
-  create: (data) => api.post('/sessions', data),
-  getAll: () => api.get('/sessions'),
-  getById: (id) => api.get(`/sessions/${id}`),
-  updateStatus: (id, status) => api.put(`/sessions/${id}/status`, { status }),
-  rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
-};
-
-// Chat APIs
-export const chatAPI = {
-  getConversations: () => api.get('/chats'),
-  getMessages: (chatId) => api.get(`/chats/${chatId}/messages`),
-  sendMessage: (chatId, message) => api.post(`/chats/${chatId}/messages`, { message }),
-};
-// Add to your existing api.js file
 
 // Skill APIs
 export const skillAPI = {
-  // Get all skills with optional filters
   getAll: (params) => api.get('/skills', { params }),
-  
-  // Get skill categories
   getCategories: () => api.get('/skills/categories'),
-  
-  // Search skills
   search: (query) => api.get('/skills/search', { params: { q: query } }),
-  
-  // Get popular skills
   getPopular: () => api.get('/skills/popular'),
-  
-  // Add a new skill (admin only)
-  create: (skillData) => api.post('/skills', skillData),
 };
 
-// User Skills APIs
-export const userSkillAPI = {
-  // Add skill user wants to teach
-  addTeachingSkill: (skillData) => api.post('/users/skills/teach', skillData),
-  
-  // Add skill user wants to learn
-  addLearningSkill: (skillData) => api.post('/users/skills/learn', skillData),
-  
-  // Remove a teaching skill
-  removeTeachingSkill: (skillId) => api.delete(`/users/skills/teach/${skillId}`),
-  
-  // Remove a learning skill
-  removeLearningSkill: (skillId) => api.delete(`/users/skills/learn/${skillId}`),
-  
-  // Update skill experience level
-  updateSkillExperience: (skillId, experience) => 
-    api.put(`/users/skills/teach/${skillId}`, { experience }),
-};
-
-// Matching APIs
+// Match APIs
 export const matchAPI = {
-  // Get potential matches based on skills
   getMatches: () => api.get('/users/matches'),
-  
-  // Get mutual matches (two-way exchange)
   getMutualMatches: () => api.get('/users/matches/mutual'),
-  
-  // Get skill suggestions based on user's skills
-  getSuggestions: () => api.get('/users/matches/suggestions'),
+};
+
+// Session APIs
+export const sessionAPI = {
+  create: (sessionData) => api.post('/sessions', sessionData),
+  getAll: (params) => api.get('/sessions', { params }),
+  updateStatus: (id, status) => api.put(`/sessions/${id}/status`, { status }),
+  rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
 };
 
 export default api;

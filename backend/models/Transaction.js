@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
@@ -22,10 +23,10 @@ const transactionSchema = new mongoose.Schema({
   },
   currency: {
     type: String,
-    default: 'USD'
+    default: 'INR'
   },
   platformFee: {
-    type: Number, // 10% platform fee
+    type: Number,
     default: 0
   },
   teacherEarnings: {
@@ -39,14 +40,16 @@ const transactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'wallet', 'stripe'],
+    enum: ['card', 'wallet', 'stripe', 'razorpay'], // 👈 ADDED 'razorpay'
     required: true
   },
   stripePaymentIntentId: String,
   stripeTransferId: String,
+  razorpayOrderId: String,      // 👈 ADDED
+  razorpayPaymentId: String,    // 👈 ADDED
   
   // Session details
-  duration: Number, // in hours
+  duration: Number,
   hourlyRate: Number,
   
   // Timestamps

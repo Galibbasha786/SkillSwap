@@ -7,9 +7,17 @@ const Withdrawal = require('../models/Withdrawal');
 // @desc    Create payment intent for session
 // @route   POST /api/payments/create-payment-intent
 // @access  Private
+// In createPaymentIntent, add more detailed error logging:
 exports.createPaymentIntent = async (req, res) => {
   try {
     const { sessionId } = req.body;
+    console.log('Creating payment intent for session:', sessionId);
+    
+    // Check if Stripe is initialized
+    if (!stripe) {
+      console.error('Stripe not initialized - check STRIPE_SECRET_KEY');
+      return res.status(500).json({ message: 'Stripe configuration error' });
+    }
     
     const session = await Session.findById(sessionId)
       .populate('teacherId')
@@ -19,28 +27,41 @@ exports.createPaymentIntent = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
+    console.log('Session amount:', session.totalAmount);
+    
+    // Validate amount
+    const amount = Math.round(session.totalAmount * 100);
+    if (amount <= 0) {
+      return res.status(400).json({ message: 'Invalid amount' });
+    }
+    
     // Create payment intent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(session.totalAmount * 100), // in cents
+      amount: amount,
       currency: 'usd',
       metadata: {
         sessionId: session._id.toString(),
         teacherId: session.teacherId._id.toString(),
         learnerId: session.learnerId._id.toString()
-      },
-      receipt_email: session.learnerId.email
+      }
     });
     
-    res.json({
-      clientSecret: paymentIntent.client_secret,
-      amount: session.totalAmount
-    });
+    console.log('Payment intent created:', paymentIntent.id);
+    res.json({ clientSecret: paymentIntent.client_secret });
+    
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error creating payment' });
+    console.error('❌ Stripe Error:', {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      message: 'Error creating payment',
+      error: error.message 
+    });
   }
 };
-
 // @desc    Confirm payment and create transaction
 // @route   POST /api/payments/confirm
 // @access  Private
@@ -199,3 +220,31 @@ exports.getTransactions = async (req, res) => {
     res.status(500).json({ message: 'Error fetching transactions' });
   }
 };
+// In paymentController.js
+exports.testStripe = async (req, res) => {
+  try {
+    console.log('🧪 Testing Stripe connection...');
+    console.log('Stripe key present:', !!process.env.STRIPE_SECRET_KEY);
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: 1000,
+      currency: 'usd',
+    });
+    
+    console.log('✅ Test payment intent created:', paymentIntent.id);
+    res.json({ 
+      success: true, 
+      message: 'Stripe is working!',
+      paymentIntentId: paymentIntent.id 
+    });
+  } catch (error) {
+    console.error('❌ Stripe test failed:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      type: error.type
+    });
+  }
+};
+
+

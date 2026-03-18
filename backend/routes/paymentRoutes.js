@@ -6,7 +6,8 @@ const {
   confirmPayment,
   getEarnings,
   requestWithdrawal,
-  getTransactions
+  getTransactions,
+   testStripe
 } = require('../controllers/paymentController');
 
 // Payment routes
@@ -15,5 +16,5 @@ router.post('/confirm', auth, confirmPayment);
 router.get('/earnings', auth, getEarnings);
 router.get('/transactions', auth, getTransactions);
 router.post('/withdraw', auth, requestWithdrawal);
-
+router.post('/test', auth, testStripe);
 module.exports = router;
