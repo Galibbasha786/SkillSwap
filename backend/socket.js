@@ -1,6 +1,7 @@
 // backend/socket.js
 
 const socketIO = require('socket.io');
+const Chat = require('./models/Chat');
 
 let io;
 
@@ -14,9 +15,10 @@ const initializeSocket = (server) => {
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
-    // Verify token here (simplified)
-    if (token) {
-      socket.userId = socket.handshake.auth.userId;
+    const userId = socket.handshake.auth.userId;
+    
+    if (token && userId) {
+      socket.userId = userId;
       next();
     } else {
       next(new Error('Authentication error'));
@@ -37,15 +39,48 @@ const initializeSocket = (server) => {
 
     // Send message
     socket.on('send-message', async (data) => {
-      const { chatId, message } = data;
-      
-      // Save to database (implement later)
-      
-      // Broadcast to all in chat room
-      io.to(`chat:${chatId}`).emit('new-message', {
-        ...message,
-        timestamp: new Date()
-      });
+      try {
+        const { chatId, message } = data;
+        
+        console.log('Received message for chat:', chatId, message);
+        
+        // Save message to database
+        const chat = await Chat.findById(chatId);
+        
+        if (!chat) {
+          console.error('Chat not found:', chatId);
+          return;
+        }
+        
+        // Create message object
+        const newMessage = {
+          senderId: socket.userId,
+          content: message.content,
+          type: 'text',
+          read: false,
+          createdAt: new Date()
+        };
+        
+        // Add to chat
+        chat.messages.push(newMessage);
+        chat.lastMessage = message.content;
+        chat.lastMessageTime = new Date();
+        chat.lastMessageSender = socket.userId;
+        
+        await chat.save();
+        
+        console.log('Message saved to database:', newMessage);
+        
+        // Get the populated message
+        await chat.populate('messages.senderId', 'name email profileImage');
+        const savedMessage = chat.messages[chat.messages.length - 1];
+        
+        // Broadcast to all in chat room (including sender)
+        io.to(`chat:${chatId}`).emit('new-message', savedMessage);
+        
+      } catch (error) {
+        console.error('Error saving message:', error);
+      }
     });
 
     // Typing indicator
@@ -56,27 +91,42 @@ const initializeSocket = (server) => {
       });
     });
 
-    // Video call signaling
-    socket.on('call-user', ({ userId, offer }) => {
-      io.to(`user:${userId}`).emit('incoming-call', {
-        from: socket.userId,
-        offer,
-        roomName: `call-${Date.now()}`
-      });
-    });
-
-    socket.on('accept-call', ({ to, answer }) => {
-      io.to(`user:${to}`).emit('call-accepted', {
-        from: socket.userId,
-        answer
-      });
-    });
-
-    socket.on('ice-candidate', ({ to, candidate }) => {
-      io.to(`user:${to}`).emit('ice-candidate', {
-        from: socket.userId,
-        candidate
-      });
+    // ✅ FIXED: Mark messages as read - Now properly inside socket.on
+    socket.on('mark-read', async ({ chatId, messageIds }) => {
+      try {
+        console.log('Marking messages as read:', { chatId, messageIds });
+        
+        const chat = await Chat.findById(chatId);
+        
+        if (!chat) return;
+        
+        // Update messages as read
+        let updated = false;
+        chat.messages.forEach(msg => {
+          if (messageIds.includes(msg._id.toString()) && 
+              msg.senderId.toString() !== socket.userId) {
+            msg.read = true;
+            msg.readAt = new Date();
+            updated = true;
+          }
+        });
+        
+        if (updated) {
+          await chat.save();
+          
+          // Notify others that messages were read
+          socket.to(`chat:${chatId}`).emit('messages-read', {
+            messageIds,
+            readerId: socket.userId,
+            readAt: new Date()
+          });
+          
+          console.log('Messages marked as read:', messageIds);
+        }
+        
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
+      }
     });
 
     socket.on('disconnect', () => {

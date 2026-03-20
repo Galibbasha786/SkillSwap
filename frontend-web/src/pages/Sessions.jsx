@@ -1,7 +1,7 @@
-// src/pages/Sessions.jsx
+// frontend-web/src/pages/Sessions.jsx
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiCalendar, 
   FiClock, 
@@ -10,17 +10,21 @@ import {
   FiUser,
   FiCheckCircle,
   FiXCircle,
+  FiExternalLink,
+  FiTrash2,
   FiAlertCircle
 } from 'react-icons/fi';
 import { sessionAPI } from '../services/api';
-import VideoCall from '../components/video/VideoCall';
 import toast from 'react-hot-toast';
 
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSession, setActiveSession] = useState(null);
-  const [filter, setFilter] = useState('upcoming'); // upcoming, past, cancelled
+  const [filter, setFilter] = useState('upcoming');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -30,7 +34,7 @@ const Sessions = () => {
     try {
       setLoading(true);
       const response = await sessionAPI.getAll();
-      setSessions(response.data);
+      setSessions(response.data || []);
     } catch (error) {
       toast.error('Failed to load sessions');
     } finally {
@@ -38,20 +42,12 @@ const Sessions = () => {
     }
   };
 
-  const handleStartCall = (session) => {
-    setActiveSession(session);
-  };
-
-  const handleJoinCall = (session) => {
-    setActiveSession(session);
-  };
-
   const filteredSessions = sessions.filter(session => {
     const sessionDate = new Date(session.date);
     const now = new Date();
 
     if (filter === 'upcoming') {
-      return sessionDate > now && session.status !== 'cancelled';
+      return sessionDate > now && session.status !== 'cancelled' && session.status !== 'completed';
     } else if (filter === 'past') {
       return sessionDate < now || session.status === 'completed';
     } else if (filter === 'cancelled') {
@@ -70,6 +66,62 @@ const Sessions = () => {
     }
   };
 
+  const handleJoinMeet = (meetLink) => {
+  if (!meetLink) {
+    toast.error('No meeting link available');
+    return;
+  }
+  
+  // Open in new tab
+  window.open(meetLink, '_blank', 'noopener,noreferrer');
+};
+  const handleCancelClick = (session) => {
+    setSelectedSession(session);
+    setShowCancelModal(true);
+  };
+
+  const handleCancelSession = async () => {
+    if (!cancelReason.trim()) {
+      toast.error('Please provide a reason');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await sessionAPI.cancelSession(selectedSession._id, { reason: cancelReason });
+      
+      setSessions(prev => prev.map(s => 
+        s._id === selectedSession._id 
+          ? { ...s, status: 'cancelled', cancellationReason: cancelReason } 
+          : s
+      ));
+      
+      toast.success('Session cancelled');
+      setShowCancelModal(false);
+      setCancelReason('');
+    } catch (error) {
+      toast.error('Failed to cancel');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!window.confirm('Delete this session? This cannot be undone.')) return;
+
+    try {
+      await sessionAPI.deleteSession(sessionId);
+      setSessions(prev => prev.filter(s => s._id !== sessionId));
+      toast.success('Session deleted');
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const canCancel = (session) => {
+    return new Date(session.date) > new Date() && session.status === 'scheduled';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -85,7 +137,6 @@ const Sessions = () => {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">My Sessions</h1>
           
-          {/* Filters */}
           <div className="flex gap-2">
             {['upcoming', 'past', 'cancelled'].map((f) => (
               <button
@@ -121,11 +172,11 @@ const Sessions = () => {
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Session Info */}
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4 flex-1">
                     <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white">
                       <FiVideo className="w-6 h-6" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-gray-900">{session.title}</h3>
                       <p className="text-sm text-gray-600 mt-1">
                         with {session.teacherId?.name || session.learnerId?.name}
@@ -143,33 +194,51 @@ const Sessions = () => {
                           {session.status}
                         </span>
                       </div>
+                      
+                      {/* Meet Link */}
+                      {session.meetLink && session.status !== 'cancelled' && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Meeting:</span>
+                          <span className="text-xs font-mono text-gray-600">
+                            {session.meetLink}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex gap-2">
-                    {session.status === 'scheduled' && new Date(session.date) <= new Date() && (
+                    {/* Join Button */}
+                    {session.meetLink && session.status === 'scheduled' && (
+  <button
+    onClick={() => handleJoinMeet(session.meetLink)}
+    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+  >
+    <FiVideo className="w-4 h-4" />
+    Join Google Meet
+  </button>
+)}
+                    
+                    {/* Cancel Button */}
+                    {canCancel(session) && (
                       <button
-                        onClick={() => handleStartCall(session)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                        onClick={() => handleCancelClick(session)}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
                       >
-                        <FiVideo />
-                        Start Call
+                        <FiXCircle className="w-4 h-4" />
+                        Cancel
                       </button>
                     )}
-                    {session.status === 'ongoing' && (
+
+                    {/* Delete Button */}
+                    {(session.status === 'cancelled' || session.status === 'completed') && (
                       <button
-                        onClick={() => handleJoinCall(session)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                        onClick={() => handleDeleteSession(session._id)}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
                       >
-                        <FiVideo />
-                        Join Call
-                      </button>
-                    )}
-                    {session.status === 'completed' && !session.rating && (
-                      <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                        <FiStar />
-                        Rate Session
+                        <FiTrash2 className="w-4 h-4" />
+                        Delete
                       </button>
                     )}
                   </div>
@@ -180,13 +249,50 @@ const Sessions = () => {
         </div>
       </div>
 
-      {/* Video Call Modal */}
-      {activeSession && (
-        <VideoCall
-          session={activeSession}
-          onClose={() => setActiveSession(null)}
-        />
-      )}
+      {/* Cancel Modal */}
+      <AnimatePresence>
+        {showCancelModal && selectedSession && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-white rounded-xl max-w-md w-full p-6"
+            >
+              <h3 className="text-xl font-bold mb-4">Cancel Session</h3>
+              
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Reason for cancellation..."
+                className="w-full px-4 py-2 border rounded-lg mb-4"
+                rows="3"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleCancelSession}
+                  disabled={actionLoading}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                >
+                  {actionLoading ? 'Processing...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

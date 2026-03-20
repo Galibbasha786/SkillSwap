@@ -6,7 +6,6 @@ import {
   FiX, 
   FiCalendar, 
   FiClock, 
-  FiCreditCard,
   FiVideo,
   FiCheckCircle,
   FiDollarSign
@@ -43,26 +42,32 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     try {
       setLoading(true);
       
+      const [year, month, day] = date.split('-');
+      const [hours, minutes] = time.split(':');
+      
+      const localDate = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hours),
+        parseInt(minutes)
+      );
+      
       const sessionData = {
         teacherId: teacher._id,
         skillName: skill.name,
         title: `Learn ${skill.name} with ${teacher.name}`,
         description: `One-on-one session on ${skill.name}`,
-        date: `${date}T${time}:00.000Z`,
+        date: localDate.toISOString(),
         duration,
         hourlyRate: skill.hourlyRate
       };
 
-      console.log('Creating session with data:', sessionData);
-      
       const response = await sessionAPI.create(sessionData);
-      console.log('✅ Session created:', response.data);
-      
       setSession(response.data);
       setStep(2);
     } catch (error) {
-      console.error('Error creating session:', error);
-      toast.error('Failed to create session. Please try again.');
+      toast.error('Failed to create session');
     } finally {
       setLoading(false);
     }
@@ -82,15 +87,8 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     try {
       setProcessing(true);
       
-      // Load Razorpay script if not already loaded
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        toast.error('Failed to load payment gateway');
-        setProcessing(false);
-        return;
-      }
+      await loadRazorpayScript();
       
-      // Create order in backend
       const orderResponse = await fetch('http://localhost:5001/api/razorpay/create-order', {
         method: 'POST',
         headers: {
@@ -102,20 +100,14 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       
       const orderData = await orderResponse.json();
       
-      if (!orderData.success) {
-        throw new Error(orderData.message || 'Failed to create order');
-      }
-      
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'SkillSwap',
         description: `Session with ${teacher.name}`,
-        image: 'https://skillswap.com/logo.png', // Add your logo URL
         order_id: orderData.orderId,
         handler: async function(response) {
-          // Verify payment
           const verifyResponse = await fetch('http://localhost:5001/api/razorpay/verify', {
             method: 'POST',
             headers: {
@@ -134,36 +126,22 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
           
           if (verifyData.success) {
             toast.success('Payment successful! Session booked.');
+            toast.success('Google Meet link generated', { icon: '🔗' });
             onBooked(session);
             onClose();
-          } else {
-            toast.error('Payment verification failed');
           }
         },
         prefill: {
           name: teacher.name,
-          email: teacher.email,
-          contact: '9999999999' // You can collect this from user
+          email: teacher.email
         },
-        notes: {
-          address: 'SkillSwap Session'
-        },
-        theme: {
-          color: '#3B82F6'
-        },
-        modal: {
-          ondismiss: function() {
-            setProcessing(false);
-            toast('Payment cancelled', { icon: '❌' });
-          }
-        }
+        theme: { color: '#3B82F6' }
       };
       
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error) {
-      console.error('Payment error:', error);
-      toast.error(error.message || 'Payment failed');
+      toast.error('Payment failed');
     } finally {
       setProcessing(false);
     }
@@ -178,7 +156,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
         animate={{ scale: 1, opacity: 1 }}
         className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
       >
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
           <h2 className="text-xl font-bold">Book Session</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <FiX className="w-5 h-5" />
@@ -197,6 +175,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
         </div>
 
         <div className="p-6">
+          {/* Teacher Info */}
           <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg">
             <img 
               src={teacher?.profileImage || 'https://via.placeholder.com/50'} 
@@ -211,148 +190,88 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
           </div>
 
           {step === 1 && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Date
-                </label>
-                <input
-                  type="date"
-                  min={new Date().toISOString().split('T')[0]}
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Time
-                </label>
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration (minutes)
-                </label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(parseInt(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={30}>30 minutes</option>
-                  <option value={60}>1 hour</option>
-                  <option value={90}>1.5 hours</option>
-                  <option value={120}>2 hours</option>
-                </select>
-              </div>
+            <div className="space-y-4">
+              <input
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg"
+              />
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg"
+              />
+              <select
+                value={duration}
+                onChange={(e) => setDuration(parseInt(e.target.value))}
+                className="w-full px-4 py-2 border rounded-lg"
+              >
+                <option value={30}>30 minutes</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+              </select>
 
               <div className="bg-blue-50 rounded-lg p-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Rate:</span>
-                  <span className="font-medium">₹{skill?.hourlyRate}/hour</span>
+                <div className="flex justify-between font-bold">
+                  <span>Total:</span>
+                  <span className="text-green-600">₹{totals.total}</span>
                 </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Duration:</span>
-                  <span className="font-medium">{duration} minutes</span>
-                </div>
-                <div className="border-t border-blue-200 my-2 pt-2">
-                  <div className="flex justify-between font-bold">
-                    <span>Total:</span>
-                    <span className="text-green-600">₹{totals.total}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Includes 10% platform fee
-                  </p>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">Includes 10% platform fee</p>
               </div>
 
               <button
                 onClick={handleDateTimeSelect}
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
+                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg"
               >
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating Session...
-                  </div>
-                ) : (
-                  'Continue to Payment'
-                )}
+                {loading ? 'Creating...' : 'Continue to Payment'}
               </button>
-            </motion.div>
+            </div>
           )}
 
           {step === 2 && session && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-4"
-            >
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal ({duration} mins)</span>
-                  <span className="font-medium">₹{totals.subtotal}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Platform fee (10%)</span>
-                  <span className="font-medium">₹{totals.fee}</span>
-                </div>
-                <div className="border-t border-gray-200 my-2 pt-2">
-                  <div className="flex justify-between font-bold">
-                    <span>Total</span>
-                    <span className="text-green-600">₹{totals.total}</span>
-                  </div>
+                  <span>Total</span>
+                  <span className="font-bold text-green-600">₹{totals.total}</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <FiVideo className="text-blue-500" />
-                  <span className="text-sm font-medium">Video Call Session</span>
+                  <span>Google Meet Session</span>
                 </div>
                 <FiCheckCircle className="text-green-500" />
               </div>
 
+              {session.meetLink && (
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-xs text-green-700">✅ Meet link ready:</p>
+                  <p className="text-xs text-green-600 break-all">{session.meetLink}</p>
+                </div>
+              )}
+
               <button
                 onClick={handleRazorpayPayment}
                 disabled={processing}
-                className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg"
               >
-                {processing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FiDollarSign />
-                    Pay ₹{totals.total} with Razorpay
-                  </>
-                )}
+                {processing ? 'Processing...' : `Pay ₹${totals.total}`}
               </button>
 
               <button
                 onClick={() => setStep(1)}
-                disabled={processing}
-                className="w-full py-2 text-gray-600 hover:text-gray-800 text-sm"
+                className="w-full py-2 text-gray-600 text-sm"
               >
-                Back to Edit
+                Back
               </button>
-            </motion.div>
+            </div>
           )}
         </div>
       </motion.div>

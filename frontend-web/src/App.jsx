@@ -13,6 +13,7 @@ import SkillMarketplace from './pages/SkillMarketplace';
 import Matches from './pages/Matches';
 import TeacherProfile from './pages/TeacherProfile';  // ✅ Add this import
 import Sessions from './pages/Sessions';
+import Messages from './pages/Messages';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -106,6 +107,11 @@ function AppContent() {
           <Route path="/sessions" element={
   <ProtectedRoute>
     <Sessions />
+  </ProtectedRoute>
+} />
+<Route path="/messages" element={
+  <ProtectedRoute>
+    <Messages />
   </ProtectedRoute>
 } />
           {/* Catch all */}

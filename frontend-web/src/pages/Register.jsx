@@ -1,8 +1,13 @@
+// src/pages/Register.jsx
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiCheckCircle } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
+import { GoogleLogin } from '@react-oauth/google';
+import toast from 'react-hot-toast';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -13,7 +18,7 @@ const Register = () => {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -79,6 +84,26 @@ const Register = () => {
     setLoading(false);
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setLoading(true);
+      const result = await googleLogin(credentialResponse.credential);
+      if (result.success) {
+        toast.success('Google signup successful!');
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Google signup error:', error);
+      toast.error('Google signup failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    toast.error('Google signup failed');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       {/* Background Animation */}
@@ -107,12 +132,48 @@ const Register = () => {
             <p className="text-gray-600">Start your skill exchange journey today</p>
           </motion.div>
 
+          {/* Google Sign Up Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mb-6"
+          >
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+                theme="outline"
+                size="large"
+                shape="rectangular"
+                text="signup_with"
+                width="100%"
+              />
+            </div>
+          </motion.div>
+
+          {/* Divider */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="relative my-6"
+          >
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white/80 text-gray-500">Or sign up with email</span>
+            </div>
+          </motion.div>
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.4 }}
             >
               <label className="input-label">Full Name</label>
               <div className="relative">
@@ -132,7 +193,7 @@ const Register = () => {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.5 }}
             >
               <label className="input-label">Email Address</label>
               <div className="relative">
@@ -152,7 +213,7 @@ const Register = () => {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.6 }}
             >
               <label className="input-label">Password</label>
               <div className="relative">
@@ -172,7 +233,7 @@ const Register = () => {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.7 }}
             >
               <label className="input-label">Confirm Password</label>
               <div className="relative">
@@ -192,7 +253,7 @@ const Register = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
+              transition={{ delay: 0.8 }}
             >
               <label className="flex items-center">
                 <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500" required />
@@ -208,7 +269,7 @@ const Register = () => {
             <motion.button
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
+              transition={{ delay: 0.9 }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
@@ -230,7 +291,7 @@ const Register = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.9 }}
+            transition={{ delay: 1.0 }}
             className="mt-6 text-center"
           >
             <p className="text-gray-600">

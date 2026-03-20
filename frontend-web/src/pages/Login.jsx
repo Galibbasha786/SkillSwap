@@ -1,14 +1,19 @@
+// src/pages/Login.jsx
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiMail, FiLock, FiArrowRight, FiUser } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
+import { GoogleLogin } from '@react-oauth/google';
+import toast from 'react-hot-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -20,6 +25,26 @@ const Login = () => {
       navigate('/dashboard');
     }
     setLoading(false);
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setLoading(true);
+      const result = await googleLogin(credentialResponse.credential);
+      if (result.success) {
+        toast.success('Google login successful!');
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast.error('Google login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    toast.error('Google login failed');
   };
 
   return (
@@ -50,12 +75,48 @@ const Login = () => {
             <p className="text-gray-600">Sign in to continue your learning journey</p>
           </motion.div>
 
+          {/* Google Sign In Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mb-6"
+          >
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+                theme="outline"
+                size="large"
+                shape="rectangular"
+                text="continue_with"
+                width="100%"
+              />
+            </div>
+          </motion.div>
+
+          {/* Divider */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="relative my-6"
+          >
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white/80 text-gray-500">Or continue with email</span>
+            </div>
+          </motion.div>
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.4 }}
             >
               <label className="input-label">Email Address</label>
               <div className="relative">
@@ -74,7 +135,7 @@ const Login = () => {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.5 }}
             >
               <label className="input-label">Password</label>
               <div className="relative">
@@ -93,7 +154,7 @@ const Login = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.6 }}
               className="flex items-center justify-between"
             >
               <label className="flex items-center">
@@ -108,7 +169,7 @@ const Login = () => {
             <motion.button
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.7 }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
@@ -130,7 +191,7 @@ const Login = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
+            transition={{ delay: 0.8 }}
             className="relative my-8"
           >
             <div className="absolute inset-0 flex items-center">
@@ -145,7 +206,7 @@ const Login = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
+            transition={{ delay: 0.9 }}
           >
             <Link to="/register">
               <button className="btn-secondary w-full flex items-center justify-center gap-2">

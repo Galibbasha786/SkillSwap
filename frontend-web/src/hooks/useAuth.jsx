@@ -12,6 +12,21 @@ export const useAuth = () => {
   }
   return context;
 };
+const googleLogin = async (credential) => {
+  try {
+    const response = await authAPI.googleLogin({ credential });
+    const { token, user } = response.data;
+    
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    setUser(user);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Google login error:', error);
+    return { success: false, error: error.response?.data?.message };
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -36,7 +51,28 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
+// In useAuth.jsx, update googleLogin function:
 
+const googleLogin = async (credential) => {
+  try {
+    setLoading(true);
+    const response = await authAPI.googleLogin({ credential });
+    const { token, user } = response.data;
+    
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    setUser(user);
+    
+    toast.success('Google login successful!');
+    return { success: true };
+  } catch (error) {
+    console.error('Google login error:', error);
+    toast.error(error.response?.data?.message || 'Google login failed');
+    return { success: false, error: error.response?.data?.message };
+  } finally {
+    setLoading(false);
+  }
+};
   const login = async (email, password) => {
     try {
       const response = await authAPI.login({ email, password });
@@ -105,6 +141,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     getUserId,
+    googleLogin,
     isAuthenticated: !!user,
   };
 

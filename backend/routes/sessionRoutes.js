@@ -1,3 +1,4 @@
+// backend/routes/sessionRoutes.js
 
 const express = require('express');
 const router = express.Router();
@@ -7,14 +8,15 @@ const {
   getSessions,
   getSessionById,
   updateSessionStatus,
-  rateSession
+  cancelSession,
+  deleteSession
 } = require('../controllers/sessionController');
 
-// Routes
 router.post('/', auth, createSession);
 router.get('/', auth, getSessions);
 router.get('/:id', auth, getSessionById);
 router.put('/:id/status', auth, updateSessionStatus);
-router.post('/:id/rate', auth, rateSession);
+router.post('/:id/cancel', auth, cancelSession);
+router.delete('/:id', auth, deleteSession);
 
 module.exports = router;

@@ -102,6 +102,7 @@ export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
   getMe: () => api.get('/auth/me'),
+  googleLogin: (data) => api.post('/auth/google', data),
 };
 
 // User APIs
@@ -146,6 +147,16 @@ export const sessionAPI = {
   getAll: (params) => api.get('/sessions', { params }),
   updateStatus: (id, status) => api.put(`/sessions/${id}/status`, { status }),
   rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
+  cancelSession: (id, data) => api.post(`/sessions/${id}/cancel`, data),
+deleteSession: (id) => api.delete(`/sessions/${id}`),
+};
+export const chatAPI = {
+  getConversations: () => api.get('/chats'),
+  // In api.js, add to chatAPI:
+getMessages: (chatId) => api.get(`/chats/${chatId}/messages`),
+  sendMessage: (chatId, message) => api.post(`/chats/${chatId}/messages`, { message }),
+  createChat: (data) => api.post('/chats', data),
+  markAsRead: (chatId) => api.put(`/chats/${chatId}/read`),
 };
 
 export default api;

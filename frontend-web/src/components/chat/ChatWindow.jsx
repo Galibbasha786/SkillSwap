@@ -2,39 +2,139 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSend, FiVideo, FiPaperclip, FiSmile } from 'react-icons/fi';
+import { FiSend, FiVideo, FiPaperclip, FiSmile, FiX } from 'react-icons/fi';
 import { useSocket } from '../../hooks/useSocket';
 import { useAuth } from '../../hooks/useAuth';
+import { chatAPI } from '../../services/api';
 import MessageBubble from './MessageBubble';
+import toast from 'react-hot-toast';
 
 const ChatWindow = ({ chat, onClose, onStartCall }) => {
   const { user } = useAuth();
-  const { sendMessage, sendTyping, joinChat } = useSocket();
-  const [messages, setMessages] = useState(chat?.messages || []);
+  const { socket, sendMessage, sendTyping, joinChat } = useSocket();
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  // Add these to ChatWindow.jsx
 
+// State for unread messages
+const [unreadMessages, setUnreadMessages] = useState([]);
+
+// Mark messages as read when user views them
+useEffect(() => {
+  if (messages.length > 0 && chat?._id) {
+    const unread = messages.filter(
+      msg => !msg.read && msg.senderId !== user.id
+    );
+    
+    if (unread.length > 0) {
+      const unreadIds = unread.map(msg => msg._id);
+      
+      // Mark as read via socket
+      socket?.emit('mark-read', {
+        chatId: chat._id,
+        messageIds: unreadIds
+      });
+      
+      // Update local state
+      setMessages(prev =>
+        prev.map(msg =>
+          unreadIds.includes(msg._id)
+            ? { ...msg, read: true }
+            : msg
+        )
+      );
+    }
+  }
+}, [messages.length, chat?._id]); // Run when messages load or change
+
+// Listen for read receipts
+useEffect(() => {
+  if (!socket) return;
+
+  const handleMessagesRead = ({ messageIds, readerId, readAt }) => {
+    if (readerId !== user.id) {
+      setMessages(prev =>
+        prev.map(msg =>
+          messageIds.includes(msg._id)
+            ? { ...msg, read: true, readAt }
+            : msg
+        )
+      );
+    }
+  };
+
+  socket.on('messages-read', handleMessagesRead);
+
+  return () => {
+    socket.off('messages-read', handleMessagesRead);
+  };
+}, [socket, user.id]);
+
+  // Fetch messages when chat changes
   useEffect(() => {
     if (chat?._id) {
+      fetchMessages();
       joinChat(chat._id);
     }
   }, [chat?._id]);
+
+  // Listen for new messages via socket
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (message) => {
+      console.log('New message received:', message);
+      setMessages(prev => [...prev, message]);
+    };
+
+    const handleUserTyping = ({ userId, isTyping }) => {
+      if (userId !== user.id) {
+        setTypingUsers(prev => 
+          isTyping ? [...prev, userId] : prev.filter(id => id !== userId)
+        );
+      }
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('user-typing', handleUserTyping);
+
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('user-typing', handleUserTyping);
+    };
+  }, [socket, user.id]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
+  const fetchMessages = async () => {
+    try {
+      setLoading(true);
+      const response = await chatAPI.getMessages(chat._id);
+      console.log('Fetched messages:', response.data);
+      setMessages(response.data || []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast.error('Failed to load messages');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    const message = {
+    const messageData = {
       id: Date.now(),
       content: newMessage,
       senderId: user.id,
@@ -42,8 +142,12 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
       status: 'sending'
     };
 
-    setMessages([...messages, message]);
-    sendMessage(chat._id, message);
+    // Optimistically add to UI
+    setMessages([...messages, messageData]);
+    
+    // Send via socket
+    sendMessage(chat._id, messageData);
+    
     setNewMessage('');
   };
 
@@ -71,6 +175,14 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
 
   const otherParticipant = chat?.participants?.find(p => p._id !== user.id);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Chat Header */}
@@ -82,7 +194,7 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
             className="w-10 h-10 rounded-full border-2 border-white"
           />
           <div>
-            <h3 className="font-semibold">{otherParticipant?.name}</h3>
+            <h3 className="font-semibold">{otherParticipant?.name || 'Teacher'}</h3>
             <p className="text-xs text-blue-100">
               {typingUsers.includes(otherParticipant?._id) ? 'Typing...' : 'Online'}
             </p>
@@ -106,15 +218,22 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-        <AnimatePresence>
-          {messages.map((message, index) => (
-            <MessageBubble
-              key={message.id || index}
-              message={message}
-              isOwn={message.senderId === user.id}
-            />
-          ))}
-        </AnimatePresence>
+        {messages.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No messages yet</p>
+            <p className="text-sm mt-2">Send a message to start the conversation</p>
+          </div>
+        ) : (
+          <AnimatePresence>
+            {messages.map((message, index) => (
+              <MessageBubble
+                key={message._id || message.id || index}
+                message={message}
+                isOwn={message.senderId === user.id || message.senderId?._id === user.id}
+              />
+            ))}
+          </AnimatePresence>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

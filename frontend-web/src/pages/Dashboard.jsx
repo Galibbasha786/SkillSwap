@@ -1,3 +1,4 @@
+// frontend-web/src/pages/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -14,32 +15,41 @@ import {
   FiDollarSign,
   FiStar,
   FiClock,
-  FiAward
+  FiAward,
+  FiVideo,
+  FiCheckCircle
 } from 'react-icons/fi';
 import AddTeachingSkill from '../components/skills/AddTeachingSkill';
 import AddLearningSkill from '../components/skills/AddLearningSkill';
-import { userAPI } from '../services/api';
+import { userAPI, sessionAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
   const { user, logout, getUserId } = useAuth();
   const [userData, setUserData] = useState(null);
+  const [upcomingSessions, setUpcomingSessions] = useState([]);
+  const [completedSessions, setCompletedSessions] = useState([]);
   const [refresh, setRefresh] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       const userId = getUserId();
       if (userId) {
-        await fetchUserData(userId);
+        await Promise.all([
+          fetchUserData(userId),
+          fetchSessions()
+        ]);
       } else {
-        // Try to get from localStorage directly
         const savedUser = localStorage.getItem('user');
         if (savedUser) {
           try {
             const parsedUser = JSON.parse(savedUser);
             const id = parsedUser.id || parsedUser._id;
             if (id) {
-              await fetchUserData(id);
+              await Promise.all([
+                fetchUserData(id),
+                fetchSessions()
+              ]);
             }
           } catch (e) {
             console.error('Error parsing saved user:', e);
@@ -67,12 +77,39 @@ const Dashboard = () => {
     }
   };
 
+  const fetchSessions = async () => {
+    try {
+      const response = await sessionAPI.getAll();
+      const allSessions = response.data || [];
+      
+      const now = new Date();
+      const upcoming = allSessions.filter(session => {
+        const sessionDate = new Date(session.date);
+        return sessionDate > now && 
+               session.status !== 'completed' && 
+               session.status !== 'cancelled';
+      });
+      
+      const completed = allSessions.filter(session => {
+        return session.status === 'completed';
+      });
+      
+      setUpcomingSessions(upcoming);
+      setCompletedSessions(completed);
+      
+      console.log('Upcoming sessions:', upcoming.length);
+      console.log('Completed sessions:', completed.length);
+      
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+  };
+
   const handleSkillAdded = () => {
     setRefresh(!refresh);
     toast.success('Skill added successfully!');
   };
 
-  // Get user ID from multiple sources for the teacher profile link
   const getTeacherProfileId = () => {
     return (
       userData?._id || 
@@ -84,31 +121,43 @@ const Dashboard = () => {
     );
   };
 
+  const formatDateTime = (dateString) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const handleJoinMeet = (meetLink) => {
+    window.open(meetLink, '_blank');
+  };
+
   const stats = [
     { 
       label: 'Teaching Skills', 
       value: userData?.skillsTeach?.length || 0, 
       icon: FiBook, 
       color: 'blue',
-      details: userData?.skillsTeach?.map(s => `${s.name} ($${s.hourlyRate}/hr)`).join(', ') 
+      details: userData?.skillsTeach?.map(s => `${s.name} (₹${s.hourlyRate}/hr)`).join(', ') 
     },
     { 
       label: 'Learning Goals', 
       value: userData?.skillsLearn?.length || 0, 
       icon: FiUser, 
       color: 'purple',
-      details: userData?.skillsLearn?.map(s => `${s.name} ($${s.budget}/hr)`).join(', ')
+      details: userData?.skillsLearn?.map(s => `${s.name} (₹${s.budget}/hr)`).join(', ')
     },
     { 
-      label: 'Total Sessions', 
-      value: userData?.totalSessions || 0, 
+      label: 'Upcoming', 
+      value: upcomingSessions.length || 0, 
       icon: FiCalendar, 
       color: 'green' 
     },
     { 
-      label: 'Earnings', 
-      value: userData?.totalEarnings ? `$${userData.totalEarnings}` : '$0', 
-      icon: FiDollarSign, 
+      label: 'Completed', 
+      value: completedSessions.length || 0, 
+      icon: FiCheckCircle, 
       color: 'orange' 
     },
   ];
@@ -175,11 +224,6 @@ const Dashboard = () => {
                 <div className={`p-3 bg-${stat.color}-100 rounded-lg group-hover:scale-110 transition-transform`}>
                   <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
                 </div>
-                {stat.label === 'Earnings' && (
-                  <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
-                    +10% fee
-                  </span>
-                )}
               </div>
               <div>
                 <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
@@ -207,7 +251,6 @@ const Dashboard = () => {
               Skills You Teach <span className="text-sm text-gray-500">(Earn money)</span>
             </h3>
             
-            {/* List existing teaching skills */}
             <div className="space-y-2 mb-4">
               {userData?.skillsTeach?.map((skill, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
@@ -225,19 +268,12 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-bold text-green-600">${skill.hourlyRate}/hr</span>
-                    {skill.rating > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-gray-600">
-                        <FiStar className="w-3 h-3 text-yellow-500 fill-current" />
-                        {skill.rating}
-                      </div>
-                    )}
+                    <span className="text-lg font-bold text-green-600">₹{skill.hourlyRate}/hr</span>
                   </div>
                 </div>
               ))}
             </div>
             
-            {/* Add Teaching Skill Component */}
             <AddTeachingSkill 
               onAdd={handleSkillAdded} 
               existingSkills={userData?.skillsTeach} 
@@ -255,7 +291,6 @@ const Dashboard = () => {
               Skills You Want to Learn <span className="text-sm text-gray-500">(Set budget)</span>
             </h3>
             
-            {/* List existing learning skills */}
             <div className="space-y-2 mb-4">
               {userData?.skillsLearn?.map((skill, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
@@ -272,13 +307,12 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-bold text-purple-600">${skill.budget}/hr</span>
+                    <span className="text-lg font-bold text-purple-600">₹{skill.budget}/hr</span>
                   </div>
                 </div>
               ))}
             </div>
             
-            {/* Add Learning Skill Component */}
             <AddLearningSkill 
               onAdd={handleSkillAdded} 
               existingSkills={userData?.skillsLearn} 
@@ -286,95 +320,163 @@ const Dashboard = () => {
           </motion.div>
         </div>
 
-        {/* Quick Actions & Upcoming Sessions */}
+        {/* Sessions Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Quick Actions */}
+          {/* Upcoming Sessions */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="bg-white rounded-xl shadow-md p-6"
           >
-            <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Link to="/marketplace">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full p-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2"
-                >
-                  <FiSearch className="w-6 h-6" />
-                  <span className="text-sm">Find Teacher</span>
-                </motion.button>
-              </Link>
-              
-              <Link to="/matches">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2"
-                >
-                  <FiUsers className="w-6 h-6" />
-                  <span className="text-sm">Your Matches</span>
-                </motion.button>
-              </Link>
-              <Link to="/sessions">
-  <motion.button
-    whileHover={{ scale: 1.02 }}
-    whileTap={{ scale: 0.98 }}
-    className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2"
-  >
-    <FiCalendar className="w-6 h-6" />
-    <span className="text-sm">My Sessions</span>
-  </motion.button>
-</Link>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2"
-              >
-                <FiCalendar className="w-6 h-6" />
-                <span className="text-sm">Schedule</span>
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2"
-              >
-                <FiMessageSquare className="w-6 h-6" />
-                <span className="text-sm">Messages</span>
-              </motion.button>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">📅 Upcoming Sessions</h3>
+              {upcomingSessions.length > 0 && (
+                <Link to="/sessions" className="text-sm text-blue-500 hover:text-blue-600">
+                  View all
+                </Link>
+              )}
             </div>
+            
+            {upcomingSessions.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingSessions.slice(0, 3).map((session) => {
+                  const { date, time } = formatDateTime(session.date);
+                  const canJoin = new Date(session.date) <= new Date();
+                  
+                  return (
+                    <div key={session._id} className="p-3 bg-blue-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900">{session.title}</p>
+                          <p className="text-sm text-gray-600">
+                            with {session.teacherId?.name || session.learnerId?.name}
+                          </p>
+                        </div>
+                        <span className="text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
+                          {date}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <FiClock className="w-3 h-3" />
+                          {time}
+                        </div>
+                        {canJoin && session.meetLink && (
+                          <button
+                            onClick={() => handleJoinMeet(session.meetLink)}
+                            className="text-xs bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 flex items-center gap-1"
+                          >
+                            <FiVideo className="w-3 h-3" />
+                            Join Meet
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FiCalendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No upcoming sessions</p>
+                <Link to="/marketplace">
+                  <button className="mt-4 text-blue-500 hover:text-blue-600 text-sm font-medium">
+                    Find a teacher →
+                  </button>
+                </Link>
+              </div>
+            )}
           </motion.div>
 
-          {/* Upcoming Sessions */}
+          {/* Completed Sessions */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="bg-white rounded-xl shadow-md p-6"
           >
-            <h3 className="text-xl font-semibold mb-4">Upcoming Sessions</h3>
-            <div className="text-center py-8">
-              <FiCalendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No upcoming sessions</p>
-              <Link to="/marketplace">
-                <button className="mt-4 text-blue-500 hover:text-blue-600 text-sm font-medium">
-                  Find a teacher to get started →
-                </button>
-              </Link>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">✅ Completed Sessions</h3>
+              {completedSessions.length > 0 && (
+                <Link to="/sessions?filter=completed" className="text-sm text-blue-500 hover:text-blue-600">
+                  View all
+                </Link>
+              )}
             </div>
+            
+            {completedSessions.length > 0 ? (
+              <div className="space-y-3">
+                {completedSessions.slice(0, 3).map((session) => (
+                  <div key={session._id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{session.title}</p>
+                        <p className="text-sm text-gray-600">
+                          with {session.teacherId?.name || session.learnerId?.name}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-full">
+                        Completed
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {new Date(session.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FiCheckCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No completed sessions yet</p>
+              </div>
+            )}
           </motion.div>
         </div>
 
-        {/* Teacher Profile Preview (if user is a teacher) */}
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3"
+        >
+          <Link to="/marketplace">
+            <button className="w-full p-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2">
+              <FiSearch className="w-6 h-6" />
+              <span className="text-sm">Find Teacher</span>
+            </button>
+          </Link>
+          
+          <Link to="/matches">
+            <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">
+              <FiUsers className="w-6 h-6" />
+              <span className="text-sm">Your Matches</span>
+            </button>
+          </Link>
+
+          <Link to="/sessions">
+            <button className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2">
+              <FiCalendar className="w-6 h-6" />
+              <span className="text-sm">All Sessions</span>
+            </button>
+          </Link>
+          
+          <Link to="/messages">
+            <button className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2">
+              <FiMessageSquare className="w-6 h-6" />
+              <span className="text-sm">Messages</span>
+            </button>
+          </Link>
+        </motion.div>
+
+        {/* Teacher Profile Preview */}
         {userData?.skillsTeach?.length > 0 && teacherId && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.5 }}
             className="mt-6 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-6 text-white"
           >
             <div className="flex items-center justify-between">

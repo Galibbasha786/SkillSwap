@@ -1,18 +1,21 @@
+// backend/routes/chatRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
+const {
+  getConversations,
+  getMessages,
+  sendMessage,
+  createChat,
+  markAsRead
+} = require('../controllers/chatController');
 
-// Placeholder controller functions
-const getChats = (req, res) => {
-  res.json({ message: 'Get chats route working' });
-};
-
-const sendMessage = (req, res) => {
-  res.json({ message: 'Send message route working' });
-};
-
-// Routes
-router.get('/', auth, getChats);
-router.post('/:id/messages', auth, sendMessage);
+// All routes require authentication
+router.get('/', auth, getConversations);
+router.post('/', auth, createChat);
+router.get('/:chatId/messages', auth, getMessages);
+router.post('/:chatId/messages', auth, sendMessage);
+router.put('/:chatId/read', auth, markAsRead);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+// backend/models/Session.js
 
 const mongoose = require('mongoose');
 
@@ -38,25 +39,25 @@ const sessionSchema = new mongoose.Schema({
     max: 240
   },
   
-  // 💰 Payment details - THESE WERE MISSING
+  // Payment details
   hourlyRate: {
     type: Number,
     required: true
   },
   totalAmount: {
     type: Number,
-    required: true // hourlyRate * (duration/60)
+    required: true
   },
   platformFee: {
     type: Number,
     default: function() {
-      return this.totalAmount * 0.1; // 10% platform fee
+      return this.totalAmount * 0.1;
     }
   },
   teacherEarnings: {
     type: Number,
     default: function() {
-      return this.totalAmount * 0.9; // 90% to teacher
+      return this.totalAmount * 0.9;
     }
   },
   paymentStatus: {
@@ -65,12 +66,15 @@ const sessionSchema = new mongoose.Schema({
     default: 'pending'
   },
   
-  // Meeting
-  meetingLink: String,
-  meetingProvider: {
+  // ✅ Google Meet Link
+  meetLink: {
     type: String,
-    enum: ['agora', 'jitsi', 'google-meet', 'zoom'],
-    default: 'jitsi'
+    required: true
+  },
+  meetProvider: {
+    type: String,
+    enum: ['google-meet', 'jitsi'],
+    default: 'google-meet'
   },
   
   // Status
@@ -79,16 +83,6 @@ const sessionSchema = new mongoose.Schema({
     enum: ['scheduled', 'ongoing', 'completed', 'cancelled', 'no-show'],
     default: 'scheduled'
   },
-  
-  // Video call tracking
-  videoCallStarted: {
-    type: Boolean,
-    default: false
-  },
-  videoCallStartedAt: Date,
-  videoCallEndedAt: Date,
-  recordingUrl: String,
-  roomName: String,
   
   // Ratings
   teacherRating: {
@@ -102,9 +96,9 @@ const sessionSchema = new mongoose.Schema({
     givenAt: Date
   },
   
-  // Refund info
-  refundReason: String,
-  refundedAt: Date
+  // Cancellation
+  cancellationReason: String,
+  cancelledAt: Date
 }, {
   timestamps: true
 });
