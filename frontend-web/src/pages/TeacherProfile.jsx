@@ -114,10 +114,15 @@ const TeacherProfile = () => {
             {/* Profile Info */}
             <div className="flex items-end -mt-12 mb-4">
               <img
-                src={teacher?.profileImage || `https://ui-avatars.com/api/?name=${teacher?.name}&background=random&size=120`}
-                alt={teacher?.name}
-                className="w-24 h-24 rounded-full border-4 border-white shadow-lg"
-              />
+  src={teacher?.profileImage || 'https://via.placeholder.com/120'}
+  alt={teacher?.name}
+  className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
+  onError={(e) => {
+    e.target.onerror = null;
+    e.target.src = 'https://via.placeholder.com/120';
+  }}
+/>
+
               <div className="ml-4 flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">{teacher?.name}</h1>
                 <div className="flex items-center gap-2 mt-1">

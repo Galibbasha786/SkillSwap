@@ -98,29 +98,35 @@ const googleLogin = async (credential) => {
     }
   };
 
-  const register = async (userData) => {
-    try {
-      const response = await authAPI.register(userData);
-      const { token, user: newUser } = response.data;
-      
-      // Ensure user object has both id and _id
-      const normalizedUser = {
-        ...newUser,
-        id: newUser.id || newUser._id,
-        _id: newUser._id || newUser.id
+  // frontend-web/src/hooks/useAuth.jsx
+
+const register = async (userData) => {
+  try {
+    const response = await authAPI.register(userData);
+    console.log('📞 Register API response:', response.data);
+    
+    if (response.data.success) {
+      toast.success('Registration successful! Please verify your email.');
+      return { 
+        success: true, 
+        message: response.data.message,
+        user: response.data.user 
       };
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(normalizedUser));
-      setUser(normalizedUser);
-      
-      toast.success('Registration successful!');
-      return { success: true, user: normalizedUser };
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration failed');
-      return { success: false, error: error.response?.data?.message };
+    } else {
+      return { 
+        success: false, 
+        message: response.data.message || 'Registration failed' 
+      };
     }
-  };
+  } catch (error) {
+    console.error('❌ Register error:', error);
+    toast.error(error.response?.data?.message || 'Registration failed');
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Registration failed' 
+    };
+  }
+};
 
   const logout = () => {
     localStorage.removeItem('token');

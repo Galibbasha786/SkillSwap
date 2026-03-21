@@ -1,9 +1,9 @@
-// frontend-web/src/pages/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
+import ImageUpload from '../components/profile/ImageUpload';
 import { 
   FiLogOut, 
   FiUser, 
@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [completedSessions, setCompletedSessions] = useState([]);
   const [refresh, setRefresh] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,6 +72,7 @@ const Dashboard = () => {
       const response = await userAPI.getProfile(userId);
       console.log('Profile data:', response.data);
       setUserData(response.data);
+      setProfileImage(response.data.profileImage);
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast.error('Failed to load user data');
@@ -129,6 +131,36 @@ const Dashboard = () => {
     };
   };
 
+  const handleImageUpdate = (newImage) => {
+    console.log('🖼️ Image updated:', newImage);
+    setProfileImage(newImage);
+    setUserData(prev => ({ ...prev, profileImage: newImage }));
+    
+    // Also update localStorage user data
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      parsedUser.profileImage = newImage;
+      localStorage.setItem('user', JSON.stringify(parsedUser));
+    }
+    
+    toast.success('Profile image updated!');
+  };
+
+  const handleImageRemove = () => {
+    const defaultImage = 'https://via.placeholder.com/150';
+    setProfileImage(defaultImage);
+    setUserData(prev => ({ ...prev, profileImage: defaultImage }));
+    
+    // Update localStorage
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      parsedUser.profileImage = defaultImage;
+      localStorage.setItem('user', JSON.stringify(parsedUser));
+    }
+  };
+
   const handleJoinMeet = (meetLink) => {
     window.open(meetLink, '_blank');
   };
@@ -175,17 +207,24 @@ const Dashboard = () => {
             </h1>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                  {userData?.name?.charAt(0) || user?.name?.charAt(0) || 'U'}
-                </div>
-                <span className="text-gray-700 hidden sm:inline">{userData?.name || user?.name}</span>
+              {/* Profile Image Upload */}
+              <div className="flex items-center gap-3">
+                <ImageUpload
+                  currentImage={profileImage}
+                  onImageUpdate={handleImageUpdate}
+                  onImageRemove={handleImageRemove}
+                />
+                <span className="text-gray-700 hidden sm:inline font-medium">
+                  {userData?.name || user?.name}
+                </span>
               </div>
+              
+              {/* Logout Button */}
               <button
                 onClick={logout}
                 className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
               >
-                <FiLogOut />
+                <FiLogOut className="w-5 h-5" />
                 <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
@@ -193,7 +232,7 @@ const Dashboard = () => {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Rest of your dashboard content remains the same */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Message */}
         <motion.div

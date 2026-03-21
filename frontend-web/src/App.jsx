@@ -14,6 +14,7 @@ import Matches from './pages/Matches';
 import TeacherProfile from './pages/TeacherProfile';  // ✅ Add this import
 import Sessions from './pages/Sessions';
 import Messages from './pages/Messages';
+import ForgotPassword from './pages/ForgotPassword';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -114,6 +115,7 @@ function AppContent() {
     <Messages />
   </ProtectedRoute>
 } />
+<Route path="/forgot-password" element={<ForgotPassword />} />
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

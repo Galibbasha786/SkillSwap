@@ -98,11 +98,16 @@ api.interceptors.response.use(
 );
 
 // Auth APIs
+// frontend-web/src/services/api.js - Add resetPassword
+
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
   getMe: () => api.get('/auth/me'),
   googleLogin: (data) => api.post('/auth/google', data),
+  sendOTP: (data) => api.post('/auth/send-otp', data),
+  verifyOTP: (data) => api.post('/auth/verify-otp', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data), // ← Add this
 };
 
 // User APIs
@@ -125,6 +130,12 @@ export const userAPI = {
   },
   removeTeachingSkill: (skillName) => api.delete(`/users/skills/teach/${encodeURIComponent(skillName)}`),
   removeLearningSkill: (skillName) => api.delete(`/users/skills/learn/${encodeURIComponent(skillName)}`),
+  // frontend-web/src/services/api.js - Add to userAPI
+
+uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+}),
+removeProfileImage: () => api.delete('/users/profile-image'),
 };
 
 // Skill APIs
