@@ -1,11 +1,14 @@
+// backend/middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const auth = async (req, res, next) => {
-  try {
-    let token;
+  let token;
 
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  // Check for token in headers
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
       token = req.headers.authorization.split(' ')[1];
       
       if (!token) {
@@ -23,12 +26,13 @@ const auth = async (req, res, next) => {
       }
       
       next();
-    } else {
-      return res.status(401).json({ message: 'Not authorized, no token' });
+    } catch (error) {
+      console.error('Auth error:', error.message);
+      // Return 401 for invalid tokens
+      return res.status(401).json({ message: 'Not authorized, token failed' });
     }
-  } catch (error) {
-    console.error(error);
-    return res.status(401).json({ message: 'Not authorized' });
+  } else {
+    return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
 

@@ -1,7 +1,7 @@
 
 const User = require('../models/User');
 const Session = require('../models/Session');
-
+const { cloudinary } = require('../config/cloudinary');
 // @desc    Get user profile
 // @route   GET /api/users/profile/:id
 // @access  Private
@@ -267,5 +267,104 @@ exports.getAllTeachers = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+// backend/controllers/userController.js - Add this function
 
-module.exports = exports;
+// @desc    Upload profile image
+// @route   POST /api/users/upload-profile-image
+// @access  Private
+// backend/controllers/userController.js
+
+// @desc    Upload profile image
+// @route   POST /api/users/upload-profile-image
+// @access  Private
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    console.log('📸 Uploading profile image...');
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Delete old image from Cloudinary if exists
+    if (user.profileImagePublicId) {
+      console.log('🗑️ Deleting old image:', user.profileImagePublicId);
+      await cloudinary.uploader.destroy(user.profileImagePublicId);
+    }
+
+    // Upload to Cloudinary from memory buffer
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'skillswap-profiles',
+          width: 500,
+          height: 500,
+          crop: 'limit',
+          quality: 'auto'
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      
+      // Write the buffer to the stream
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log('✅ Image uploaded to Cloudinary:', result.secure_url);
+
+    // Update user with new image
+    user.profileImage = result.secure_url;
+    user.profileImagePublicId = result.public_id;
+    await user.save();
+
+    // ✅ FIX: Return the image URL in response
+    res.json({
+      success: true,
+      profileImage: user.profileImage,  // ← This was missing!
+      message: 'Profile image updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Upload error:', error);
+    res.status(500).json({ 
+      message: 'Failed to upload image', 
+      error: error.message 
+    });
+  }
+};
+
+// @desc    Remove profile image
+// @route   DELETE /api/users/profile-image
+// @access  Private
+exports.removeProfileImage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (user.profileImagePublicId) {
+      console.log('🗑️ Deleting image:', user.profileImagePublicId);
+      await cloudinary.uploader.destroy(user.profileImagePublicId);
+      user.profileImage = 'https://via.placeholder.com/150';
+      user.profileImagePublicId = null;
+      await user.save();
+    }
+
+    // ✅ FIX: Return the new image URL
+    res.json({
+      success: true,
+      profileImage: user.profileImage,
+      message: 'Profile image removed'
+    });
+  } catch (error) {
+    console.error('❌ Remove error:', error);
+    res.status(500).json({ message: 'Failed to remove image' });
+  }
+};
