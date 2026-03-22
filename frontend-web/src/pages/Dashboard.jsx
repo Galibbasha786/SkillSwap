@@ -487,6 +487,25 @@ const Dashboard = () => {
               <span className="text-sm">Find Teacher</span>
             </button>
           </Link>
+          <Link to="/teacher/exams/create">
+  <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
+    <FiBook className="w-6 h-6" />
+    <span className="text-sm">Create Exam</span>
+  </button>
+</Link>
+
+<Link to="/teacher/exams">
+  <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">
+    <FiCheckCircle className="w-6 h-6" />
+    <span className="text-sm">My Exams</span>
+  </button>
+</Link>
+<Link to="/exams">
+  <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
+    <FiAward className="w-6 h-6" />
+    <span className="text-sm">Certifications</span>
+  </button>
+</Link>
           
           <Link to="/matches">
             <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">

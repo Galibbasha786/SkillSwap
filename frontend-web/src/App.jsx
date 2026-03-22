@@ -15,6 +15,12 @@ import TeacherProfile from './pages/TeacherProfile';  // ✅ Add this import
 import Sessions from './pages/Sessions';
 import Messages from './pages/Messages';
 import ForgotPassword from './pages/ForgotPassword';
+import CreateExam from './pages/teacher/CreateExam';
+import TeacherExams from './pages/teacher/TeacherExams';
+import StudentExams from './pages/student/StudentExams';
+import ExamTaking from './pages/ExamTaking';
+import Certificate from './components/exam/Certificate';
+import VerifyCertificate from './components/exam/VerifyCertificate';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -116,6 +122,12 @@ function AppContent() {
   </ProtectedRoute>
 } />
 <Route path="/forgot-password" element={<ForgotPassword />} />
+<Route path="/teacher/exams/create" element={<ProtectedRoute><CreateExam /></ProtectedRoute>} />
+<Route path="/teacher/exams" element={<ProtectedRoute><TeacherExams /></ProtectedRoute>} />
+<Route path="/exams" element={<ProtectedRoute><StudentExams /></ProtectedRoute>} />
+<Route path="/exams/:examId/take" element={<ProtectedRoute><ExamTaking /></ProtectedRoute>} />
+<Route path="/certificate/:certificateId" element={<ProtectedRoute><Certificate /></ProtectedRoute>} />
+<Route path="/verify/:certificateId" element={<VerifyCertificate />} />
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

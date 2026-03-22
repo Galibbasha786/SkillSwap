@@ -26,7 +26,8 @@ const chatRoutes = require('./routes/chatRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const razorpayRoutes = require('./routes/razorpayRoutes');
-
+const examRoutes = require('./routes/examRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
 // Initialize express
 const app = express();
 
@@ -69,6 +70,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/meet', googleMeetRoutes);
+app.use('/api/exams', examRoutes);
+app.use('/api/certificates', certificateRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

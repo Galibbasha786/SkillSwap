@@ -1,3 +1,5 @@
+// frontend-web/src/services/api.js
+
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -10,24 +12,9 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 10000,
 });
 
-getProfile: (userId) => {
-  if (!userId) {
-    console.error('getProfile called with undefined userId');
-    // Try to get from localStorage as fallback
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      userId = parsedUser.id;
-      console.log('Using userId from localStorage:', userId);
-    } else {
-      return Promise.reject(new Error('User ID is required and not available'));
-    }
-  }
-  return api.get(`/users/profile/${userId}`);
-},
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
@@ -66,7 +53,6 @@ api.interceptors.response.use(
       console.error('❌ Timeout Error');
       toast.error('Request timeout. Please try again.');
     } else if (error.response) {
-      // Server responded with error
       console.error('❌ Server Error:', {
         status: error.response.status,
         data: error.response.data,
@@ -82,14 +68,12 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (error.request) {
-      // Request made but no response
       console.error('❌ Network Error - No Response:', {
         url: error.config?.url,
         baseURL: error.config?.baseURL
       });
       toast.error('Cannot connect to server. Make sure backend is running on port 5001');
     } else {
-      // Something else happened
       console.error('❌ Error:', error.message);
       toast.error('An error occurred');
     }
@@ -97,9 +81,7 @@ api.interceptors.response.use(
   }
 );
 
-// Auth APIs
-// frontend-web/src/services/api.js - Add resetPassword
-
+// ==================== AUTH APIs ====================
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
@@ -107,10 +89,10 @@ export const authAPI = {
   googleLogin: (data) => api.post('/auth/google', data),
   sendOTP: (data) => api.post('/auth/send-otp', data),
   verifyOTP: (data) => api.post('/auth/verify-otp', data),
-  resetPassword: (data) => api.post('/auth/reset-password', data), // ← Add this
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
-// User APIs
+// ==================== USER APIs ====================
 export const userAPI = {
   getProfile: (userId) => {
     if (!userId) {
@@ -130,15 +112,13 @@ export const userAPI = {
   },
   removeTeachingSkill: (skillName) => api.delete(`/users/skills/teach/${encodeURIComponent(skillName)}`),
   removeLearningSkill: (skillName) => api.delete(`/users/skills/learn/${encodeURIComponent(skillName)}`),
-  // frontend-web/src/services/api.js - Add to userAPI
-
-uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData, {
-  headers: { 'Content-Type': 'multipart/form-data' }
-}),
-removeProfileImage: () => api.delete('/users/profile-image'),
+  uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  removeProfileImage: () => api.delete('/users/profile-image'),
 };
 
-// Skill APIs
+// ==================== SKILL APIs ====================
 export const skillAPI = {
   getAll: (params) => api.get('/skills', { params }),
   getCategories: () => api.get('/skills/categories'),
@@ -146,28 +126,73 @@ export const skillAPI = {
   getPopular: () => api.get('/skills/popular'),
 };
 
-// Match APIs
+// ==================== MATCH APIs ====================
 export const matchAPI = {
   getMatches: () => api.get('/users/matches'),
   getMutualMatches: () => api.get('/users/matches/mutual'),
 };
 
-// Session APIs
+// ==================== SESSION APIs ====================
 export const sessionAPI = {
   create: (sessionData) => api.post('/sessions', sessionData),
   getAll: (params) => api.get('/sessions', { params }),
+  getById: (id) => api.get(`/sessions/${id}`),
   updateStatus: (id, status) => api.put(`/sessions/${id}/status`, { status }),
   rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
   cancelSession: (id, data) => api.post(`/sessions/${id}/cancel`, data),
-deleteSession: (id) => api.delete(`/sessions/${id}`),
+  deleteSession: (id) => api.delete(`/sessions/${id}`),
 };
+
+// ==================== CHAT APIs ====================
 export const chatAPI = {
   getConversations: () => api.get('/chats'),
-  // In api.js, add to chatAPI:
-getMessages: (chatId) => api.get(`/chats/${chatId}/messages`),
+  getMessages: (chatId) => api.get(`/chats/${chatId}/messages`),
   sendMessage: (chatId, message) => api.post(`/chats/${chatId}/messages`, { message }),
   createChat: (data) => api.post('/chats', data),
   markAsRead: (chatId) => api.put(`/chats/${chatId}/read`),
+};
+
+// ==================== PAYMENT APIs ====================
+export const paymentAPI = {
+  createPaymentIntent: (sessionId) => api.post('/payments/create-payment-intent', { sessionId }),
+  confirmPayment: (data) => api.post('/payments/confirm', data),
+  getEarnings: () => api.get('/payments/earnings'),
+  getTransactions: () => api.get('/payments/transactions'),
+  requestWithdrawal: (data) => api.post('/payments/withdraw', data),
+};
+
+// ==================== RAZORPAY APIs ====================
+export const razorpayAPI = {
+  createOrder: (sessionId) => api.post('/razorpay/create-order', { sessionId }),
+  verifyPayment: (data) => api.post('/razorpay/verify', data),
+  testRazorpay: () => api.post('/razorpay/test'),
+};
+
+// ==================== EXAM APIs ====================
+export const examAPI = {
+  createExam: (examData) => api.post('/exams', examData),
+  getTeacherExams: () => api.get('/exams/teacher'),
+  getAvailableExams: () => api.get('/exams/available'),
+  startExam: (examId) => api.post(`/exams/${examId}/start`),
+  submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
+  finishExam: (examId) => api.post(`/exams/${examId}/finish`),
+  recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),
+};
+
+// ==================== CERTIFICATE APIs ====================
+export const certificateAPI = {
+  getCertificate: (id) => api.get(`/certificates/${id}`),
+  downloadCertificate: (id) => api.get(`/certificates/${id}/download`, {
+    responseType: 'blob'
+  }),
+  verifyCertificate: (certificateId) => api.get(`/certificates/verify/${certificateId}`),
+};
+
+// ==================== GOOGLE MEET APIs ====================
+export const meetAPI = {
+  createMeetLink: (data) => api.post('/meet/create', data),
+  createSimpleRoom: (data) => api.post('/meet/create-room', data),
+  getCalendarInfo: () => api.get('/meet/calendar'),
 };
 
 export default api;

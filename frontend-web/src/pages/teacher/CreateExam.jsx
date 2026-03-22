@@ -1,0 +1,413 @@
+// frontend-web/src/pages/teacher/CreateExam.jsx
+
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { FiPlus, FiTrash2, FiClock, FiAward } from 'react-icons/fi';
+import { examAPI } from '../../services/api';
+import toast from 'react-hot-toast';
+
+const CreateExam = () => {
+  const navigate = useNavigate();
+  const [exam, setExam] = useState({
+    skillName: '',
+    title: '',
+    description: '',
+    duration: 30,
+    passingScore: 70,
+    questions: [],
+    proctoring: {
+      enabled: true,
+      faceDetection: true,
+      tabSwitchDetection: true,
+      screenshotDetection: true
+    }
+  });
+  const [currentQuestion, setCurrentQuestion] = useState({
+    type: 'mcq',
+    question: '',
+    options: ['', '', '', ''],
+    correctAnswer: '',
+    marks: 1,
+    keywords: []
+  });
+  const [loading, setLoading] = useState(false);
+
+  const addQuestion = () => {
+  if (!currentQuestion.question) {
+    toast.error('Please enter question text');
+    return;
+  }
+  
+  if (currentQuestion.type === 'mcq') {
+    if (!currentQuestion.correctAnswer) {
+      toast.error('Please select correct answer');
+      return;
+    }
+    if (currentQuestion.options.some(opt => !opt)) {
+      toast.error('Please fill all options');
+      return;
+    }
+  }
+  
+  // Create new question WITHOUT _id
+  const newQuestion = {
+    type: currentQuestion.type,
+    question: currentQuestion.question,
+    marks: currentQuestion.marks
+  };
+  
+  // Add type-specific fields
+  if (currentQuestion.type === 'mcq') {
+    newQuestion.options = currentQuestion.options;
+    newQuestion.correctAnswer = currentQuestion.correctAnswer;
+  } else if (currentQuestion.type === 'theory') {
+    newQuestion.keywords = currentQuestion.keywords;
+  }
+  
+  setExam({
+    ...exam,
+    questions: [...exam.questions, newQuestion]
+  });
+  
+  // Reset current question
+  setCurrentQuestion({
+    type: 'mcq',
+    question: '',
+    options: ['', '', '', ''],
+    correctAnswer: '',
+    marks: 1,
+    keywords: []
+  });
+  
+  toast.success('Question added!');
+};
+const removeQuestion = (index) => {
+  const newQuestions = [...exam.questions];
+  newQuestions.splice(index, 1);
+  setExam({ ...exam, questions: newQuestions });
+};
+
+  // frontend-web/src/pages/teacher/CreateExam.jsx
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (exam.questions.length === 0) {
+    toast.error('Please add at least one question');
+    return;
+  }
+  
+  setLoading(true);
+  
+  // Prepare exam data WITHOUT any _id fields
+  const examData = {
+    skillName: exam.skillName,
+    title: exam.title,
+    description: exam.description,
+    duration: exam.duration,
+    passingScore: exam.passingScore,
+    questions: exam.questions.map(q => ({
+      type: q.type,
+      question: q.question,
+      marks: q.marks,
+      ...(q.type === 'mcq' && {
+        options: q.options,
+        correctAnswer: q.correctAnswer
+      }),
+      ...(q.type === 'theory' && {
+        keywords: q.keywords
+      })
+    })),
+    proctoring: exam.proctoring
+  };
+  
+  console.log('Submitting exam data:', examData);
+  
+  try {
+    const response = await examAPI.createExam(examData);
+    console.log('Exam created:', response.data);
+    toast.success('Exam created successfully!');
+    navigate('/teacher/exams');
+  } catch (error) {
+    console.error('Failed to create exam:', error.response?.data);
+    toast.error(error.response?.data?.message || 'Failed to create exam');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Exam</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Basic Info */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Exam Details</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Skill Name *
+                </label>
+                <input
+                  type="text"
+                  value={exam.skillName}
+                  onChange={(e) => setExam({ ...exam, skillName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                  placeholder="e.g., JavaScript, React, Python"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Exam Title *
+                </label>
+                <input
+                  type="text"
+                  value={exam.title}
+                  onChange={(e) => setExam({ ...exam, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                  placeholder="JavaScript Fundamentals Assessment"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={exam.description}
+                  onChange={(e) => setExam({ ...exam, description: e.target.value })}
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Describe what this exam covers..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <FiClock className="inline mr-1" />
+                    Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={exam.duration}
+                    onChange={(e) => setExam({ ...exam, duration: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    min="5"
+                    max="180"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <FiAward className="inline mr-1" />
+                    Passing Score (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={exam.passingScore}
+                    onChange={(e) => setExam({ ...exam, passingScore: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    min="0"
+                    max="100"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Proctoring Settings */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Proctoring Settings</h2>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={exam.proctoring.enabled}
+                  onChange={(e) => setExam({ 
+                    ...exam, 
+                    proctoring: { ...exam.proctoring, enabled: e.target.checked } 
+                  })}
+                  className="w-4 h-4 text-blue-500"
+                />
+                <span>Enable Proctoring</span>
+              </label>
+              {exam.proctoring.enabled && (
+                <>
+                  <label className="flex items-center gap-3 ml-6">
+                    <input
+                      type="checkbox"
+                      checked={exam.proctoring.faceDetection}
+                      onChange={(e) => setExam({ 
+                        ...exam, 
+                        proctoring: { ...exam.proctoring, faceDetection: e.target.checked } 
+                      })}
+                      className="w-4 h-4 text-blue-500"
+                    />
+                    <span>Face Detection</span>
+                  </label>
+                  <label className="flex items-center gap-3 ml-6">
+                    <input
+                      type="checkbox"
+                      checked={exam.proctoring.tabSwitchDetection}
+                      onChange={(e) => setExam({ 
+                        ...exam, 
+                        proctoring: { ...exam.proctoring, tabSwitchDetection: e.target.checked } 
+                      })}
+                      className="w-4 h-4 text-blue-500"
+                    />
+                    <span>Tab Switch Detection</span>
+                  </label>
+                </>
+              )}
+            </div>
+          </div>
+          
+          {/* Questions Section */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Questions</h2>
+            
+            {/* Existing Questions */}
+            {exam.questions.length > 0 && (
+              <div className="mb-6 space-y-3">
+                <h3 className="font-medium">Added Questions ({exam.questions.length})</h3>
+                {exam.questions.map((q, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
+                    <div>
+                      <span className="font-medium">Q{idx + 1}:</span> {q.question}
+                      <span className="text-sm text-gray-500 ml-2">({q.type})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(idx)}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Add New Question */}
+            <div className="border-t pt-6">
+              <h3 className="font-medium mb-4">Add New Question</h3>
+              <div className="space-y-4">
+                <select
+                  value={currentQuestion.type}
+                  onChange={(e) => setCurrentQuestion({ ...currentQuestion, type: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="mcq">Multiple Choice (MCQ)</option>
+                  <option value="theory">Theory / Essay</option>
+                </select>
+                
+                <textarea
+                  value={currentQuestion.question}
+                  onChange={(e) => setCurrentQuestion({ ...currentQuestion, question: e.target.value })}
+                  placeholder="Enter question text..."
+                  rows="2"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                />
+                
+                {currentQuestion.type === 'mcq' && (
+                  <div className="space-y-2">
+                    {currentQuestion.options.map((opt, idx) => (
+                      <input
+                        key={idx}
+                        type="text"
+                        value={opt}
+                        onChange={(e) => {
+                          const newOptions = [...currentQuestion.options];
+                          newOptions[idx] = e.target.value;
+                          setCurrentQuestion({ ...currentQuestion, options: newOptions });
+                        }}
+                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ))}
+                    <select
+                      value={currentQuestion.correctAnswer}
+                      onChange={(e) => setCurrentQuestion({ ...currentQuestion, correctAnswer: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Select Correct Answer</option>
+                      {currentQuestion.options.map((opt, idx) => (
+                        opt && <option key={idx} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                {currentQuestion.type === 'theory' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Keywords (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={currentQuestion.keywords.join(', ')}
+                      onChange={(e) => setCurrentQuestion({ 
+                        ...currentQuestion, 
+                        keywords: e.target.value.split(',').map(k => k.trim()) 
+                      })}
+                      placeholder="e.g., JavaScript, closure, scope"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium">Marks:</label>
+                  <input
+                    type="number"
+                    value={currentQuestion.marks}
+                    onChange={(e) => setCurrentQuestion({ ...currentQuestion, marks: parseInt(e.target.value) })}
+                    className="w-20 px-2 py-1 border border-gray-300 rounded"
+                    min="1"
+                    max="10"
+                  />
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                >
+                  <FiPlus /> Add Question
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Submit Button */}
+          <div className="flex justify-end gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('/teacher/exams')}
+              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Exam'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default CreateExam;
