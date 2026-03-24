@@ -8,6 +8,8 @@ import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const CreateExam = () => {
+  const [availableFrom, setAvailableFrom] = useState('');
+const [availableTo, setAvailableTo] = useState('');
   const navigate = useNavigate();
   const [exam, setExam] = useState({
     skillName: '',
@@ -107,6 +109,8 @@ const handleSubmit = async (e) => {
     description: exam.description,
     duration: exam.duration,
     passingScore: exam.passingScore,
+     availableFrom: new Date(availableFrom).toISOString(),
+  availableTo: new Date(availableTo).toISOString(),
     questions: exam.questions.map(q => ({
       type: q.type,
       question: q.question,
@@ -187,6 +191,34 @@ const handleSubmit = async (e) => {
                   placeholder="Describe what this exam covers..."
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Available From *
+    </label>
+    <input
+      type="datetime-local"
+      value={availableFrom}
+      onChange={(e) => setAvailableFrom(e.target.value)}
+      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+      required
+      min={new Date().toISOString().slice(0, 16)}
+    />
+  </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Available To *
+    </label>
+    <input
+      type="datetime-local"
+      value={availableTo}
+      onChange={(e) => setAvailableTo(e.target.value)}
+      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+      required
+      min={availableFrom || new Date().toISOString().slice(0, 16)}
+    />
+  </div>
+</div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>

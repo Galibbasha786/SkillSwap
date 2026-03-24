@@ -10,10 +10,12 @@ const {
   startExam,
   submitAnswer,
   finishExam,
-  recordViolation
+  recordViolation,
+  cancelExam,  // ✅ Add this import
+  deleteExam
 } = require('../controllers/examController');
 
-// Protect all routes
+// All routes require authentication
 router.use(auth);
 
 router.post('/', createExam);
@@ -23,5 +25,7 @@ router.post('/:examId/start', startExam);
 router.post('/:examId/submit', submitAnswer);
 router.post('/:examId/finish', finishExam);
 router.post('/:examId/violation', recordViolation);
+router.post('/:examId/cancel', cancelExam);  // ✅ Add cancel route
+router.delete('/:examId', deleteExam);
 
 module.exports = router;

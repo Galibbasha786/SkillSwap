@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
 import ImageUpload from '../components/profile/ImageUpload';
+import NotificationBell from '../components/common/NotificationBell';
 import { 
   FiLogOut, 
   FiUser, 
@@ -208,7 +209,8 @@ const Dashboard = () => {
             
             <div className="flex items-center gap-4">
               {/* Profile Image Upload */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
+                  <NotificationBell />
                 <ImageUpload
                   currentImage={profileImage}
                   onImageUpdate={handleImageUpdate}

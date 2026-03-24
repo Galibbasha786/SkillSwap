@@ -6,7 +6,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { initializeSocket } = require('./socket');
 const googleMeetRoutes = require('./routes/googleMeetRoutes');
-
+const notificationRoutes = require('./routes/notificationRoutes');
 // Load environment variables
 dotenv.config();
 
@@ -72,6 +72,7 @@ app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/meet', googleMeetRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/api/notifications', notificationRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

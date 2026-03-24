@@ -177,6 +177,8 @@ export const examAPI = {
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
   recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),
+  cancelExam: (examId, data) => api.post(`/exams/${examId}/cancel`, data),
+   deleteExam: (examId) => api.delete(`/exams/${examId}`),
 };
 
 // ==================== CERTIFICATE APIs ====================
@@ -193,6 +195,11 @@ export const meetAPI = {
   createMeetLink: (data) => api.post('/meet/create', data),
   createSimpleRoom: (data) => api.post('/meet/create-room', data),
   getCalendarInfo: () => api.get('/meet/calendar'),
+};
+export const notificationAPI = {
+  getNotifications: () => api.get('/notifications'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
 };
 
 export default api;

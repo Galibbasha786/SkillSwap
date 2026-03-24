@@ -23,7 +23,7 @@ const examAttemptSchema = new mongoose.Schema({
     answer: mongoose.Schema.Types.Mixed,
     isCorrect: Boolean,
     marksObtained: Number,
-    timeSpent: Number // seconds
+    timeSpent: Number
   }],
   totalMarks: {
     type: Number,
@@ -43,14 +43,33 @@ const examAttemptSchema = new mongoose.Schema({
   },
   certificateUrl: String,
   certificateId: String,
+  
+  // ✅ Updated proctoringLogs with all possible violation types
   proctoringLogs: [{
     type: {
       type: String,
-      enum: ['tab_switch', 'face_missing', 'screenshot', 'window_resize', 'mouse_leave']
+      enum: [
+        'tab_switch',
+        'face_missing',
+        'screenshot',
+        'window_resize',
+        'mouse_leave',
+        'right_click',
+        'copy_attempt',
+        'paste_attempt',
+        'print_attempt',
+        'fullscreen_exit',
+        'camera_denied'
+      ],
+      required: true
     },
-    timestamp: Date,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
     details: String
   }],
+  
   violations: {
     type: Number,
     default: 0
@@ -63,5 +82,9 @@ const examAttemptSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Indexes
+examAttemptSchema.index({ examId: 1, studentId: 1 });
+examAttemptSchema.index({ studentId: 1, status: 1 });
 
 module.exports = mongoose.model('ExamAttempt', examAttemptSchema);
