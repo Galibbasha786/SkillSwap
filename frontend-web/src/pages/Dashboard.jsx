@@ -1,3 +1,4 @@
+// frontend-web/src/pages/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -5,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
 import ImageUpload from '../components/profile/ImageUpload';
 import NotificationBell from '../components/common/NotificationBell';
+import WalletBalance from '../components/wallet/WalletBalance';
 import { 
   FiLogOut, 
   FiUser, 
@@ -137,7 +139,6 @@ const Dashboard = () => {
     setProfileImage(newImage);
     setUserData(prev => ({ ...prev, profileImage: newImage }));
     
-    // Also update localStorage user data
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
@@ -153,7 +154,6 @@ const Dashboard = () => {
     setProfileImage(defaultImage);
     setUserData(prev => ({ ...prev, profileImage: defaultImage }));
     
-    // Update localStorage
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
@@ -208,9 +208,8 @@ const Dashboard = () => {
             </h1>
             
             <div className="flex items-center gap-4">
-              {/* Profile Image Upload */}
               <div className="flex items-center gap-4">
-                  <NotificationBell />
+                <NotificationBell />
                 <ImageUpload
                   currentImage={profileImage}
                   onImageUpdate={handleImageUpdate}
@@ -221,7 +220,6 @@ const Dashboard = () => {
                 </span>
               </div>
               
-              {/* Logout Button */}
               <button
                 onClick={logout}
                 className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
@@ -234,7 +232,6 @@ const Dashboard = () => {
         </div>
       </nav>
 
-      {/* Rest of your dashboard content remains the same */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Message */}
         <motion.div
@@ -250,8 +247,8 @@ const Dashboard = () => {
           </p>
         </motion.div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Stats Grid - All cards equal height */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {stats.map((stat, index) => (
             <motion.div
               key={index}
@@ -259,14 +256,14 @@ const Dashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               whileHover={{ y: -5 }}
-              className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer group"
+              className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`p-3 bg-${stat.color}-100 rounded-lg group-hover:scale-110 transition-transform`}>
                   <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
                 </div>
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
                 <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                 {stat.details && (
@@ -277,6 +274,9 @@ const Dashboard = () => {
               </div>
             </motion.div>
           ))}
+          
+          {/* Wallet Card */}
+          <WalletBalance />
         </div>
 
         {/* Add Skills Section */}
@@ -292,7 +292,7 @@ const Dashboard = () => {
               Skills You Teach <span className="text-sm text-gray-500">(Earn money)</span>
             </h3>
             
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
               {userData?.skillsTeach?.map((skill, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                   <div>
@@ -332,7 +332,7 @@ const Dashboard = () => {
               Skills You Want to Learn <span className="text-sm text-gray-500">(Set budget)</span>
             </h3>
             
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
               {userData?.skillsLearn?.map((skill, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
                   <div>
@@ -380,7 +380,7 @@ const Dashboard = () => {
             </div>
             
             {upcomingSessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-64 overflow-y-auto">
                 {upcomingSessions.slice(0, 3).map((session) => {
                   const { date, time } = formatDateTime(session.date);
                   const canJoin = new Date(session.date) <= new Date();
@@ -447,7 +447,7 @@ const Dashboard = () => {
             </div>
             
             {completedSessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-64 overflow-y-auto">
                 {completedSessions.slice(0, 3).map((session) => (
                   <div key={session._id} className="p-3 bg-gray-50 rounded-lg">
                     <div className="flex justify-between items-start">
@@ -489,25 +489,27 @@ const Dashboard = () => {
               <span className="text-sm">Find Teacher</span>
             </button>
           </Link>
+          
           <Link to="/teacher/exams/create">
-  <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
-    <FiBook className="w-6 h-6" />
-    <span className="text-sm">Create Exam</span>
-  </button>
-</Link>
+            <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
+              <FiBook className="w-6 h-6" />
+              <span className="text-sm">Create Exam</span>
+            </button>
+          </Link>
 
-<Link to="/teacher/exams">
-  <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">
-    <FiCheckCircle className="w-6 h-6" />
-    <span className="text-sm">My Exams</span>
-  </button>
-</Link>
-<Link to="/exams">
-  <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
-    <FiAward className="w-6 h-6" />
-    <span className="text-sm">Certifications</span>
-  </button>
-</Link>
+          <Link to="/teacher/exams">
+            <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">
+              <FiCheckCircle className="w-6 h-6" />
+              <span className="text-sm">My Exams</span>
+            </button>
+          </Link>
+          
+          <Link to="/exams">
+            <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
+              <FiAward className="w-6 h-6" />
+              <span className="text-sm">Certifications</span>
+            </button>
+          </Link>
           
           <Link to="/matches">
             <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">

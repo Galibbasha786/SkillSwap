@@ -52,12 +52,12 @@ profileImagePublicId: {
     budget: { type: Number, min: 0 }
   }],
 
-  // Wallet
+  /*Wallet
   wallet: {
     balance: { type: Number, default: 0 },
     currency: { type: String, default: 'USD' },
     pendingWithdrawals: { type: Number, default: 0 }
-  },
+  },*/
 
   // OTP Fields
   otp: {
@@ -70,7 +70,59 @@ profileImagePublicId: {
     type: Boolean,
     default: false
   },
-  
+  // backend/models/User.js - Add to existing schema
+
+// Add after wallet fields
+bankAccount: {
+  accountHolderName: {
+    type: String,
+    default: ''
+  },
+  bankName: {
+    type: String,
+    default: ''
+  },
+  accountNumber: {
+    type: String,
+    default: ''
+  },
+  ifscCode: {
+    type: String,
+    default: ''
+  },
+  upiId: {
+    type: String,
+    default: ''
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  }
+},
+upiId: {
+  type: String,
+  default: ''
+},
+bankAccount: {
+  accountHolderName: String,
+  bankName: String,
+  accountNumber: String,
+  ifscCode: String,
+  upiId: String,
+  isVerified: {
+    type: Boolean,
+    default: false
+  }
+},
+
+// Add to wallet
+wallet: {
+  balance: { type: Number, default: 0 },
+  currency: { type: String, default: 'INR' },
+  pendingWithdrawals: { type: Number, default: 0 },
+  totalWithdrawn: { type: Number, default: 0 },  // ✅ NEW
+  lastTransactionAt: Date  // ✅ NEW
+},
   // Stats
   rating: { type: Number, default: 0, min: 0, max: 5 },
   totalSessions: { type: Number, default: 0 },

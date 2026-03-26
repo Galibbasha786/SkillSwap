@@ -1,3 +1,4 @@
+// backend/models/Transaction.js
 
 const mongoose = require('mongoose');
 
@@ -40,17 +41,29 @@ const transactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'wallet', 'stripe', 'razorpay'], // 👈 ADDED 'razorpay'
+    enum: ['card', 'wallet', 'stripe', 'razorpay'],
     required: true
   },
+  
+  // Payment Gateway IDs
   stripePaymentIntentId: String,
   stripeTransferId: String,
-  razorpayOrderId: String,      // 👈 ADDED
-  razorpayPaymentId: String,    // 👈 ADDED
+  razorpayOrderId: String,
+  razorpayPaymentId: String,
+  
+  // ✅ NEW: Transfer tracking for wallet-to-bank
+  transferId: String,
+  transferStatus: {
+    type: String,
+    enum: ['pending', 'processing', 'completed', 'failed'],
+    default: 'pending'
+  },
+  transferredAt: Date,
   
   // Session details
   duration: Number,
   hourlyRate: Number,
+  skillName: String,
   
   // Timestamps
   paidAt: Date,

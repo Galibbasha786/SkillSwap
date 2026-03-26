@@ -28,6 +28,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const razorpayRoutes = require('./routes/razorpayRoutes');
 const examRoutes = require('./routes/examRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 // Initialize express
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/meet', googleMeetRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/wallet', walletRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

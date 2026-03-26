@@ -1,3 +1,4 @@
+// frontend-web/src/hooks/useAuth.jsx
 
 import { useState, useEffect, createContext, useContext } from 'react';
 import { authAPI } from '../services/api';
@@ -12,21 +13,6 @@ export const useAuth = () => {
   }
   return context;
 };
-const googleLogin = async (credential) => {
-  try {
-    const response = await authAPI.googleLogin({ credential });
-    const { token, user } = response.data;
-    
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Google login error:', error);
-    return { success: false, error: error.response?.data?.message };
-  }
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -39,7 +25,6 @@ export const AuthProvider = ({ children }) => {
     if (token && savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
-        // Ensure user has both id and _id for compatibility
         setUser({
           ...parsedUser,
           id: parsedUser.id || parsedUser._id,
@@ -51,41 +36,18 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
-// In useAuth.jsx, update googleLogin function:
 
-const googleLogin = async (credential) => {
-  try {
-    setLoading(true);
-    const response = await authAPI.googleLogin({ credential });
-    const { token, user } = response.data;
-    
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
-    
-    toast.success('Google login successful!');
-    return { success: true };
-  } catch (error) {
-    console.error('Google login error:', error);
-    toast.error(error.response?.data?.message || 'Google login failed');
-    return { success: false, error: error.response?.data?.message };
-  } finally {
-    setLoading(false);
-  }
-};
   const login = async (email, password) => {
     try {
       const response = await authAPI.login({ email, password });
       const { token, user: userData } = response.data;
       
-      // Ensure user object has both id and _id
       const normalizedUser = {
         ...userData,
         id: userData.id || userData._id,
         _id: userData._id || userData.id
       };
       
-      // Store both token and user data
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
@@ -93,40 +55,58 @@ const googleLogin = async (credential) => {
       toast.success('Login successful!');
       return { success: true, user: normalizedUser };
     } catch (error) {
+      console.error('Login error:', error);
       toast.error(error.response?.data?.message || 'Login failed');
       return { success: false, error: error.response?.data?.message };
     }
   };
 
-  // frontend-web/src/hooks/useAuth.jsx
+  const googleLogin = async (credential) => {
+    try {
+      setLoading(true);
+      const response = await authAPI.googleLogin({ credential });
+      const { token, user: userData } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      
+      toast.success('Google login successful!');
+      return { success: true, user: userData };
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast.error(error.response?.data?.message || 'Google login failed');
+      return { success: false, error: error.response?.data?.message };
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const register = async (userData) => {
-  try {
-    const response = await authAPI.register(userData);
-    console.log('📞 Register API response:', response.data);
-    
-    if (response.data.success) {
-      toast.success('Registration successful! Please verify your email.');
-      return { 
-        success: true, 
-        message: response.data.message,
-        user: response.data.user 
-      };
-    } else {
+  const register = async (userData) => {
+    try {
+      const response = await authAPI.register(userData);
+      
+      if (response.data.success) {
+        toast.success('Registration successful! Please login.');
+        return { 
+          success: true, 
+          message: response.data.message 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: response.data.message || 'Registration failed' 
+        };
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      toast.error(error.response?.data?.message || 'Registration failed');
       return { 
         success: false, 
-        message: response.data.message || 'Registration failed' 
+        message: error.response?.data?.message || 'Registration failed' 
       };
     }
-  } catch (error) {
-    console.error('❌ Register error:', error);
-    toast.error(error.response?.data?.message || 'Registration failed');
-    return { 
-      success: false, 
-      message: error.response?.data?.message || 'Registration failed' 
-    };
-  }
-};
+  };
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -135,7 +115,6 @@ const register = async (userData) => {
     toast.success('Logged out successfully');
   };
 
-  // Helper to get user ID safely
   const getUserId = () => {
     return user?.id || user?._id || null;
   };

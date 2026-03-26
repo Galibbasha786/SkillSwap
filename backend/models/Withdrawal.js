@@ -1,3 +1,5 @@
+// backend/models/Withdrawal.js
+
 const mongoose = require('mongoose');
 
 const withdrawalSchema = new mongoose.Schema({
@@ -8,26 +10,48 @@ const withdrawalSchema = new mongoose.Schema({
   },
   amount: {
     type: Number,
-    required: true
+    required: true,
+    min: 50
   },
   currency: {
     type: String,
-    default: 'USD'
+    default: 'INR'
   },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'completed', 'failed'],
+    enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
     default: 'pending'
   },
+  
+  // Payment method details
+  paymentMethod: {
+    type: String,
+    enum: ['bank_transfer', 'upi', 'razorpay_payout'],
+    required: true
+  },
+  
+  // Bank details
   bankInfo: {
     accountHolder: String,
     bankName: String,
     accountNumber: String,
-    routingNumber: String
+    ifscCode: String
   },
-  stripeTransferId: String,
+  
+  // UPI details
+  upiId: String,
+  
+  // Processing details
+  razorpayPayoutId: String,
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   processedAt: Date,
+  completedAt: Date,
+  failureReason: String,
   notes: String,
+  
   createdAt: {
     type: Date,
     default: Date.now

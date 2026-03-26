@@ -1,18 +1,36 @@
+// backend/routes/adminRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const { auth, adminAuth } = require('../middleware/auth');
+const {
+  getDashboardStats,
+  getPendingWithdrawals,
+  approveWithdrawal,
+  completeWithdrawal,
+  rejectWithdrawal,
+  getAllUsers,
+  updateUserStatus,
+  getAllTransactions
+} = require('../controllers/adminController');
 
-// Placeholder controller functions
-const getUsers = (req, res) => {
-  res.json({ message: 'Get users route working' });
-};
+// All admin routes require authentication and admin role
+router.use(auth, adminAuth);
 
-const getStats = (req, res) => {
-  res.json({ message: 'Get stats route working' });
-};
+// Dashboard
+router.get('/stats', getDashboardStats);
 
-// Routes (all protected by admin auth)
-router.get('/users', auth, adminAuth, getUsers);
-router.get('/stats', auth, adminAuth, getStats);
+// Withdrawals
+router.get('/withdrawals/pending', getPendingWithdrawals);
+router.post('/withdrawals/:id/approve', approveWithdrawal);
+router.post('/withdrawals/:id/complete', completeWithdrawal);
+router.post('/withdrawals/:id/reject', rejectWithdrawal);
+
+// Users
+router.get('/users', getAllUsers);
+router.put('/users/:id/status', updateUserStatus);
+
+// Transactions
+router.get('/transactions', getAllTransactions);
 
 module.exports = router;
