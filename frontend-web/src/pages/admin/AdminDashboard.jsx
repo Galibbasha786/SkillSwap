@@ -17,7 +17,11 @@ import {
   FiFileText,
   FiCalendar,
   FiPlus,
-  FiSearch
+  FiSearch,
+  FiLogOut,
+  FiBell,
+  FiSend,
+  FiMail
 } from 'react-icons/fi';
 import { adminAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,7 +33,12 @@ const AdminDashboard = () => {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const { user } = useAuth();
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationTitle, setNotificationTitle] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationType, setNotificationType] = useState('info');
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Check if user is admin
@@ -58,6 +67,38 @@ const AdminDashboard = () => {
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    toast.success('Logged out successfully');
+  };
+
+  const handleSendNotification = async () => {
+    if (!notificationTitle.trim() || !notificationMessage.trim()) {
+      toast.error('Please enter both title and message');
+      return;
+    }
+
+    setSendingNotification(true);
+    try {
+      await adminAPI.sendNotificationToAll({
+        title: notificationTitle,
+        message: notificationMessage,
+        type: notificationType
+      });
+      toast.success('Notification sent to all users successfully!');
+      setShowNotificationModal(false);
+      setNotificationTitle('');
+      setNotificationMessage('');
+      setNotificationType('info');
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      toast.error('Failed to send notification');
+    } finally {
+      setSendingNotification(false);
     }
   };
 
@@ -120,16 +161,36 @@ const AdminDashboard = () => {
               </h1>
               <p className="text-gray-600 mt-1">Manage platform, users, and payments</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Logged in as</p>
-                <p className="font-semibold text-gray-900">{user?.name}</p>
+            <div className="flex items-center gap-4">
+              {/* Send Notification Button */}
+              <button
+                onClick={() => setShowNotificationModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md"
+              >
+                <FiBell className="w-5 h-5" />
+                <span className="hidden sm:inline">Send Notification</span>
+              </button>
+              
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100"
+              >
+                <FiLogOut className="w-5 h-5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+              
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Logged in as</p>
+                  <p className="font-semibold text-gray-900">{user?.name}</p>
+                </div>
+                <img 
+                  src={user?.profileImage || 'https://via.placeholder.com/40'} 
+                  alt="Admin" 
+                  className="w-10 h-10 rounded-full border-2 border-blue-500"
+                />
               </div>
-              <img 
-                src={user?.profileImage || 'https://via.placeholder.com/40'} 
-                alt="Admin" 
-                className="w-10 h-10 rounded-full border-2 border-blue-500"
-              />
             </div>
           </div>
         </div>
@@ -171,12 +232,12 @@ const AdminDashboard = () => {
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
+            <nav className="flex space-x-8 px-6 overflow-x-auto">
               {['overview', 'withdrawals', 'users', 'transactions'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`py-4 px-1 text-sm font-medium border-b-2 transition-colors ${
+                  className={`py-4 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -217,11 +278,115 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Send Notification Modal */}
+      {showNotificationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <FiMail className="w-6 h-6 text-blue-500" />
+                <h2 className="text-xl font-bold text-gray-900">Send Notification</h2>
+              </div>
+              <button
+                onClick={() => setShowNotificationModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiXCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              This notification will be sent to ALL users of the platform.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notification Type
+              </label>
+              <select
+                value={notificationType}
+                onChange={(e) => setNotificationType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="info">ℹ️ Information</option>
+                <option value="success">✅ Success</option>
+                <option value="warning">⚠️ Warning</option>
+                <option value="error">❌ Error</option>
+                <option value="announcement">📢 Announcement</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title
+              </label>
+              <input
+                type="text"
+                value={notificationTitle}
+                onChange={(e) => setNotificationTitle(e.target.value)}
+                placeholder="e.g., Platform Update, New Feature, etc."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Message
+              </label>
+              <textarea
+                value={notificationMessage}
+                onChange={(e) => setNotificationMessage(e.target.value)}
+                rows="4"
+                placeholder="Enter your notification message here..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-xs text-blue-700">
+                ⚡ This notification will be sent to all users immediately.
+                They will receive it in their notification center.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNotificationModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendNotification}
+                disabled={sendingNotification}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {sendingNotification ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <FiSend className="w-4 h-4" />
+                    Send Notification
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
 
-// Stat Card Component
+// Stat Card Component (same as before)
 const StatCard = ({ title, value, icon: Icon, color, trend }) => {
   const colorClasses = {
     blue: 'bg-blue-100 text-blue-600',
@@ -317,8 +482,6 @@ const InfoCard = ({ title, value, icon: Icon, color, subtitle }) => {
 
 // Withdrawals Tab Component
 const WithdrawalsTab = ({ withdrawals, onApprove, onComplete, onReject }) => {
-  const [processingId, setProcessingId] = useState(null);
-
   if (withdrawals.length === 0) {
     return (
       <div className="text-center py-12">
@@ -398,7 +561,7 @@ const WithdrawalsTab = ({ withdrawals, onApprove, onComplete, onReject }) => {
   );
 };
 
-// Users Tab Component
+// Users Tab Component (same as before)
 const UsersTab = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);

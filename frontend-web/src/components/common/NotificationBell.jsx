@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiBell, FiX, FiCheckCircle, FiAlertCircle, FiCalendar } from 'react-icons/fi';
+import { FiBell, FiX, FiCheckCircle, FiAlertCircle, FiCalendar, FiXCircle } from 'react-icons/fi'; // ✅ Add FiXCircle
 import { notificationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../hooks/useSocket';
@@ -87,10 +87,14 @@ const NotificationBell = () => {
     switch (type) {
       case 'exam_cancelled':
         return <FiAlertCircle className="w-5 h-5 text-red-500" />;
+      case 'session_cancelled':
+        return <FiXCircle className="w-5 h-5 text-red-500" />;
       case 'certificate_issued':
         return <FiCheckCircle className="w-5 h-5 text-green-500" />;
       case 'session_reminder':
         return <FiCalendar className="w-5 h-5 text-blue-500" />;
+      case 'announcement':
+        return <FiBell className="w-5 h-5 text-purple-500" />;
       default:
         return <FiBell className="w-5 h-5 text-gray-500" />;
     }

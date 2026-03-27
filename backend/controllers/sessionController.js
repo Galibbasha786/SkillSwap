@@ -3,7 +3,7 @@
 const Session = require('../models/Session');
 const User = require('../models/User');
 const axios = require('axios');
-
+const { createNotification } = require('./notificationController');
 // ✅ Generate valid Google Meet link (fallback)
 const generateMeetLink = () => {
   const chars = 'abcdefghijklmnopqrstuvwxyz';
@@ -206,31 +206,82 @@ exports.updateSessionStatus = async (req, res) => {
 exports.cancelSession = async (req, res) => {
   try {
     const { reason } = req.body;
-    if (!reason) return res.status(400).json({ message: 'Reason required' });
     
-    const session = await Session.findById(req.params.id);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
-    
-    if (session.teacherId.toString() !== req.user.id && 
-        session.learnerId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ message: 'Reason required' });
     }
     
+    const session = await Session.findById(req.params.id)
+      .populate('teacherId', 'name email')
+      .populate('learnerId', 'name email');
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Check authorization - only teacher can cancel
+    if (session.teacherId._id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the teacher can cancel this session' });
+    }
+    
+    // Check if session is in the future
     if (new Date(session.date) < new Date()) {
       return res.status(400).json({ message: 'Cannot cancel past sessions' });
     }
     
+    // Check if already cancelled
+    if (session.status === 'cancelled') {
+      return res.status(400).json({ message: 'Session already cancelled' });
+    }
+    
+    // Update session
     session.status = 'cancelled';
     session.cancellationReason = reason;
     session.cancelledAt = new Date();
-    
     await session.save();
-    res.json({ success: true, message: 'Session cancelled' });
+    
+    // ✅ Send notification to the student (learner)
+    await createNotification(
+      session.learnerId._id,
+      'session_cancelled',
+      `Session Cancelled: ${session.title}`,
+      `Your session "${session.title}" with ${session.teacherId.name} has been cancelled. Reason: ${reason}`,
+      {
+        sessionId: session._id,
+        skillName: session.skillName,
+        teacherName: session.teacherId.name,
+        reason: reason,
+        cancelledBy: 'teacher'
+      }
+    );
+    
+    // ✅ Also notify the teacher (optional - confirmation)
+    await createNotification(
+      session.teacherId._id,
+      'session_cancelled',
+      `You cancelled a session: ${session.title}`,
+      `You have cancelled the session with ${session.learnerId.name} for ${session.skillName}.`,
+      {
+        sessionId: session._id,
+        skillName: session.skillName,
+        studentName: session.learnerId.name,
+        reason: reason
+      }
+    );
+    
+    console.log(`📢 Session ${session._id} cancelled. Student ${session.learnerId.email} notified.`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Session cancelled successfully',
+      session 
+    });
   } catch (error) {
-    console.error(error);
+    console.error('Error cancelling session:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // @desc    Delete session
 // @route   DELETE /api/sessions/:id

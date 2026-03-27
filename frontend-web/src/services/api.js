@@ -208,6 +208,7 @@ export const notificationAPI = {
   getNotifications: () => api.get('/notifications'),
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
+  sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
 };
 // frontend-web/src/services/api.js - Add/Update adminAPI
 
@@ -220,7 +221,9 @@ export const adminAPI = {
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUserStatus: (id, data) => api.put(`/admin/users/${id}/status`, data),
   getTransactions: (params) => api.get('/admin/transactions', { params }),
-  deleteUser: (id) => api.delete(`/admin/users/${id}`)
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  // ✅ Add this line
+  sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
 };
 
 export default api;

@@ -17,7 +17,16 @@ const notificationSchema = new mongoose.Schema({
       'exam_updated',
       'session_reminder',
       'certificate_issued',
-      'message_received'
+      'message_received',
+      'announcement',
+      'platform_update',
+      'admin_notification',
+      'withdrawal_requested',
+      'withdrawal_processing',
+      'withdrawal_completed',
+      'withdrawal_rejected',
+      // ✅ Add session cancellation type
+      'session_cancelled'
     ],
     required: true
   },
@@ -30,12 +39,8 @@ const notificationSchema = new mongoose.Schema({
     required: true
   },
   data: {
-    examId: mongoose.Schema.Types.ObjectId,
-    examTitle: String,
-    skillName: String,
-    reason: String,
-    sessionId: mongoose.Schema.Types.ObjectId,
-    certificateId: String
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   isRead: {
     type: Boolean,

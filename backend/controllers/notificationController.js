@@ -2,7 +2,7 @@
 
 const Notification = require('../models/Notification');
 
-// Helper function to create notification (without socket if not available)
+// Helper function to create notification
 const createNotification = async (userId, type, title, message, data = {}) => {
   try {
     const notification = await Notification.create({
@@ -13,7 +13,7 @@ const createNotification = async (userId, type, title, message, data = {}) => {
       data
     });
     
-    // Try to emit socket event (if socket is available)
+    // Try to emit socket event
     try {
       const { getIO } = require('../socket');
       const io = getIO();
@@ -21,8 +21,7 @@ const createNotification = async (userId, type, title, message, data = {}) => {
         io.to(`user:${userId}`).emit('new-notification', notification);
       }
     } catch (socketError) {
-      // Socket not available, just log and continue
-      console.log('Socket not available, notification saved but not sent real-time');
+      console.log('Socket not available');
     }
     
     return notification;
@@ -35,7 +34,7 @@ const createNotification = async (userId, type, title, message, data = {}) => {
 // @desc    Get user notifications
 // @route   GET /api/notifications
 // @access  Private
-exports.getNotifications = async (req, res) => {
+const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
@@ -59,7 +58,7 @@ exports.getNotifications = async (req, res) => {
 // @desc    Mark notification as read
 // @route   PUT /api/notifications/:id/read
 // @access  Private
-exports.markAsRead = async (req, res) => {
+const markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findOneAndUpdate(
       { _id: req.params.id, userId: req.user.id },
@@ -81,7 +80,7 @@ exports.markAsRead = async (req, res) => {
 // @desc    Mark all notifications as read
 // @route   PUT /api/notifications/read-all
 // @access  Private
-exports.markAllAsRead = async (req, res) => {
+const markAllAsRead = async (req, res) => {
   try {
     await Notification.updateMany(
       { userId: req.user.id, isRead: false },
@@ -95,9 +94,10 @@ exports.markAllAsRead = async (req, res) => {
   }
 };
 
+// ✅ Export all functions
 module.exports = {
+  createNotification,
   getNotifications,
   markAsRead,
-  markAllAsRead,
-  createNotification
+  markAllAsRead
 };

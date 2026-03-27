@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { FiMail, FiLock, FiArrowRight, FiUser, FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiMail, FiLock, FiArrowRight, FiUser, FiAlertCircle, FiEye, FiEyeOff, FiStar, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { GoogleLogin } from '@react-oauth/google';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
+import skillswapLogo from '../assets/skillswaplogo.jpg';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -24,6 +25,25 @@ const Login = () => {
   const [loginError, setLoginError] = useState('');
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
+
+  // Quotes for rotation
+  const quotes = [
+    { text: "Learn. Share. Grow.", icon: FiStar, color: "from-yellow-400 to-orange-500" },
+    { text: "Exchange Skills, Build Dreams", icon: FiTrendingUp, color: "from-green-400 to-emerald-500" },
+    { text: "Connect with Experts", icon: FiUsers, color: "from-blue-400 to-indigo-500" },
+    { text: "Teach What You Know", icon: FiStar, color: "from-purple-400 to-pink-500" },
+    { text: "Learn What You Love", icon: FiTrendingUp, color: "from-rose-400 to-red-500" }
+  ];
+
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+
+  // Rotate quotes every 4 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentQuoteIndex((prev) => (prev + 1) % quotes.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Load saved email if remember me was checked
   useEffect(() => {
@@ -49,10 +69,8 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Clear previous error
     setLoginError('');
     
-    // Basic validation
     if (!email.trim()) {
       setLoginError('Please enter your email address');
       toast.error('Please enter your email address');
@@ -65,7 +83,6 @@ const Login = () => {
       return;
     }
     
-    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setLoginError('Please enter a valid email address');
@@ -79,14 +96,12 @@ const Login = () => {
       const result = await login(email, password);
       
       if (result.success && result.user) {
-        // Save email if remember me is checked
         if (rememberMe) {
           localStorage.setItem('rememberedEmail', email);
         } else {
           localStorage.removeItem('rememberedEmail');
         }
         
-        // Role-based redirect
         if (result.user.role === 'admin') {
           toast.success('Welcome Admin! Redirecting to admin panel...');
           setTimeout(() => {
@@ -102,7 +117,6 @@ const Login = () => {
     } catch (error) {
       console.error('Login error:', error);
       
-      // Handle specific error cases
       const errorMessage = error.response?.data?.message || error.message || 'Login failed';
       
       if (errorMessage === 'Email not verified') {
@@ -133,7 +147,6 @@ const Login = () => {
       return;
     }
     
-    // OTP format validation (only numbers)
     if (!/^\d+$/.test(otp)) {
       toast.error('OTP should contain only numbers');
       return;
@@ -152,7 +165,6 @@ const Login = () => {
         setShowVerifyModal(false);
         setOtp('');
         
-        // Auto login after verification
         const result = await login(unverifiedEmail, password);
         if (result.success && result.user) {
           if (result.user.role === 'admin') {
@@ -211,7 +223,6 @@ const Login = () => {
       if (result.success && result.user) {
         toast.success('Google login successful!');
         
-        // Role-based redirect
         if (result.user.role === 'admin') {
           setTimeout(() => {
             navigate('/admin');
@@ -248,36 +259,141 @@ const Login = () => {
     navigate('/forgot-password', { state: { email } });
   };
 
+  const currentQuote = quotes[currentQuoteIndex];
+  const QuoteIcon = currentQuote.icon;
+
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        {/* Background Animation */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animation-delay-2000"></div>
-          <div className="absolute top-40 left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animation-delay-4000"></div>
-        </div>
-
-        {/* Login Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative z-10 w-full max-w-md"
+      <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900">
+        {/* Left Side - Brand Section */}
+        <motion.div 
+          initial={{ x: -100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700"
         >
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
-            {/* Header */}
+          {/* Animated Background Patterns */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 left-0 w-full h-full">
+              <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full mix-blend-overlay filter blur-3xl animate-pulse"></div>
+              <div className="absolute bottom-10 right-10 w-96 h-96 bg-yellow-400 rounded-full mix-blend-overlay filter blur-3xl animate-pulse animation-delay-2000"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-pink-400 rounded-full mix-blend-overlay filter blur-3xl animate-pulse animation-delay-4000"></div>
+            </div>
+          </div>
+
+          {/* Grid Pattern Overlay */}
+          <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:50px_50px]"></div>
+
+          {/* Content */}
+          <div className="relative z-10 flex flex-col justify-center items-center text-center p-12 w-full">
+            {/* Logo Container with Animation - Circular with proper cropping */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-center mb-8"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
+              className="mb-12 relative"
             >
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              {/* Outer Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+              
+              {/* Main Circular Container */}
+              <div className="relative w-48 h-48 rounded-full bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm border-4 border-white/30 shadow-2xl flex items-center justify-center overflow-hidden">
+                {/* Image Container with proper object-fit cover to make square image circular */}
+                <div className="w-full h-full rounded-full overflow-hidden">
+                  <img 
+                    src={skillswapLogo} 
+                    alt="SkillSwap Logo" 
+                    className="w-full h-full object-cover transform transition-transform duration-500 hover:scale-110"
+                  />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Brand Name with Animation */}
+            <motion.h1
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="text-6xl font-bold text-white mb-4 tracking-tight"
+            >
+              Skill<span className="text-yellow-300">Swap</span>
+            </motion.h1>
+
+            {/* Rotating Quote Section */}
+            <div className="relative h-32 mt-8">
+              <motion.div
+                key={currentQuoteIndex}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.5 }}
+                className="absolute w-full"
+              >
+                <div className={`bg-gradient-to-r ${currentQuote.color} bg-clip-text`}>
+                  <QuoteIcon className="w-12 h-12 text-white/80 mx-auto mb-4" />
+                  <p className="text-3xl font-semibold text-white">
+                    {currentQuote.text}
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Stats Section */}
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.6 }}
+              className="grid grid-cols-3 gap-8 mt-16 pt-8 border-t border-white/20"
+            >
+              <div className="text-center">
+                <div className="text-3xl font-bold text-yellow-300">10K+</div>
+                <div className="text-sm text-white/80 mt-1">Active Learners</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-yellow-300">500+</div>
+                <div className="text-sm text-white/80 mt-1">Expert Mentors</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-yellow-300">50+</div>
+                <div className="text-sm text-white/80 mt-1">Skill Categories</div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Right Side - Login Form */}
+        <motion.div
+          initial={{ x: 100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="w-full lg:w-1/2 flex items-center justify-center p-4 bg-white overflow-y-auto"
+        >
+          <div className="w-full max-w-md py-8">
+            {/* Mobile Logo (visible only on mobile) - Circular */}
+            <div className="lg:hidden text-center mb-8">
+              <div className="inline-block">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 p-0.5">
+                  <div className="w-full h-full rounded-full bg-white overflow-hidden">
+                    <img 
+                      src={skillswapLogo} 
+                      alt="SkillSwap" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold mt-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Welcome Back!
+              </h2>
+            </div>
+
+            {/* Header */}
+            <div className="hidden lg:block text-center mb-8">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Welcome Back
               </h1>
-              <p className="text-gray-600">Sign in to continue your learning journey</p>
-            </motion.div>
+              <p className="text-gray-600 mt-2">Sign in to continue your learning journey</p>
+            </div>
 
             {/* Error Alert */}
             {loginError && (
@@ -323,7 +439,7 @@ const Login = () => {
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white/80 text-gray-500">Or continue with email</span>
+                <span className="px-4 bg-white text-gray-500">Or continue with email</span>
               </div>
             </motion.div>
 
@@ -344,7 +460,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      setLoginError(''); // Clear error on input change
+                      setLoginError('');
                     }}
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Enter your email"
@@ -369,7 +485,7 @@ const Login = () => {
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
-                      setLoginError(''); // Clear error on input change
+                      setLoginError('');
                     }}
                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Enter your password"
@@ -445,7 +561,7 @@ const Login = () => {
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white/80 text-gray-500">New to SkillSwap?</span>
+                <span className="px-4 bg-white text-gray-500">New to SkillSwap?</span>
               </div>
             </motion.div>
 
@@ -476,7 +592,7 @@ const Login = () => {
         </motion.div>
       </div>
 
-      {/* OTP Verification Modal (for login with unverified email) */}
+      {/* OTP Verification Modal */}
       {showVerifyModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <motion.div
@@ -555,5 +671,5 @@ const Login = () => {
     </>
   );
 };
-
+ 
 export default Login;

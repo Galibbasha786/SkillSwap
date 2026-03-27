@@ -6,39 +6,34 @@ const Transaction = require('../models/Transaction');
 const Withdrawal = require('../models/Withdrawal');
 const Exam = require('../models/Exam');
 const Certificate = require('../models/Certificate');
-
+const Notification = require('../models/Notification');
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
 // @access  Private/Admin
 exports.getDashboardStats = async (req, res) => {
   try {
-    // User stats
     const totalUsers = await User.countDocuments();
     const totalTeachers = await User.countDocuments({ 
       'skillsTeach.0': { $exists: true } 
     });
     const totalStudents = totalUsers - totalTeachers;
     
-    // Session stats
     const totalSessions = await Session.countDocuments();
     const completedSessions = await Session.countDocuments({ status: 'completed' });
     const pendingSessions = await Session.countDocuments({ status: 'pending' });
     
-    // Revenue stats
     const revenueResult = await Transaction.aggregate([
       { $match: { status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$platformFee' } } }
     ]);
     const totalRevenue = revenueResult[0]?.total || 0;
     
-    // Withdrawal stats
     const withdrawalResult = await Withdrawal.aggregate([
       { $match: { status: 'pending' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const pendingWithdrawals = withdrawalResult[0]?.total || 0;
     
-    // Exam & Certificate stats
     const totalExams = await Exam.countDocuments();
     const totalCertificates = await Certificate.countDocuments();
     
@@ -149,7 +144,6 @@ exports.completeWithdrawal = async (req, res) => {
     withdrawal.transactionId = transactionId;
     await withdrawal.save();
     
-    // Update user's total withdrawn
     await User.findByIdAndUpdate(withdrawal.userId._id, {
       $inc: { 'wallet.totalWithdrawn': withdrawal.amount }
     });
@@ -191,7 +185,6 @@ exports.rejectWithdrawal = async (req, res) => {
     withdrawal.processedAt = new Date();
     await withdrawal.save();
     
-    // Refund money to user's wallet
     await User.findByIdAndUpdate(withdrawal.userId._id, {
       $inc: { 
         'wallet.balance': withdrawal.amount,
@@ -337,6 +330,40 @@ exports.getAllTransactions = async (req, res) => {
   }
 };
 
+// @desc    Send notification to all users
+// @route   POST /api/admin/notifications/send-to-all
+// @access  Private/Admin
+exports.sendNotificationToAll = async (req, res) => {
+  try {
+    const { title, message, type = 'announcement' } = req.body;
+    
+    const users = await User.find({ isActive: true });
+    
+    const { createNotification } = require('./notificationController');
+    
+    await Promise.all(
+      users.map(async (user) => {
+        return await createNotification(
+          user._id,
+          type === 'announcement' ? 'announcement' : 'platform_update',
+          title,
+          message,
+          { type: 'admin_notification', sentBy: req.user.id }
+        );
+      })
+    );
+    
+    res.json({
+      success: true,
+      message: `Notification sent to ${users.length} users`,
+      count: users.length
+    });
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    res.status(500).json({ message: 'Failed to send notification' });
+  }
+};
+
 // @desc    Delete user (admin only)
 // @route   DELETE /api/admin/users/:id
 // @access  Private/Admin
@@ -364,4 +391,18 @@ exports.deleteUser = async (req, res) => {
       message: 'Failed to delete user' 
     });
   }
+};
+
+// ✅ ONLY ONE module.exports at the very end
+module.exports = {
+  getDashboardStats: exports.getDashboardStats,
+  getPendingWithdrawals: exports.getPendingWithdrawals,
+  approveWithdrawal: exports.approveWithdrawal,
+  completeWithdrawal: exports.completeWithdrawal,
+  rejectWithdrawal: exports.rejectWithdrawal,
+  getAllUsers: exports.getAllUsers,
+  updateUserStatus: exports.updateUserStatus,
+  getAllTransactions: exports.getAllTransactions,
+  deleteUser: exports.deleteUser,
+  sendNotificationToAll: exports.sendNotificationToAll
 };
