@@ -1,250 +1,143 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const Session = require('../models/Session');
+// backend/controllers/paymentController.js - Add UPI payment functions
+
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const Withdrawal = require('../models/Withdrawal');
+const Session = require('../models/Session');
+const { generateUPIQR, generateOrderId, verifyUPIPayment, PLATFORM_UPI_ID } = require('../services/upiService');
 
-// @desc    Create payment intent for session
-// @route   POST /api/payments/create-payment-intent
+// @desc    Create UPI payment for session booking (Student pays to Platform)
+// @route   POST /api/payments/create-upi-payment
 // @access  Private
-// In createPaymentIntent, add more detailed error logging:
-exports.createPaymentIntent = async (req, res) => {
+exports.createUPIPayment = async (req, res) => {
   try {
     const { sessionId } = req.body;
-    console.log('Creating payment intent for session:', sessionId);
-    
-    // Check if Stripe is initialized
-    if (!stripe) {
-      console.error('Stripe not initialized - check STRIPE_SECRET_KEY');
-      return res.status(500).json({ message: 'Stripe configuration error' });
-    }
     
     const session = await Session.findById(sessionId)
-      .populate('teacherId')
-      .populate('learnerId');
+      .populate('teacherId', 'name email')
+      .populate('learnerId', 'name email');
     
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    console.log('Session amount:', session.totalAmount);
+    const orderId = generateOrderId();
+    const amount = session.totalAmount;
     
-    // Validate amount
-    const amount = Math.round(session.totalAmount * 100);
-    if (amount <= 0) {
-      return res.status(400).json({ message: 'Invalid amount' });
-    }
+    // Generate UPI QR Code and Intent Link for platform's UPI
+    const { upiIntent, qrCode } = await generateUPIQR(
+      amount,
+      orderId,
+      session.learnerId.name,
+      session.skillName
+    );
     
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: 'usd',
-      metadata: {
-        sessionId: session._id.toString(),
-        teacherId: session.teacherId._id.toString(),
-        learnerId: session.learnerId._id.toString()
-      }
-    });
-    
-    console.log('Payment intent created:', paymentIntent.id);
-    res.json({ clientSecret: paymentIntent.client_secret });
-    
-  } catch (error) {
-    console.error('❌ Stripe Error:', {
-      message: error.message,
-      type: error.type,
-      code: error.code,
-      stack: error.stack
-    });
-    res.status(500).json({ 
-      message: 'Error creating payment',
-      error: error.message 
-    });
-  }
-};
-// @desc    Confirm payment and create transaction
-// @route   POST /api/payments/confirm
-// @access  Private
-exports.confirmPayment = async (req, res) => {
-  try {
-    const { sessionId, paymentIntentId } = req.body;
-    
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ message: 'Payment not successful' });
-    }
-    
-    const session = await Session.findById(sessionId);
-    
-    // Create transaction record
+    // Create transaction record with pending status
     const transaction = await Transaction.create({
       sessionId: session._id,
-      learnerId: session.learnerId,
-      teacherId: session.teacherId,
+      learnerId: session.learnerId._id,
+      teacherId: session.teacherId._id,
       amount: session.totalAmount,
       platformFee: session.platformFee,
       teacherEarnings: session.teacherEarnings,
-      status: 'completed',
-      paymentMethod: 'stripe',
-      stripePaymentIntentId: paymentIntentId,
+      status: 'pending',
+      paymentMethod: 'upi_qr',
+      upiId: PLATFORM_UPI_ID,
+      upiQRCode: qrCode,
+      upiIntentLink: upiIntent,
+      upiExpiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
       duration: session.duration / 60,
       hourlyRate: session.hourlyRate,
-      paidAt: new Date()
+      skillName: session.skillName,
+      transferStatus: 'pending'
     });
     
-    // Update session payment status
-    session.paymentStatus = 'completed';
-    await session.save();
-    
-    // Update teacher's wallet
-    await User.findByIdAndUpdate(session.teacherId, {
-      $inc: { 
-        'wallet.balance': session.teacherEarnings,
-        totalEarnings: session.teacherEarnings
-      }
-    });
-    
-    // Update learner's total spent
-    await User.findByIdAndUpdate(session.learnerId, {
-      $inc: { totalSpent: session.totalAmount }
-    });
-    
-    res.json({ success: true, transaction });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error confirming payment' });
-  }
-};
-
-// @desc    Get teacher's earnings
-// @route   GET /api/payments/earnings
-// @access  Private
-exports.getEarnings = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    
-    const transactions = await Transaction.find({ 
-      teacherId: req.user.id,
-      status: 'completed'
-    }).sort('-createdAt');
-    
-    const totalEarnings = transactions.reduce((sum, t) => sum + t.teacherEarnings, 0);
-    const totalSessions = transactions.length;
-    const averagePerSession = totalSessions > 0 ? totalEarnings / totalSessions : 0;
-    
-    // Group by month for chart
-    const monthlyEarnings = transactions.reduce((acc, t) => {
-      const month = t.createdAt.toLocaleString('default', { month: 'short' });
-      acc[month] = (acc[month] || 0) + t.teacherEarnings;
-      return acc;
-    }, {});
+    console.log(`💳 UPI payment created for session ${sessionId}: ₹${amount}`);
     
     res.json({
-      balance: user.wallet.balance,
-      totalEarnings,
-      totalSessions,
-      averagePerSession,
-      monthlyEarnings,
-      recentTransactions: transactions.slice(0, 10)
+      success: true,
+      transaction: {
+        id: transaction._id,
+        amount: transaction.amount,
+        upiId: PLATFORM_UPI_ID,
+        upiQRCode: qrCode,
+        upiIntentLink: upiIntent,
+        expiresAt: transaction.upiExpiresAt
+      }
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error fetching earnings' });
+    console.error('Error creating UPI payment:', error);
+    res.status(500).json({ message: 'Failed to create payment', error: error.message });
   }
 };
 
-// @desc    Request withdrawal
-// @route   POST /api/payments/withdraw
+// @desc    Verify UPI payment after student pays
+// @route   POST /api/payments/verify-upi-payment
 // @access  Private
-exports.requestWithdrawal = async (req, res) => {
+exports.verifyUPIPayment = async (req, res) => {
   try {
-    const { amount, bankInfo } = req.body;
+    const { transactionId, upiTransactionId } = req.body;
     
-    const user = await User.findById(req.user.id);
+    const transaction = await Transaction.findById(transactionId)
+      .populate('sessionId');
     
-    // Check minimum withdrawal
-    if (amount < (process.env.MINIMUM_WITHDRAWAL || 20)) {
-      return res.status(400).json({ 
-        message: `Minimum withdrawal amount is $${process.env.MINIMUM_WITHDRAWAL || 20}` 
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    
+    if (transaction.status === 'completed') {
+      return res.status(400).json({ message: 'Payment already verified' });
+    }
+    
+    if (transaction.upiExpiresAt < new Date()) {
+      transaction.status = 'failed';
+      await transaction.save();
+      return res.status(400).json({ message: 'Payment link expired. Please try again.' });
+    }
+    
+    // Verify payment with UPI (simulate)
+    const verification = await verifyUPIPayment(
+      upiTransactionId,
+      transaction.amount,
+      transaction.upiId
+    );
+    
+    if (verification.success) {
+      transaction.status = 'completed';
+      transaction.upiTransactionId = upiTransactionId;
+      transaction.paidAt = new Date();
+      await transaction.save();
+      
+      // Update session payment status
+      await Session.findByIdAndUpdate(transaction.sessionId._id, {
+        paymentStatus: 'completed'
       });
+      
+      // Update teacher's wallet (teacher gets 90%)
+      const teacher = await User.findById(transaction.teacherId);
+      teacher.wallet.balance += transaction.teacherEarnings;
+      teacher.totalEarnings += transaction.teacherEarnings;
+      teacher.wallet.lastTransactionAt = new Date();
+      await teacher.save();
+      
+      // Update student's total spent
+      await User.findByIdAndUpdate(transaction.learnerId, {
+        $inc: { totalSpent: transaction.amount }
+      });
+      
+      console.log(`✅ UPI payment verified: ₹${transaction.amount} added to teacher's wallet`);
+      
+      res.json({
+        success: true,
+        message: 'Payment verified successfully! Session confirmed.',
+        transaction
+      });
+    } else {
+      transaction.status = 'failed';
+      await transaction.save();
+      res.status(400).json({ message: 'Payment verification failed' });
     }
-    
-    // Check balance
-    if (user.wallet.balance < amount) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    }
-    
-    // Create withdrawal request
-    const withdrawal = await Withdrawal.create({
-      userId: user._id,
-      amount,
-      bankInfo,
-      status: 'pending'
-    });
-    
-    // Update user's pending withdrawals
-    user.wallet.pendingWithdrawals += amount;
-    await user.save();
-    
-    res.json({ 
-      success: true, 
-      message: 'Withdrawal request submitted',
-      withdrawal 
-    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error requesting withdrawal' });
+    console.error('Error verifying UPI payment:', error);
+    res.status(500).json({ message: 'Failed to verify payment' });
   }
 };
-
-// @desc    Get transaction history
-// @route   GET /api/payments/transactions
-// @access  Private
-exports.getTransactions = async (req, res) => {
-  try {
-    const transactions = await Transaction.find({
-      $or: [
-        { learnerId: req.user.id },
-        { teacherId: req.user.id }
-      ]
-    })
-    .populate('learnerId', 'name email')
-    .populate('teacherId', 'name email')
-    .populate('sessionId')
-    .sort('-createdAt');
-    
-    res.json(transactions);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error fetching transactions' });
-  }
-};
-// In paymentController.js
-exports.testStripe = async (req, res) => {
-  try {
-    console.log('🧪 Testing Stripe connection...');
-    console.log('Stripe key present:', !!process.env.STRIPE_SECRET_KEY);
-    
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000,
-      currency: 'usd',
-    });
-    
-    console.log('✅ Test payment intent created:', paymentIntent.id);
-    res.json({ 
-      success: true, 
-      message: 'Stripe is working!',
-      paymentIntentId: paymentIntent.id 
-    });
-  } catch (error) {
-    console.error('❌ Stripe test failed:', error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message,
-      type: error.type
-    });
-  }
-};
-
-

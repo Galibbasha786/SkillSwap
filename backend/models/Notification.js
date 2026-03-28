@@ -21,11 +21,14 @@ const notificationSchema = new mongoose.Schema({
       'announcement',
       'platform_update',
       'admin_notification',
+      // ✅ Withdrawal related types - ADD THESE
       'withdrawal_requested',
       'withdrawal_processing',
       'withdrawal_completed',
       'withdrawal_rejected',
-      // ✅ Add session cancellation type
+      'withdrawal_message',
+      'withdrawal_success',      // ✅ Add this alias
+      'withdrawal_failed',       // ✅ Add this
       'session_cancelled'
     ],
     required: true

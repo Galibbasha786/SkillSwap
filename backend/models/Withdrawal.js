@@ -1,5 +1,4 @@
 // backend/models/Withdrawal.js
-
 const mongoose = require('mongoose');
 
 const withdrawalSchema = new mongoose.Schema({
@@ -11,51 +10,63 @@ const withdrawalSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
-    min: 50
+    min: 100  // Minimum withdrawal amount
   },
-  currency: {
+  paymentMethod: {
     type: String,
-    default: 'INR'
+    enum: ['upi', 'bank'],
+    required: true
+  },
+  upiId: {
+    type: String,
+    // Required only if paymentMethod is 'upi'
+  },
+  bankInfo: {
+    accountNumber: String,
+    ifscCode: String,
+    bankName: String,
+    accountHolderName: String
   },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
+    enum: ['pending', 'processing', 'success', 'rejected'],
     default: 'pending'
   },
-  
-  // Payment method details
-  paymentMethod: {
+  transferStatus: {
     type: String,
-    enum: ['bank_transfer', 'upi', 'razorpay_payout'],
-    required: true
+    enum: ['pending', 'processing', 'completed', 'failed'],
+    default: 'pending'
   },
-  
-  // Bank details
-  bankInfo: {
-    accountHolder: String,
-    bankName: String,
-    accountNumber: String,
-    ifscCode: String
+  transactionId: {
+    type: String,  // Admin enters this when payment is sent
+    default: null
   },
-  
-  // UPI details
-  upiId: String,
-  
-  // Processing details
-  razorpayPayoutId: String,
+  rejectionReason: {
+    type: String,
+    default: null
+  },
+  adminNote: {
+    type: String,
+    default: null
+  },
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User'  // Which admin processed this
   },
-  processedAt: Date,
-  completedAt: Date,
-  failureReason: String,
-  notes: String,
-  
+  processedAt: {
+    type: Date
+  },
+  completedAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now
   }
 });
+
+// Index for faster queries
+withdrawalSchema.index({ userId: 1, status: 1 });
+withdrawalSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Withdrawal', withdrawalSchema);

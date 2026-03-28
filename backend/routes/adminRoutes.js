@@ -11,8 +11,11 @@ const {
   rejectWithdrawal,
   getAllUsers,
   updateUserStatus,
+  deleteUser,
   getAllTransactions,
-  sendNotificationToAll  // Add this to the import
+  sendNotificationToAll,
+  sendWithdrawalMessage,
+  getWithdrawalDetails
 } = require('../controllers/adminController');
 
 // All admin routes require authentication and admin role
@@ -23,18 +26,19 @@ router.get('/stats', getDashboardStats);
 
 // Withdrawals
 router.get('/withdrawals/pending', getPendingWithdrawals);
+router.get('/withdrawals/:id', getWithdrawalDetails);
 router.post('/withdrawals/:id/approve', approveWithdrawal);
 router.post('/withdrawals/:id/complete', completeWithdrawal);
 router.post('/withdrawals/:id/reject', rejectWithdrawal);
+router.post('/withdrawals/:id/message', sendWithdrawalMessage);
 
 // Users
 router.get('/users', getAllUsers);
 router.put('/users/:id/status', updateUserStatus);
+router.delete('/users/:id', deleteUser);
 
-// Notifications - ✅ FIXED
-// backend/routes/adminRoutes.js
-
-router.post('/notifications/send-to-all', auth, adminAuth, sendNotificationToAll);
+// Notifications
+router.post('/notifications/send-to-all', sendNotificationToAll);
 
 // Transactions
 router.get('/transactions', getAllTransactions);

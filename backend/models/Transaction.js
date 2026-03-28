@@ -41,9 +41,16 @@ const transactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'wallet', 'stripe', 'razorpay'],
+    enum: ['card', 'wallet', 'stripe', 'razorpay', 'upi_qr'],
     required: true
   },
+  
+  // ✅ UPI Payment Fields
+  upiId: String,
+  upiQRCode: String,
+  upiIntentLink: String,
+  upiTransactionId: String,
+  upiExpiresAt: Date,
   
   // Payment Gateway IDs
   stripePaymentIntentId: String,
@@ -51,11 +58,10 @@ const transactionSchema = new mongoose.Schema({
   razorpayOrderId: String,
   razorpayPaymentId: String,
   
-  // ✅ NEW: Transfer tracking for wallet-to-bank
-  transferId: String,
+  // Transfer tracking
   transferStatus: {
     type: String,
-    enum: ['pending', 'processing', 'completed', 'failed'],
+    enum: ['pending', 'completed', 'failed'],
     default: 'pending'
   },
   transferredAt: Date,
@@ -64,6 +70,7 @@ const transactionSchema = new mongoose.Schema({
   duration: Number,
   hourlyRate: Number,
   skillName: String,
+  description: String,
   
   // Timestamps
   paidAt: Date,

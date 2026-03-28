@@ -1,20 +1,15 @@
+// backend/routes/paymentRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
 const {
-  createPaymentIntent,
-  confirmPayment,
-  getEarnings,
-  requestWithdrawal,
-  getTransactions,
-   testStripe
+  createUPIPayment,
+  verifyUPIPayment
 } = require('../controllers/paymentController');
 
-// Payment routes
-router.post('/create-payment-intent', auth, createPaymentIntent);
-router.post('/confirm', auth, confirmPayment);
-router.get('/earnings', auth, getEarnings);
-router.get('/transactions', auth, getTransactions);
-router.post('/withdraw', auth, requestWithdrawal);
-router.post('/test', auth, testStripe);
+// UPI Payment routes
+router.post('/create-upi-payment', auth, createUPIPayment);
+router.post('/verify-upi-payment', auth, verifyUPIPayment);
+
 module.exports = router;
