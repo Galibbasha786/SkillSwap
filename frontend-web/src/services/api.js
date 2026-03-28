@@ -168,6 +168,15 @@ export const razorpayAPI = {
   testRazorpay: () => api.post('/razorpay/test'),
 };
 
+// ==================== WALLET APIs ====================
+export const walletAPI = {
+  getBalance: () => api.get('/wallet/balance'),
+  requestWithdrawal: (data) => api.post('/wallet/withdraw', data),
+  getWithdrawals: () => api.get('/wallet/withdrawals'),
+  addBankAccount: (data) => api.post('/wallet/add-bank-account', data),
+  getBankAccount: () => api.get('/wallet/bank-account'),
+};
+
 // ==================== EXAM APIs ====================
 export const examAPI = {
   createExam: (examData) => api.post('/exams', examData),
@@ -178,17 +187,9 @@ export const examAPI = {
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
   recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),
   cancelExam: (examId, data) => api.post(`/exams/${examId}/cancel`, data),
-   deleteExam: (examId) => api.delete(`/exams/${examId}`),
+  deleteExam: (examId) => api.delete(`/exams/${examId}`),
 };
-// frontend-web/src/services/api.js - Update walletAPI
 
-export const walletAPI = {
-  getBalance: () => api.get('/wallet/balance'),
-  requestWithdrawal: (data) => api.post('/wallet/withdraw', data),
-  getWithdrawals: () => api.get('/wallet/withdrawals'),
-  addBankAccount: (data) => api.post('/wallet/add-bank-account', data),
-  getBankAccount: () => api.get('/wallet/bank-account'),
-};
 // ==================== CERTIFICATE APIs ====================
 export const certificateAPI = {
   getCertificate: (id) => api.get(`/certificates/${id}`),
@@ -204,25 +205,27 @@ export const meetAPI = {
   createSimpleRoom: (data) => api.post('/meet/create-room', data),
   getCalendarInfo: () => api.get('/meet/calendar'),
 };
+
+// ==================== NOTIFICATION APIs ====================
 export const notificationAPI = {
   getNotifications: () => api.get('/notifications'),
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
-  sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
 };
-// frontend-web/src/services/api.js - Add/Update adminAPI
 
+// ==================== ADMIN APIs ====================
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
   getPendingWithdrawals: () => api.get('/admin/withdrawals/pending'),
-  approveWithdrawal: (id) => api.post(`/admin/withdrawals/${id}/approve`),
+  getWithdrawalDetails: (id) => api.get(`/admin/withdrawals/${id}`),
+  approveWithdrawal: (id, data = {}) => api.post(`/admin/withdrawals/${id}/approve`, data),
   completeWithdrawal: (id, data) => api.post(`/admin/withdrawals/${id}/complete`, data),
   rejectWithdrawal: (id, data) => api.post(`/admin/withdrawals/${id}/reject`, data),
+  sendWithdrawalMessage: (id, data) => api.post(`/admin/withdrawals/${id}/message`, data),
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUserStatus: (id, data) => api.put(`/admin/users/${id}/status`, data),
-  getTransactions: (params) => api.get('/admin/transactions', { params }),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
-  // ✅ Add this line
+  getTransactions: (params) => api.get('/admin/transactions', { params }),
   sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
 };
 

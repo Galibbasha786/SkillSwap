@@ -60,11 +60,25 @@ const AdminDashboard = () => {
         adminAPI.getStats(),
         adminAPI.getPendingWithdrawals()
       ]);
+      
+      console.log('Withdrawals response:', withdrawalsRes.data);
+      
+      // Handle different response structures
+      let withdrawalsData = [];
+      if (withdrawalsRes.data) {
+        if (Array.isArray(withdrawalsRes.data)) {
+          withdrawalsData = withdrawalsRes.data;
+        } else if (withdrawalsRes.data.withdrawals && Array.isArray(withdrawalsRes.data.withdrawals)) {
+          withdrawalsData = withdrawalsRes.data.withdrawals;
+        }
+      }
+      
       setStats(statsRes.data.stats);
-      setWithdrawals(withdrawalsRes.data);
+      setWithdrawals(withdrawalsData);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');
+      setWithdrawals([]);
     } finally {
       setLoading(false);
     }
@@ -105,10 +119,11 @@ const AdminDashboard = () => {
   const handleApproveWithdrawal = async (id) => {
     try {
       await adminAPI.approveWithdrawal(id);
-      toast.success('Withdrawal approved');
+      toast.success('Withdrawal approved and is now processing');
       fetchData();
     } catch (error) {
-      toast.error('Failed to approve withdrawal');
+      console.error('Error approving withdrawal:', error);
+      toast.error(error.response?.data?.message || 'Failed to approve withdrawal');
     }
   };
 
@@ -118,10 +133,11 @@ const AdminDashboard = () => {
     
     try {
       await adminAPI.completeWithdrawal(id, { transactionId });
-      toast.success('Withdrawal marked as completed');
+      toast.success('Withdrawal marked as completed! User will be notified.');
       fetchData();
     } catch (error) {
-      toast.error('Failed to complete withdrawal');
+      console.error('Error completing withdrawal:', error);
+      toast.error(error.response?.data?.message || 'Failed to complete withdrawal');
     }
   };
 
@@ -131,10 +147,11 @@ const AdminDashboard = () => {
     
     try {
       await adminAPI.rejectWithdrawal(id, { reason });
-      toast.success('Withdrawal rejected');
+      toast.success('Withdrawal rejected. User will be notified.');
       fetchData();
     } catch (error) {
-      toast.error('Failed to reject withdrawal');
+      console.error('Error rejecting withdrawal:', error);
+      toast.error(error.response?.data?.message || 'Failed to reject withdrawal');
     }
   };
 
@@ -386,7 +403,7 @@ const AdminDashboard = () => {
   );
 };
 
-// Stat Card Component (same as before)
+// Stat Card Component
 const StatCard = ({ title, value, icon: Icon, color, trend }) => {
   const colorClasses = {
     blue: 'bg-blue-100 text-blue-600',
@@ -480,13 +497,62 @@ const InfoCard = ({ title, value, icon: Icon, color, subtitle }) => {
   );
 };
 
-// Withdrawals Tab Component
-const WithdrawalsTab = ({ withdrawals, onApprove, onComplete, onReject }) => {
-  if (withdrawals.length === 0) {
+// Withdrawals Tab Component - COMPLETE VERSION with status badges and message button
+const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject }) => {
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageSubject, setMessageSubject] = useState('');
+  const [messageContent, setMessageContent] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  const getStatusBadge = (status) => {
+    if (status === 'pending') {
+      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">⏳ Pending Approval</span>;
+    }
+    if (status === 'processing') {
+      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">🔄 Processing</span>;
+    }
+    if (status === 'success' || status === 'completed') {
+      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✅ Completed</span>;
+    }
+    if (status === 'rejected' || status === 'failed') {
+      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">❌ Rejected</span>;
+    }
+    return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{status || 'Unknown'}</span>;
+  };
+
+  const handleSendMessage = async (withdrawalId) => {
+    if (!messageContent.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      await adminAPI.sendWithdrawalMessage(withdrawalId, {
+        subject: messageSubject || 'Update on Your Withdrawal',
+        message: messageContent
+      });
+      toast.success('Message sent to user');
+      setShowMessageModal(false);
+      setMessageContent('');
+      setMessageSubject('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error(error.response?.data?.message || 'Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Ensure withdrawals is an array
+  const safeWithdrawals = Array.isArray(withdrawals) ? withdrawals : [];
+
+  if (safeWithdrawals.length === 0) {
     return (
       <div className="text-center py-12">
         <FiCheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Withdrawals</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Withdrawal Requests</h3>
         <p className="text-gray-500">All withdrawal requests have been processed</p>
       </div>
     );
@@ -494,74 +560,206 @@ const WithdrawalsTab = ({ withdrawals, onApprove, onComplete, onReject }) => {
 
   return (
     <div className="space-y-4">
-      {withdrawals.map((withdrawal) => (
-        <div key={withdrawal._id} className="border rounded-lg p-5 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <img 
-                  src={withdrawal.userId?.profileImage || 'https://via.placeholder.com/40'} 
-                  alt={withdrawal.userId?.name}
-                  className="w-10 h-10 rounded-full"
-                />
-                <div>
-                  <p className="font-semibold text-gray-900">{withdrawal.userId?.name}</p>
-                  <p className="text-sm text-gray-500">{withdrawal.userId?.email}</p>
+      {safeWithdrawals.map((withdrawal) => {
+        const status = withdrawal.status || 'pending';
+        
+        return (
+          <div key={withdrawal._id} className="border rounded-lg p-5 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <img 
+                    src={withdrawal.userId?.profileImage || 'https://via.placeholder.com/40'} 
+                    alt={withdrawal.userId?.name}
+                    className="w-10 h-10 rounded-full"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/40'; }}
+                  />
+                  <div>
+                    <p className="font-semibold text-gray-900">{withdrawal.userId?.name || 'Unknown User'}</p>
+                    <p className="text-sm text-gray-500">{withdrawal.userId?.email || ''}</p>
+                  </div>
+                  <div className="ml-auto">
+                    {getStatusBadge(status)}
+                  </div>
                 </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Amount</p>
+                    <p className="text-lg font-bold text-green-600">₹{withdrawal.amount || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Payment Method</p>
+                    <p className="text-sm font-medium text-gray-700">
+                      {withdrawal.paymentMethod === 'upi' ? 'UPI' : withdrawal.paymentMethod === 'bank' ? 'Bank Transfer' : 'Unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Requested</p>
+                    <p className="text-sm text-gray-700">
+                      {withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Details</p>
+                    {withdrawal.paymentMethod === 'upi' ? (
+                      <p className="text-sm font-mono text-gray-700">{withdrawal.upiId || 'N/A'}</p>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {withdrawal.bankInfo?.bankName || 'N/A'} - ****{withdrawal.bankInfo?.accountNumber?.slice(-4) || '****'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {status === 'processing' && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-xs text-blue-700 flex items-center gap-1">
+                      <FiLoader className="animate-spin w-3 h-3" />
+                      Payment is being processed. Enter transaction ID after sending funds.
+                    </p>
+                  </div>
+                )}
+
+                {withdrawal.rejectionReason && status === 'rejected' && (
+                  <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                    <p className="text-xs text-red-700 font-medium">Rejection Reason:</p>
+                    <p className="text-sm text-red-600">{withdrawal.rejectionReason}</p>
+                  </div>
+                )}
+
+                {withdrawal.transactionId && status === 'success' && (
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                    <p className="text-xs text-green-700 font-medium">Transaction ID:</p>
+                    <p className="text-sm font-mono text-green-600">{withdrawal.transactionId}</p>
+                  </div>
+                )}
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                <div>
-                  <p className="text-xs text-gray-500">Amount</p>
-                  <p className="text-lg font-bold text-green-600">₹{withdrawal.amount}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Payment Method</p>
-                  <p className="text-sm font-medium text-gray-700">
-                    {withdrawal.paymentMethod === 'upi' ? 'UPI' : 'Bank Transfer'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Requested</p>
-                  <p className="text-sm text-gray-700">
-                    {new Date(withdrawal.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Details</p>
-                  {withdrawal.paymentMethod === 'upi' ? (
-                    <p className="text-sm font-mono text-gray-700">{withdrawal.upiId}</p>
-                  ) : (
-                    <p className="text-sm text-gray-700">
-                      {withdrawal.bankInfo?.bankName} - ****{withdrawal.bankInfo?.accountNumber?.slice(-4)}
-                    </p>
-                  )}
-                </div>
+              <div className="flex gap-2 ml-4">
+                {status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => onApprove && onApprove(withdrawal._id)}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+                    >
+                      Approve & Process
+                    </button>
+                    <button
+                      onClick={() => onReject && onReject(withdrawal._id)}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+                
+                {status === 'processing' && (
+                  <button
+                    onClick={() => onComplete && onComplete(withdrawal._id)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Mark as Completed
+                  </button>
+                )}
+
+                {/* Send Message Button - Always visible */}
+                <button
+                  onClick={() => {
+                    setSelectedWithdrawal(withdrawal);
+                    setShowMessageModal(true);
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                >
+                  <FiMail className="inline mr-1 w-4 h-4" />
+                  Message
+                </button>
               </div>
             </div>
-            
-            <div className="flex gap-2 ml-4">
+          </div>
+        );
+      })}
+
+      {/* Send Message Modal */}
+      {showMessageModal && selectedWithdrawal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Send Message to {selectedWithdrawal.userId?.name || 'User'}
+              </h2>
               <button
-                onClick={() => onApprove(withdrawal._id)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+                onClick={() => setShowMessageModal(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                Approve
-              </button>
-              <button
-                onClick={() => onReject(withdrawal._id)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
-              >
-                Reject
+                <FiXCircle className="w-6 h-6" />
               </button>
             </div>
-          </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Withdrawal: ₹{(selectedWithdrawal.amount || 0).toLocaleString()} ({selectedWithdrawal.status || 'pending'})
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Subject (Optional)
+              </label>
+              <input
+                type="text"
+                value={messageSubject}
+                onChange={(e) => setMessageSubject(e.target.value)}
+                placeholder="e.g., Update on your withdrawal"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Message *
+              </label>
+              <textarea
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                rows="5"
+                placeholder="Enter your message here..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowMessageModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSendMessage(selectedWithdrawal._id)}
+                disabled={sendingMessage}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
+              >
+                {sendingMessage ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <FiLoader className="animate-spin w-4 h-4" />
+                    Sending...
+                  </span>
+                ) : (
+                  'Send Message'
+                )}
+              </button>
+            </div>
+          </motion.div>
         </div>
-      ))}
+      )}
     </div>
   );
 };
 
-// Users Tab Component (same as before)
+// Users Tab Component
 const UsersTab = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
