@@ -307,6 +307,101 @@ exports.deleteSession = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+// backend/controllers/sessionController.js
+// Add this function to update session status and trigger rating availability
+
+// @desc    Complete session (mark as completed)
+// @route   PUT /api/sessions/:id/complete
+// @access  Private
+exports.completeSession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+    
+    const session = await Session.findById(id);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Only teacher or learner can mark as completed
+    if (session.teacherId.toString() !== userId.toString() && 
+        session.learnerId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    // Only can complete if status is ongoing
+    if (session.status !== 'ongoing') {
+      return res.status(400).json({ message: 'Session cannot be completed' });
+    }
+    
+    session.status = 'completed';
+    await session.save();
+    
+    // Notify both parties that session is completed and ready for rating
+    await Notification.create({
+      userId: session.teacherId,
+      title: 'Session Completed! ⭐',
+      message: `Your session "${session.title}" has been completed. Don't forget to rate the learner!`,
+      type: 'session_completed',
+      data: { sessionId: session._id }
+    });
+    
+    await Notification.create({
+      userId: session.learnerId,
+      title: 'Session Completed! ⭐',
+      message: `Your session "${session.title}" has been completed. Don't forget to rate the teacher!`,
+      type: 'session_completed',
+      data: { sessionId: session._id }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Session completed successfully',
+      session 
+    });
+    
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+exports.autoCompleteSession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+    
+    const session = await Session.findById(id);
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Only teacher or learner can trigger auto-complete
+    if (session.teacherId.toString() !== userId.toString() && 
+        session.learnerId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    const completed = await checkAndCompleteSession(id);
+    
+    if (completed) {
+      res.json({ 
+        success: true, 
+        message: 'Session automatically completed',
+        session: await Session.findById(id).populate('teacherId', 'name').populate('learnerId', 'name')
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: 'Session is not yet ready to be completed',
+        sessionEndTime: new Date(new Date(session.date).getTime() + session.duration * 60000)
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 module.exports = {
   createSession: exports.createSession,
@@ -314,5 +409,7 @@ module.exports = {
   getSessionById: exports.getSessionById,
   updateSessionStatus: exports.updateSessionStatus,
   cancelSession: exports.cancelSession,
-  deleteSession: exports.deleteSession
+  deleteSession: exports.deleteSession,
+  completeSession: exports.completeSession,
+  autoCompleteSession: exports.autoCompleteSession
 };

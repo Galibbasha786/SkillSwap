@@ -29,7 +29,9 @@ const notificationSchema = new mongoose.Schema({
       'withdrawal_message',
       'withdrawal_success',      // ✅ Add this alias
       'withdrawal_failed',       // ✅ Add this
-      'session_cancelled'
+      'session_cancelled',
+       'rating_received',     // ✅ Add this
+    'session_completed',
     ],
     required: true
   },

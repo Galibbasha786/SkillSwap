@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import ImageUpload from '../components/profile/ImageUpload';
 import NotificationBell from '../components/common/NotificationBell';
 import WalletBalance from '../components/wallet/WalletBalance';
+import RatingModal from '../components/ratings/RatingModal';
 import { 
   FiLogOut, 
   FiUser, 
@@ -24,7 +25,7 @@ import {
 } from 'react-icons/fi';
 import AddTeachingSkill from '../components/skills/AddTeachingSkill';
 import AddLearningSkill from '../components/skills/AddLearningSkill';
-import { userAPI, sessionAPI } from '../services/api';
+import { userAPI, sessionAPI, ratingAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
@@ -34,6 +35,11 @@ const Dashboard = () => {
   const [completedSessions, setCompletedSessions] = useState([]);
   const [refresh, setRefresh] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
+  
+  // Rating Modal State
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [ratingRole, setRatingRole] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -166,6 +172,31 @@ const Dashboard = () => {
     window.open(meetLink, '_blank');
   };
 
+  // Rating Functions
+  const handleRateClick = async (session) => {
+    try {
+      // Check if user can rate this session
+      const response = await ratingAPI.canRateSession(session._id);
+      if (response.data.canRate) {
+        setSelectedSession(session);
+        setRatingRole(response.data.role);
+        setShowRatingModal(true);
+      } else if (response.data.alreadyRated) {
+        toast.error('You have already rated this session');
+      } else {
+        toast.error('Cannot rate this session');
+      }
+    } catch (error) {
+      console.error('Error checking rating eligibility:', error);
+      toast.error('Cannot rate this session');
+    }
+  };
+
+  const handleRatingSubmitted = () => {
+    fetchSessions(); // Refresh sessions to update rating status
+    toast.success('Thank you for your feedback!');
+  };
+
   const stats = [
     { 
       label: 'Teaching Skills', 
@@ -247,7 +278,7 @@ const Dashboard = () => {
           </p>
         </motion.div>
 
-        {/* Stats Grid - All cards equal height */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {stats.map((stat, index) => (
             <motion.div
@@ -430,7 +461,7 @@ const Dashboard = () => {
             )}
           </motion.div>
 
-          {/* Completed Sessions */}
+          {/* Completed Sessions with Rating Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -448,24 +479,48 @@ const Dashboard = () => {
             
             {completedSessions.length > 0 ? (
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {completedSessions.slice(0, 3).map((session) => (
-                  <div key={session._id} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-900">{session.title}</p>
-                        <p className="text-sm text-gray-600">
-                          with {session.teacherId?.name || session.learnerId?.name}
-                        </p>
+                {completedSessions.slice(0, 3).map((session) => {
+                  const userId = getUserId() || user?.id || user?._id;
+                  const hasRated = (session.teacherRating?.givenBy === userId && session.teacherRating?.rating) ||
+                                   (session.learnerRating?.givenBy === userId && session.learnerRating?.rating);
+                  const isTeacher = session.teacherId?._id === userId;
+                  const otherPerson = isTeacher ? session.learnerId : session.teacherId;
+                  
+                  return (
+                    <div key={session._id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900">{session.title}</p>
+                          <p className="text-sm text-gray-600">
+                            with {otherPerson?.name}
+                          </p>
+                        </div>
+                        <span className="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-full">
+                          Completed
+                        </span>
                       </div>
-                      <span className="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-full">
-                        Completed
-                      </span>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {new Date(session.date).toLocaleDateString()}
+                      </p>
+                      
+                      {/* Rating Button */}
+                      {!hasRated ? (
+                        <button
+                          onClick={() => handleRateClick(session)}
+                          className="mt-3 w-full py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg text-sm font-medium hover:from-yellow-600 hover:to-orange-600 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <FiStar className="w-4 h-4" />
+                          Rate {isTeacher ? 'Student' : 'Teacher'}
+                        </button>
+                      ) : (
+                        <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-500">
+                          <FiStar className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          <span>You rated this session</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      {new Date(session.date).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">
@@ -560,6 +615,17 @@ const Dashboard = () => {
           </motion.div>
         )}
       </main>
+
+      {/* Rating Modal */}
+      {showRatingModal && selectedSession && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          session={selectedSession}
+          role={ratingRole}
+          onRatingSubmitted={handleRatingSubmitted}
+        />
+      )}
     </div>
   );
 };

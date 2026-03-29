@@ -7,6 +7,8 @@ const dotenv = require('dotenv');
 const { initializeSocket } = require('./socket');
 const googleMeetRoutes = require('./routes/googleMeetRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const { startAutoCompleteService } = require('./services/sessionAutoComplete');
+
 // Load environment variables
 dotenv.config();
 
@@ -29,6 +31,8 @@ const razorpayRoutes = require('./routes/razorpayRoutes');
 const examRoutes = require('./routes/examRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const walletRoutes = require('./routes/walletRoutes');
+const ratingRoutes = require('./routes/ratingRoutes');
+
 // Initialize express
 const app = express();
 
@@ -55,11 +59,13 @@ const connectDB = async () => {
     } catch (seedError) {
       console.log('Admin seed skipped:', seedError.message);
     }
+    
+    return conn;
   } catch (error) {
     console.error(`❌ MongoDB Error: ${error.message}`);
+    process.exit(1);
   }
 };
-connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -75,6 +81,8 @@ app.use('/api/exams', examRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/ratings', ratingRoutes);
+
 // Base route
 app.get('/', (req, res) => {
   res.json({ 
@@ -107,16 +115,26 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🔗 http://localhost:${PORT}`);
-  console.log(`✅ CORS enabled for: http://localhost:5173`);
+// ✅ FIX: Connect to DB ONCE, then start server and auto-complete service
+connectDB().then(() => {
+  // Start server
+  const PORT = process.env.PORT || 5000;
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🔗 http://localhost:${PORT}`);
+    console.log(`✅ CORS enabled for: http://localhost:5173`);
+  });
+
+  // Initialize Socket.io
+  const io = initializeSocket(server);
+  console.log('🔌 Socket.io initialized');
+
+  // ✅ Start auto-complete service AFTER database is connected
+  startAutoCompleteService();
+  console.log('🔄 Session auto-complete service started');
+
+  module.exports = { app, server, io };
+}).catch(err => {
+  console.error('❌ Failed to connect to database:', err);
+  process.exit(1);
 });
-
-// Initialize Socket.io
-const io = initializeSocket(server);
-console.log('🔌 Socket.io initialized');
-
-module.exports = { app, server, io };

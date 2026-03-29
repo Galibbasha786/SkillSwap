@@ -11,9 +11,12 @@ import {
   FiCalendar,
   FiMessageCircle,
   FiUser,
-  FiArrowLeft
+  FiArrowLeft,
+  FiBook,
+  FiCheckCircle
 } from 'react-icons/fi';
-import { userAPI } from '../services/api';
+import { userAPI, ratingAPI } from '../services/api';
+import RatingDisplay from '../components/ratings/RatingDisplay';
 import toast from 'react-hot-toast';
 import BookingModal from '../components/sessions/BookingModal';
 
@@ -25,6 +28,12 @@ const TeacherProfile = () => {
   const [showBooking, setShowBooking] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  
+  // Rating State
+  const [ratings, setRatings] = useState([]);
+  const [ratingStats, setRatingStats] = useState(null);
+  const [activeTab, setActiveTab] = useState('about');
+  const [ratingsLoading, setRatingsLoading] = useState(true);
 
   useEffect(() => {
     // Check if this is the current user's profile
@@ -36,6 +45,7 @@ const TeacherProfile = () => {
     }
     
     fetchTeacher();
+    fetchRatings();
   }, [id]);
 
   const fetchTeacher = async () => {
@@ -51,6 +61,25 @@ const TeacherProfile = () => {
       setLoading(false);
     }
   };
+
+const fetchRatings = async () => {
+  try {
+    setRatingsLoading(true);
+    console.log('🔍 Fetching ratings for user ID:', id);
+    const response = await ratingAPI.getUserRatings(id);
+    console.log('📊 Rating API Response:', response.data);
+    console.log('📝 Ratings array:', response.data.ratings);
+    console.log('📈 Stats:', response.data.stats);
+    
+    setRatings(response.data.ratings || []);
+    setRatingStats(response.data.stats);
+  } catch (error) {
+    console.error('❌ Error fetching ratings:', error);
+    console.error('Error details:', error.response?.data);
+  } finally {
+    setRatingsLoading(false);
+  }
+};
 
   const handleStartChat = () => {
     // Navigate to messages page with this teacher's info
@@ -114,14 +143,14 @@ const TeacherProfile = () => {
             {/* Profile Info */}
             <div className="flex items-end -mt-12 mb-4">
               <img
-  src={teacher?.profileImage || 'https://via.placeholder.com/120'}
-  alt={teacher?.name}
-  className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
-  onError={(e) => {
-    e.target.onerror = null;
-    e.target.src = 'https://via.placeholder.com/120';
-  }}
-/>
+                src={teacher?.profileImage || 'https://via.placeholder.com/120'}
+                alt={teacher?.name}
+                className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://via.placeholder.com/120';
+                }}
+              />
 
               <div className="ml-4 flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">{teacher?.name}</h1>
@@ -145,104 +174,173 @@ const TeacherProfile = () => {
             {/* Bio */}
             <p className="text-gray-700 mb-6">{teacher?.bio || 'No bio added yet'}</p>
 
-            {/* Skills They Teach with Pricing */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                {isOwnProfile ? 'Your Teaching Skills' : 'Skills They Teach'} 💰
-              </h2>
-              <div className="grid gap-3">
-                {teacher?.skillsTeach?.map((skill, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-gray-900">{skill.name}</span>
-                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded-full">
-                          {skill.experience || 'Expert'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <FiAward className="w-4 h-4" />
-                          {skill.yearsOfExperience || 0} years
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <FiStar className="w-4 h-4 text-yellow-500" />
-                          {skill.rating || 'New'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <FiClock className="w-4 h-4" />
-                          {skill.totalSessions || 0} sessions
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-green-600">
-                        ₹{skill.hourlyRate}/hr
-                      </div>
-                      
-                      {/* Action Buttons for other users */}
-                      {!isOwnProfile && (
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={handleStartChat}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm flex items-center gap-1"
-                          >
-                            <FiMessageCircle className="w-4 h-4" />
-                            Message
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedSkill(skill);
-                              setShowBooking(true);
-                            }}
-                            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center gap-1"
-                          >
-                            <FiCalendar className="w-4 h-4" />
-                            Book
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Your rate indicator for own profile */}
-                      {isOwnProfile && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          Your rate • Students pay this
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-                
-                {(!teacher?.skillsTeach || teacher.skillsTeach.length === 0) && (
-                  <p className="text-gray-500 text-center py-4">No teaching skills added yet</p>
-                )}
-              </div>
+            {/* Tabs */}
+            <div className="mb-6 border-b border-gray-200">
+              <nav className="flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('about')}
+                  className={`py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'about'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  About
+                </button>
+                <button
+                  onClick={() => setActiveTab('skills')}
+                  className={`py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'skills'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Skills
+                </button>
+                <button
+                  onClick={() => setActiveTab('reviews')}
+                  className={`py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'reviews'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Reviews ({ratings.length})
+                </button>
+              </nav>
             </div>
 
-            {/* Skills They Want to Learn */}
-            {teacher?.skillsLearn?.length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                  {isOwnProfile ? 'Skills You Want to Learn' : 'Skills They Want to Learn'}
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {teacher.skillsLearn.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-sm"
-                    >
-                      {skill.name} • {skill.priority} priority • Up to ₹{skill.budget}/hr
-                    </span>
-                  ))}
+            {/* Tab Content */}
+            <div className="mb-6">
+              {activeTab === 'about' && (
+                <div>
+                  <p className="text-gray-700 mb-4">{teacher?.bio || 'No bio added yet'}</p>
+                  {teacher?.totalSessions > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-4">
+                      <div className="bg-gray-50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-gray-900">{teacher.totalSessions}</p>
+                        <p className="text-sm text-gray-500">Total Sessions</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-gray-900">₹{teacher.totalEarnings || 0}</p>
+                        <p className="text-sm text-gray-500">Total Earnings</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {activeTab === 'skills' && (
+                <div>
+                  {/* Skills They Teach with Pricing */}
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                      {isOwnProfile ? 'Your Teaching Skills' : 'Skills They Teach'} 💰
+                    </h2>
+                    <div className="grid gap-3">
+                      {teacher?.skillsTeach?.map((skill, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-gray-900">{skill.name}</span>
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded-full">
+                                {skill.experience || 'Expert'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <FiAward className="w-4 h-4" />
+                                {skill.yearsOfExperience || 0} years
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <FiStar className="w-4 h-4 text-yellow-500" />
+                                {skill.rating || 'New'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <FiClock className="w-4 h-4" />
+                                {skill.totalSessions || 0} sessions
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-green-600">
+                              ₹{skill.hourlyRate}/hr
+                            </div>
+                            
+                            {/* Action Buttons for other users */}
+                            {!isOwnProfile && (
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={handleStartChat}
+                                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm flex items-center gap-1"
+                                >
+                                  <FiMessageCircle className="w-4 h-4" />
+                                  Message
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedSkill(skill);
+                                    setShowBooking(true);
+                                  }}
+                                  className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center gap-1"
+                                >
+                                  <FiCalendar className="w-4 h-4" />
+                                  Book
+                                </button>
+                              </div>
+                            )}
+                            
+                            {/* Your rate indicator for own profile */}
+                            {isOwnProfile && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                Your rate • Students pay this
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                      
+                      {(!teacher?.skillsTeach || teacher.skillsTeach.length === 0) && (
+                        <p className="text-gray-500 text-center py-4">No teaching skills added yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Skills They Want to Learn */}
+                  {teacher?.skillsLearn?.length > 0 && (
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                        {isOwnProfile ? 'Skills You Want to Learn' : 'Skills They Want to Learn'}
+                      </h2>
+                      <div className="flex flex-wrap gap-2">
+                        {teacher.skillsLearn.map((skill, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-sm"
+                          >
+                            {skill.name} • {skill.priority} priority • Up to ₹{skill.budget}/hr
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <RatingDisplay
+                  ratings={ratings}
+                  stats={ratingStats}
+                  loading={ratingsLoading}
+                />
+              )}
+            </div>
 
             {/* Overall Action Buttons */}
             {!isOwnProfile && (
@@ -274,7 +372,7 @@ const TeacherProfile = () => {
         </motion.div>
       </div>
 
-      {/* Booking Modal - only shown for other teachers */}
+      {/* Booking Modal */}
       {showBooking && selectedSkill && !isOwnProfile && (
         <BookingModal
           teacher={teacher}

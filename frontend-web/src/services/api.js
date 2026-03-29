@@ -228,5 +228,22 @@ export const adminAPI = {
   getTransactions: (params) => api.get('/admin/transactions', { params }),
   sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
 };
+// frontend-web/src/services/api.js
+// Add these rating endpoints to your existing api.js file
+
+// Add this section with your other API exports
+export const ratingAPI = {
+  // Rate a session
+  rateSession: (sessionId, data) => 
+    api.post(`/ratings/session/${sessionId}`, data),
+  
+  // Get user's ratings
+  getUserRatings: (userId, params) => 
+    api.get(`/ratings/user/${userId}`, { params }),
+  
+  // Check if user can rate a session
+  canRateSession: (sessionId) => 
+    api.get(`/ratings/session/${sessionId}/can-rate`)
+};
 
 export default api;
