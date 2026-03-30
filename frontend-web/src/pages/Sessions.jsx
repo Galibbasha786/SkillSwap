@@ -210,13 +210,14 @@ const Sessions = () => {
                   {/* Actions */}
                   <div className="flex gap-2">
                     {/* Join Button */}
-                    {session.meetLink && session.status === 'scheduled' && (
+                   
+{session.meetLink && session.status === 'scheduled' && (
   <button
     onClick={() => handleJoinMeet(session.meetLink)}
     className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
   >
     <FiVideo className="w-4 h-4" />
-    Join Google Meet
+    Join {session.meetProvider === 'jitsi' ? 'Jitsi' : 'Google'} Meet
   </button>
 )}
                     

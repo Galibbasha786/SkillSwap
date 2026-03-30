@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "@googleapis/meet": "^4.0.1",
     "bcryptjs": "^3.0.3",
     "canvas": "^3.2.2",

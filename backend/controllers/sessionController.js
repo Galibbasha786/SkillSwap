@@ -1,40 +1,17 @@
 // backend/controllers/sessionController.js
 
+const mongoose = require('mongoose');
 const Session = require('../models/Session');
 const User = require('../models/User');
-const axios = require('axios');
+const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
-// ✅ Generate valid Google Meet link (fallback)
-const generateMeetLink = () => {
-  const chars = 'abcdefghijklmnopqrstuvwxyz';
-  
-  const part1 = Array(3).fill().map(() => chars[Math.floor(Math.random() * 26)]).join('');
-  const part2 = Array(4).fill().map(() => chars[Math.floor(Math.random() * 26)]).join('');
-  const part3 = Array(3).fill().map(() => chars[Math.floor(Math.random() * 26)]).join('');
-  
-  return `https://meet.google.com/${part1}-${part2}-${part3}`;
-};
 
-// Helper function to generate real Meet link via API
-const generateRealMeetLink = async (sessionId, title, startTime, endTime, authToken) => {
-  try {
-    console.log('📞 Calling Meet API to generate link for session:', sessionId);
-    
-    const response = await axios.post(
-      'http://localhost:5001/api/meet/create',
-      { title, startTime, endTime, sessionId },
-      { headers: { 'Authorization': authToken } }
-    );
-    
-    if (response.data.success && response.data.meetLink) {
-      console.log('✅ Real Meet link received:', response.data.meetLink);
-      return response.data.meetLink;
-    }
-    return null;
-  } catch (error) {
-    console.error('❌ Meet API error:', error.response?.data?.error || error.message);
-    return null;
-  }
+// ✅ Generate Jitsi Meet link (FREE, works immediately)
+const generateJitsiLink = (sessionId, title) => {
+  // Create a unique room name using session ID and timestamp
+  const roomName = `skillswap-${sessionId}-${Date.now()}`;
+  // Use public Jitsi instance (free, no setup)
+  return `https://meet.jit.si/${roomName}`;
 };
 
 // @desc    Create session
@@ -58,7 +35,7 @@ exports.createSession = async (req, res) => {
     const platformFee = totalAmount * 0.1;
     const teacherEarnings = totalAmount * 0.9;
     
-    // Create session with temporary link first
+    // Create session with temporary placeholder
     const session = await Session.create({
       teacherId,
       learnerId: req.user.id,
@@ -71,28 +48,19 @@ exports.createSession = async (req, res) => {
       totalAmount,
       platformFee,
       teacherEarnings,
-      meetLink: generateMeetLink(), // Temporary fallback link
-      meetProvider: 'google-meet',
+      meetLink: 'temp', // Temporary placeholder
+      meetProvider: 'jitsi',
       paymentStatus: 'pending',
       status: 'scheduled'
     });
     
-    // Try to generate real Meet link (await it to ensure it completes)
-    const realLink = await generateRealMeetLink(
-      session._id,
-      `SkillSwap: ${skillName} with ${teacher.name}`,
-      new Date(date).toISOString(),
-      new Date(new Date(date).getTime() + duration * 60000).toISOString(),
-      req.headers.authorization
-    );
+    // Generate Jitsi Meet link with actual session ID
+    const jitsiLink = generateJitsiLink(session._id, title);
+    session.meetLink = jitsiLink;
+    await session.save();
     
-    if (realLink) {
-      session.meetLink = realLink;
-      await session.save();
-      console.log('✅ Real Meet link saved for session:', session._id);
-    } else {
-      console.log('⚠️ Using fallback Meet link for session:', session._id);
-    }
+    console.log('✅ Jitsi Meet link created for session:', session._id);
+    console.log('🔗 Meeting URL:', session.meetLink);
     
     await session.populate('teacherId', 'name email profileImage');
     await session.populate('learnerId', 'name email profileImage');
@@ -103,8 +71,6 @@ exports.createSession = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
-// ... rest of your functions (getSessions, getSessionById, etc.) remain the same ...
 
 // @desc    Get user's sessions
 // @route   GET /api/sessions
@@ -240,7 +206,7 @@ exports.cancelSession = async (req, res) => {
     session.cancelledAt = new Date();
     await session.save();
     
-    // ✅ Send notification to the student (learner)
+    // Send notification to the student (learner)
     await createNotification(
       session.learnerId._id,
       'session_cancelled',
@@ -255,7 +221,7 @@ exports.cancelSession = async (req, res) => {
       }
     );
     
-    // ✅ Also notify the teacher (optional - confirmation)
+    // Also notify the teacher
     await createNotification(
       session.teacherId._id,
       'session_cancelled',
@@ -282,7 +248,6 @@ exports.cancelSession = async (req, res) => {
   }
 };
 
-
 // @desc    Delete session
 // @route   DELETE /api/sessions/:id
 // @access  Private
@@ -307,8 +272,6 @@ exports.deleteSession = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-// backend/controllers/sessionController.js
-// Add this function to update session status and trigger rating availability
 
 // @desc    Complete session (mark as completed)
 // @route   PUT /api/sessions/:id/complete
@@ -332,13 +295,13 @@ exports.completeSession = async (req, res) => {
     
     // Only can complete if status is ongoing
     if (session.status !== 'ongoing') {
-      return res.status(400).json({ message: 'Session cannot be completed' });
+      return res.status(400).json({ message: 'Session cannot be completed. Status must be "ongoing".' });
     }
     
     session.status = 'completed';
     await session.save();
     
-    // Notify both parties that session is completed and ready for rating
+    // Notify both parties
     await Notification.create({
       userId: session.teacherId,
       title: 'Session Completed! ⭐',
@@ -362,14 +325,20 @@ exports.completeSession = async (req, res) => {
     });
     
   } catch (error) {
-    console.error(error);
+    console.error('Error completing session:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// @desc    Auto-complete session
+// @route   POST /api/sessions/:id/auto-complete
+// @access  Private
 exports.autoCompleteSession = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
+    
+    const { checkAndCompleteSession } = require('../services/sessionAutoComplete');
     
     const session = await Session.findById(id);
     if (!session) {
@@ -385,24 +354,30 @@ exports.autoCompleteSession = async (req, res) => {
     const completed = await checkAndCompleteSession(id);
     
     if (completed) {
+      const updatedSession = await Session.findById(id)
+        .populate('teacherId', 'name')
+        .populate('learnerId', 'name');
+      
       res.json({ 
         success: true, 
         message: 'Session automatically completed',
-        session: await Session.findById(id).populate('teacherId', 'name').populate('learnerId', 'name')
+        session: updatedSession
       });
     } else {
+      const sessionEndTime = new Date(new Date(session.date).getTime() + session.duration * 60000);
       res.json({ 
         success: false, 
         message: 'Session is not yet ready to be completed',
-        sessionEndTime: new Date(new Date(session.date).getTime() + session.duration * 60000)
+        sessionEndTime: sessionEndTime
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error('Error in autoCompleteSession:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
+// ✅ EXPORTS - All functions properly exported
 module.exports = {
   createSession: exports.createSession,
   getSessions: exports.getSessions,

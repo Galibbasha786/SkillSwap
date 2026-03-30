@@ -71,11 +71,11 @@ const sessionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  meetProvider: {
-    type: String,
-    enum: ['google-meet', 'jitsi'],
-    default: 'google-meet'
-  },
+ meetProvider: {
+  type: String,
+  enum: ['google-meet', 'jitsi'],
+  default: 'jitsi'  // ✅ Changed from 'google-meet' to 'jitsi'
+},
   
   // Status
   status: {
