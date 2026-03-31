@@ -32,7 +32,7 @@ const examRoutes = require('./routes/examRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
-
+const swapRoutes = require('./routes/swapRoutes');
 // Initialize express
 const app = express();
 
@@ -82,7 +82,7 @@ app.use('/api/certificates', certificateRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/ratings', ratingRoutes);
-
+app.use('/api/swaps', swapRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

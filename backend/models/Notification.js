@@ -32,6 +32,10 @@ const notificationSchema = new mongoose.Schema({
       'session_cancelled',
        'rating_received',     // ✅ Add this
     'session_completed',
+         'swap_request',      // When someone wants to swap skills
+      'swap_confirmed',    // When swap is confirmed
+      'swap_completed',     // When swap sessions are completed
+      'account_status'
     ],
     required: true
   },

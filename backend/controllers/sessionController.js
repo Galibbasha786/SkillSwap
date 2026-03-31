@@ -5,6 +5,7 @@ const Session = require('../models/Session');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
+const { sendSessionBookedToTeacher, sendSessionBookedToLearner } = require('../utils/emailService');
 
 // ✅ Generate Jitsi Meet link (FREE, works immediately)
 const generateJitsiLink = (sessionId, title) => {
@@ -29,6 +30,9 @@ exports.createSession = async (req, res) => {
     // Get teacher
     const teacher = await User.findById(teacherId);
     if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+    
+    // Get learner (current user)
+    const learner = await User.findById(req.user.id);
     
     // Calculate amounts
     const totalAmount = (hourlyRate * duration) / 60;
@@ -62,8 +66,20 @@ exports.createSession = async (req, res) => {
     console.log('✅ Jitsi Meet link created for session:', session._id);
     console.log('🔗 Meeting URL:', session.meetLink);
     
-    await session.populate('teacherId', 'name email profileImage');
-    await session.populate('learnerId', 'name email profileImage');
+    await session.populate('teacherId', 'name email profileImage rating totalSessions');
+    await session.populate('learnerId', 'name email profileImage rating');
+    
+    // ✅ Send email notifications (don't block if email fails)
+    try {
+      await Promise.all([
+        sendSessionBookedToTeacher(session, teacher, learner),
+        sendSessionBookedToLearner(session, teacher, learner)
+      ]);
+      console.log('📧 Session confirmation emails sent successfully');
+    } catch (emailError) {
+      console.error('❌ Email sending error (non-blocking):', emailError.message);
+      // Don't fail the request if email fails
+    }
     
     res.status(201).json(session);
   } catch (error) {

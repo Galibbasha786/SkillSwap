@@ -1,7 +1,9 @@
+// backend/controllers/userController.js
 
 const User = require('../models/User');
 const Session = require('../models/Session');
 const { cloudinary } = require('../config/cloudinary');
+
 // @desc    Get user profile
 // @route   GET /api/users/profile/:id
 // @access  Private
@@ -230,25 +232,70 @@ exports.getMatches = async (req, res) => {
   }
 };
 
-// @desc    Get mutual matches (two-way exchange)
-// @route   GET /api/users/matches/mutual
+// ✅ @desc    Get mutual matches for free skill swapping
+// @route   GET /api/users/mutual-matches
 // @access  Private
 exports.getMutualMatches = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.id);
     
+    // Find users who:
+    // 1. Teach a skill current user wants to learn
+    // 2. Want to learn a skill current user teaches
     const mutualMatches = await User.find({
       _id: { $ne: currentUser._id },
       'skillsTeach.name': { $in: currentUser.skillsLearn.map(s => s.name) },
       'skillsLearn.name': { $in: currentUser.skillsTeach.map(s => s.name) }
     }).select('name email profileImage skillsTeach skillsLearn rating bio');
     
-    res.json(mutualMatches);
+    // Format matches with specific skill pairs
+    const formattedMatches = mutualMatches.map(user => {
+      const matches = [];
+      
+      // Find all mutual skill pairs
+      for (const teachSkill of currentUser.skillsTeach) {
+        for (const learnSkill of currentUser.skillsLearn) {
+          // Check if user teaches what current user wants to learn
+          const userTeaches = user.skillsTeach.some(s => s.name === learnSkill.name);
+          // Check if user wants to learn what current user teaches
+          const userWantsToLearn = user.skillsLearn.some(s => s.name === teachSkill.name);
+          
+          if (userTeaches && userWantsToLearn) {
+            matches.push({
+              myTeach: teachSkill.name,
+              myLearn: learnSkill.name,
+              theirTeach: learnSkill.name,
+              theirLearn: teachSkill.name
+            });
+          }
+        }
+      }
+      
+      return {
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          profileImage: user.profileImage,
+          rating: user.rating,
+          bio: user.bio
+        },
+        matches: matches,
+        matchScore: matches.length * 25
+      };
+    });
+    
+    // Filter users with at least one match
+    const validMatches = formattedMatches.filter(m => m.matches.length > 0);
+    validMatches.sort((a, b) => b.matchScore - a.matchScore);
+    
+    res.json(validMatches);
   } catch (error) {
-    console.error(error);
+    console.error('Error getting mutual matches:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 // @desc    Get all teachers (users with teaching skills)
 // @route   GET /api/users/teachers
 // @access  Private
@@ -267,12 +314,6 @@ exports.getAllTeachers = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-// backend/controllers/userController.js - Add this function
-
-// @desc    Upload profile image
-// @route   POST /api/users/upload-profile-image
-// @access  Private
-// backend/controllers/userController.js
 
 // @desc    Upload profile image
 // @route   POST /api/users/upload-profile-image
@@ -323,10 +364,9 @@ exports.uploadProfileImage = async (req, res) => {
     user.profileImagePublicId = result.public_id;
     await user.save();
 
-    // ✅ FIX: Return the image URL in response
     res.json({
       success: true,
-      profileImage: user.profileImage,  // ← This was missing!
+      profileImage: user.profileImage,
       message: 'Profile image updated successfully'
     });
   } catch (error) {
@@ -357,7 +397,6 @@ exports.removeProfileImage = async (req, res) => {
       await user.save();
     }
 
-    // ✅ FIX: Return the new image URL
     res.json({
       success: true,
       profileImage: user.profileImage,

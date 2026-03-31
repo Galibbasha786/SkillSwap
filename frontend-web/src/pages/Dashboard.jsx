@@ -559,6 +559,14 @@ const Dashboard = () => {
             </button>
           </Link>
           
+
+<Link to="/mutual-matches">
+  <button className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2">
+    <FiUsers className="w-6 h-6" />
+    <span className="text-sm">Free Skill Swaps</span>
+  </button>
+</Link>
+          
           <Link to="/exams">
             <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
               <FiAward className="w-6 h-6" />

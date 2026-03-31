@@ -116,6 +116,8 @@ export const userAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   removeProfileImage: () => api.delete('/users/profile-image'),
+  getMatches: () => api.get('/users/matches'),
+  getMutualMatches: () => api.get('/users/mutual-matches'),  // ✅ Add this
 };
 
 // ==================== SKILL APIs ====================
@@ -129,7 +131,7 @@ export const skillAPI = {
 // ==================== MATCH APIs ====================
 export const matchAPI = {
   getMatches: () => api.get('/users/matches'),
-  getMutualMatches: () => api.get('/users/matches/mutual'),
+  getMutualMatches: () => api.get('/users/mutual-matches'),
 };
 
 // ==================== SESSION APIs ====================
@@ -138,6 +140,7 @@ export const sessionAPI = {
   getAll: (params) => api.get('/sessions', { params }),
   getById: (id) => api.get(`/sessions/${id}`),
   updateStatus: (id, status) => api.put(`/sessions/${id}/status`, { status }),
+  completeSession: (id) => api.put(`/sessions/${id}/complete`),
   rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
   cancelSession: (id, data) => api.post(`/sessions/${id}/cancel`, data),
   deleteSession: (id) => api.delete(`/sessions/${id}`),
@@ -159,6 +162,8 @@ export const paymentAPI = {
   getEarnings: () => api.get('/payments/earnings'),
   getTransactions: () => api.get('/payments/transactions'),
   requestWithdrawal: (data) => api.post('/payments/withdraw', data),
+  createUPIPayment: (data) => api.post('/payments/create-upi-payment', data),
+  verifyUPIPayment: (data) => api.post('/payments/verify-upi-payment', data),
 };
 
 // ==================== RAZORPAY APIs ====================
@@ -182,6 +187,7 @@ export const examAPI = {
   createExam: (examData) => api.post('/exams', examData),
   getTeacherExams: () => api.get('/exams/teacher'),
   getAvailableExams: () => api.get('/exams/available'),
+    
   startExam: (examId) => api.post(`/exams/${examId}/start`),
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
@@ -213,6 +219,20 @@ export const notificationAPI = {
   markAllAsRead: () => api.put('/notifications/read-all'),
 };
 
+// ==================== RATING APIs ====================
+export const ratingAPI = {
+  rateSession: (sessionId, data) => api.post(`/ratings/session/${sessionId}`, data),
+  getUserRatings: (userId, params) => api.get(`/ratings/user/${userId}`, { params }),
+  canRateSession: (sessionId) => api.get(`/ratings/session/${sessionId}/can-rate`),
+};
+
+// ==================== SWAP APIs ====================
+export const swapAPI = {
+  createFreeSwap: (data) => api.post('/swaps/create', data),
+  getPendingSwaps: () => api.get('/swaps/pending'),
+  getCompletedSwaps: () => api.get('/swaps/completed'),
+};
+
 // ==================== ADMIN APIs ====================
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
@@ -227,23 +247,6 @@ export const adminAPI = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getTransactions: (params) => api.get('/admin/transactions', { params }),
   sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
-};
-// frontend-web/src/services/api.js
-// Add these rating endpoints to your existing api.js file
-
-// Add this section with your other API exports
-export const ratingAPI = {
-  // Rate a session
-  rateSession: (sessionId, data) => 
-    api.post(`/ratings/session/${sessionId}`, data),
-  
-  // Get user's ratings
-  getUserRatings: (userId, params) => 
-    api.get(`/ratings/user/${userId}`, { params }),
-  
-  // Check if user can rate a session
-  canRateSession: (sessionId) => 
-    api.get(`/ratings/session/${sessionId}/can-rate`)
 };
 
 export default api;

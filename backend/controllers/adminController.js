@@ -155,9 +155,12 @@ exports.approveWithdrawal = async (req, res) => {
       userId: withdrawal.userId._id,
       title: 'Withdrawal Request Approved',
       message: `Your withdrawal request of ₹${withdrawal.amount} has been approved and is being processed. Funds will be transferred to your ${withdrawal.paymentMethod === 'upi' ? 'UPI ID' : 'bank account'} within 24-48 hours.`,
-      type: 'withdrawal',
-      relatedId: withdrawal._id,
-      relatedModel: 'Withdrawal'
+      type: 'withdrawal_processing',
+      data: {
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        status: 'processing'
+      }
     });
     
     res.json({
@@ -239,9 +242,12 @@ exports.completeWithdrawal = async (req, res) => {
       userId: withdrawal.userId._id,
       title: '✅ Withdrawal Successful!',
       message: `Your withdrawal of ₹${withdrawal.amount} has been successfully transferred to your account.\n\nTransaction ID: ${transactionId}\n\nPlease check your ${withdrawal.paymentMethod === 'upi' ? 'UPI app' : 'bank account'} within 1-2 business days.`,
-      type: 'withdrawal_success',
-      relatedId: withdrawal._id,
-      relatedModel: 'Withdrawal'
+      type: 'withdrawal_completed',
+      data: {
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        transactionId: transactionId
+      }
     });
     
     res.json({
@@ -305,8 +311,11 @@ exports.rejectWithdrawal = async (req, res) => {
       title: '❌ Withdrawal Request Rejected',
       message: `Your withdrawal request of ₹${withdrawal.amount} was rejected.\n\nReason: ${reason}\n\nIf you have questions, please contact support.`,
       type: 'withdrawal_rejected',
-      relatedId: withdrawal._id,
-      relatedModel: 'Withdrawal'
+      data: {
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        reason: reason
+      }
     });
     
     res.json({
@@ -353,8 +362,10 @@ exports.sendWithdrawalMessage = async (req, res) => {
       title: subject || 'Update on Your Withdrawal Request',
       message: message,
       type: 'withdrawal_message',
-      relatedId: withdrawal._id,
-      relatedModel: 'Withdrawal'
+      data: {
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount
+      }
     });
     
     res.json({
@@ -444,14 +455,18 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
     
-    // Create notification for user
+    // ✅ FIXED: Use correct notification type
     await Notification.create({
       userId: user._id,
       title: isActive ? 'Account Activated' : 'Account Suspended',
       message: isActive 
         ? 'Your account has been activated. You can now use all platform features.'
         : 'Your account has been suspended. Please contact support for more information.',
-      type: 'account_status',
+      type: 'account_status',  // ✅ Now this is in the enum
+      data: {
+        isActive: isActive,
+        updatedAt: new Date()
+      }
     });
     
     res.json({ 
@@ -570,9 +585,10 @@ exports.sendNotificationToAll = async (req, res) => {
       title,
       message,
       type: type === 'announcement' ? 'announcement' : 'platform_update',
-      relatedId: null,
-      relatedModel: null,
-      createdAt: new Date()
+      data: {
+        sentByAdmin: true,
+        sentAt: new Date()
+      }
     }));
     
     await Notification.insertMany(notifications);

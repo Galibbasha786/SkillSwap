@@ -194,6 +194,16 @@ const sessionSchema = new mongoose.Schema({
       default: false
     }
   },
+  freeSwap: {
+  type: Boolean,
+  default: false
+},
+
+swapMatchId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Match',
+  default: null
+},
   
   // Cancellation
   cancellationReason: String,

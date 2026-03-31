@@ -1026,6 +1026,51 @@ exports.cancelExam = async (req, res) => {
 // @desc    Delete exam permanently (only cancelled or expired exams)
 // @route   DELETE /api/exams/:examId
 // @access  Private (Teacher only)
+// backend/controllers/examController.js
+// Add this function
+
+// @desc    Get exam by ID
+// @route   GET /api/exams/:examId
+// @access  Private
+exports.getExamById = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await Exam.findById(examId)
+      .populate('createdBy', 'name email')
+      .select('-questions.correctAnswer'); // Don't send correct answers
+    
+    if (!exam) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Exam not found' 
+      });
+    }
+    
+    // Check if user is allowed to view this exam
+    // Students can only view available exams
+    const user = await User.findById(req.user.id);
+    const isTeacher = user.role === 'admin' || exam.createdBy.toString() === req.user.id;
+    
+    if (!isTeacher && exam.status !== 'published') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Exam not available' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      exam
+    });
+  } catch (error) {
+    console.error('Error fetching exam:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch exam' 
+    });
+  }
+};
 exports.deleteExam = async (req, res) => {
   try {
     const exam = await Exam.findById(req.params.examId);

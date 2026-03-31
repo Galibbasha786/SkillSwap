@@ -12,6 +12,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import SkillMarketplace from './pages/SkillMarketplace';
 import Matches from './pages/Matches';
+import MutualMatches from './pages/MutualMatches';  // ✅ Add this
 import TeacherProfile from './pages/TeacherProfile';
 import Sessions from './pages/Sessions';
 import Messages from './pages/Messages';
@@ -196,6 +197,13 @@ function AppContent() {
           <Route path="/matches" element={
             <ProtectedRoute>
               <Matches />
+            </ProtectedRoute>
+          } />
+          
+          {/* ✅ Add Mutual Matches route */}
+          <Route path="/mutual-matches" element={
+            <ProtectedRoute>
+              <MutualMatches />
             </ProtectedRoute>
           } />
           
