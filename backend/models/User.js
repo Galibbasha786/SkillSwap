@@ -1,7 +1,6 @@
 // backend/models/User.js
-
+// Add these fields to your schema
 const mongoose = require('mongoose');
-
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -24,14 +23,44 @@ const userSchema = new mongoose.Schema({
     maxlength: 500,
     default: ''
   },
- profileImage: {
-  type: String,
-  default: 'https://via.placeholder.com/150'
-},
-profileImagePublicId: {
-  type: String,
-  default: null
-},
+  profileImage: {
+    type: String,
+    default: 'https://via.placeholder.com/150'
+  },
+  profileImagePublicId: {
+    type: String,
+    default: null
+  },
+  
+  // ✅ ADD THESE MISSING FIELDS:
+  phone: {
+    type: String,
+    default: '',
+    validate: {
+      validator: function(v) {
+        return v === '' || /^[0-9]{10}$/.test(v);
+      },
+      message: 'Please enter a valid 10-digit phone number'
+    }
+  },
+  
+  dateOfBirth: {
+    type: Date,
+    default: null
+  },
+  
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
+    default: 'Prefer not to say'
+  },
+  
+  location: {
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    country: { type: String, default: 'India' },
+    pincode: { type: String, default: '' }
+  },
   
   // Skills
   skillsTeach: [{
@@ -52,13 +81,6 @@ profileImagePublicId: {
     budget: { type: Number, min: 0 }
   }],
 
-  /*Wallet
-  wallet: {
-    balance: { type: Number, default: 0 },
-    currency: { type: String, default: 'USD' },
-    pendingWithdrawals: { type: Number, default: 0 }
-  },*/
-
   // OTP Fields
   otp: {
     code: String,
@@ -70,59 +92,44 @@ profileImagePublicId: {
     type: Boolean,
     default: false
   },
-  // backend/models/User.js - Add to existing schema
-
-// Add after wallet fields
-bankAccount: {
-  accountHolderName: {
-    type: String,
-    default: ''
+  
+  // Bank Account
+  bankAccount: {
+    accountHolderName: { type: String, default: '' },
+    bankName: { type: String, default: '' },
+    accountNumber: { type: String, default: '' },
+    ifscCode: { type: String, default: '' },
+    upiId: { type: String, default: '' },
+    isVerified: { type: Boolean, default: false }
   },
-  bankName: {
-    type: String,
-    default: ''
-  },
-  accountNumber: {
-    type: String,
-    default: ''
-  },
-  ifscCode: {
-    type: String,
-    default: ''
-  },
+  
   upiId: {
     type: String,
     default: ''
   },
-  isVerified: {
-    type: Boolean,
-    default: false
-  }
-},
-upiId: {
-  type: String,
-  default: ''
-},
-bankAccount: {
-  accountHolderName: String,
-  bankName: String,
-  accountNumber: String,
-  ifscCode: String,
-  upiId: String,
-  isVerified: {
-    type: Boolean,
-    default: false
-  }
-},
-
-// Add to wallet
-wallet: {
-  balance: { type: Number, default: 0 },
-  currency: { type: String, default: 'INR' },
-  pendingWithdrawals: { type: Number, default: 0 },
-  totalWithdrawn: { type: Number, default: 0 },  // ✅ NEW
-  lastTransactionAt: Date  // ✅ NEW
-},
+  
+  // Wallet
+  wallet: {
+    balance: { type: Number, default: 0 },
+    currency: { type: String, default: 'INR' },
+    pendingWithdrawals: { type: Number, default: 0 },
+    totalWithdrawn: { type: Number, default: 0 },
+    lastTransactionAt: Date
+  },
+  
+  // Education
+  education: {
+    level: {
+      type: String,
+      enum: ['High School', 'Bachelor\'s', 'Master\'s', 'PhD', 'Diploma', 'Other'],
+      default: 'Other'
+    },
+    institution: { type: String, default: '' },
+    degree: { type: String, default: '' },
+    fieldOfStudy: { type: String, default: '' },
+    graduationYear: { type: Number, min: 1950, max: 2030, default: null }
+  },
+  
   // Stats
   rating: { type: Number, default: 0, min: 0, max: 5 },
   totalSessions: { type: Number, default: 0 },

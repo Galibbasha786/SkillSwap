@@ -24,6 +24,9 @@ import ExamTaking from './pages/ExamTaking';
 import Certificate from './components/exam/Certificate';
 import VerifyCertificate from './components/exam/VerifyCertificate';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+import AdminUserDetails from './pages/admin/AdminUserDetails';
 
 // Import toast for error messages
 import toast from 'react-hot-toast';
@@ -256,11 +259,25 @@ function AppContent() {
               <Certificate />
             </ProtectedRoute>
           } />
+          <Route path="/profile" element={
+  <ProtectedRoute>
+    <Profile />
+  </ProtectedRoute>
+} />
           
           <Route path="/verify/:certificateId" element={
             <VerifyCertificate />
           } />
-          
+          <Route path="/settings" element={
+  <ProtectedRoute>
+    <Settings />
+  </ProtectedRoute>
+} />
+<Route path="/admin/users/:userId" element={
+  <AdminRoute>
+    <AdminUserDetails />
+  </AdminRoute>
+} />
           {/* Catch all - 404 redirect */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -6,7 +6,7 @@ import { FiUpload, FiX, FiUser, FiCamera, FiMaximize2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { userAPI } from '../../services/api';
 
-const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
+const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small' }) => {
   const [uploading, setUploading] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showEnlarged, setShowEnlarged] = useState(false);
@@ -14,6 +14,41 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
   const fileInputRef = useRef(null);
 
   const displayImage = previewImage || currentImage;
+
+  // Determine size classes
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'large':
+        return {
+          container: 'w-24 h-24',
+          buttonPosition: 'bottom-0 right-0',
+          buttonSize: 'p-1.5',
+          iconSize: 'w-4 h-4',
+          loadingSpinner: 'w-8 h-8',
+          uploadOverlay: 'w-6 h-6'
+        };
+      case 'medium':
+        return {
+          container: 'w-16 h-16',
+          buttonPosition: 'bottom-0 right-0',
+          buttonSize: 'p-1',
+          iconSize: 'w-3 h-3',
+          loadingSpinner: 'w-6 h-6',
+          uploadOverlay: 'w-4 h-4'
+        };
+      default: // small
+        return {
+          container: 'w-10 h-10',
+          buttonPosition: 'bottom-0 right-0',
+          buttonSize: 'p-1',
+          iconSize: 'w-3 h-3',
+          loadingSpinner: 'w-5 h-5',
+          uploadOverlay: 'w-4 h-4'
+        };
+    }
+  };
+
+  const sizeClasses = getSizeClasses();
 
   const handleImageSelect = async (e) => {
     const file = e.target.files[0];
@@ -105,7 +140,7 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
         {/* Profile Image Container */}
         <div className="relative group">
           <div 
-            className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 p-0.5 cursor-pointer"
+            className={`${sizeClasses.container} rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 p-0.5 cursor-pointer`}
             onClick={handleImageClick}
           >
             <div className="w-full h-full rounded-full overflow-hidden bg-gray-100">
@@ -118,7 +153,7 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <FiUser className="w-5 h-5 text-gray-400" />
+                  <FiUser className={`${sizeClasses.iconSize} text-gray-400`} />
                 </div>
               )}
             </div>
@@ -127,16 +162,16 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
           {/* Hover Overlay for Enlarge Hint */}
           {displayImage && displayImage !== 'https://via.placeholder.com/150' && (
             <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <FiMaximize2 className="w-4 h-4 text-white" />
+              <FiMaximize2 className={`${sizeClasses.iconSize} text-white`} />
             </div>
           )}
 
           {/* Upload Button Overlay */}
           <button
             onClick={() => setShowOptions(!showOptions)}
-            className="absolute bottom-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-1 rounded-full shadow-lg hover:scale-110 transition-transform"
+            className={`absolute ${sizeClasses.buttonPosition} bg-gradient-to-r from-blue-500 to-purple-500 text-white ${sizeClasses.buttonSize} rounded-full shadow-lg hover:scale-110 transition-transform`}
           >
-            <FiCamera className="w-3 h-3" />
+            <FiCamera className={sizeClasses.iconSize} />
           </button>
         </div>
 
@@ -209,7 +244,7 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove }) => {
         {/* Uploading Overlay */}
         {uploading && (
           <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className={`${sizeClasses.loadingSpinner} border-2 border-white border-t-transparent rounded-full animate-spin`} />
           </div>
         )}
       </div>

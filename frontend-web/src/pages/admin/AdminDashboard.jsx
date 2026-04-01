@@ -765,7 +765,7 @@ const UsersTab = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-
+ const navigate = useNavigate();
   useEffect(() => {
     fetchUsers();
   }, [search, roleFilter]);
@@ -854,18 +854,21 @@ const UsersTab = () => {
             {users.map((user) => (
               <tr key={user._id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <img 
-                      src={user.profileImage || 'https://via.placeholder.com/40'} 
-                      alt={user.name}
-                      className="w-10 h-10 rounded-full"
-                    />
-                    <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </div>
-                  </div>
-                </td>
+  <div 
+    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg"
+    onClick={() => navigate(`/admin/users/${user._id}`)}
+  >
+    <img 
+      src={user.profileImage || 'https://via.placeholder.com/40'} 
+      alt={user.name}
+      className="w-10 h-10 rounded-full"
+    />
+    <div>
+      <p className="font-medium text-gray-900">{user.name}</p>
+      <p className="text-sm text-gray-500">{user.email}</p>
+    </div>
+  </div>
+</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     user.role === 'admin' ? 'bg-purple-100 text-purple-700' :

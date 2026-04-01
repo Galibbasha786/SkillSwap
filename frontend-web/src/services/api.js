@@ -90,9 +90,13 @@ export const authAPI = {
   sendOTP: (data) => api.post('/auth/send-otp', data),
   verifyOTP: (data) => api.post('/auth/verify-otp', data),
   resetPassword: (data) => api.post('/auth/reset-password', data),
+  changePassword: (data) => api.post('/auth/change-password', data),
 };
 
 // ==================== USER APIs ====================
+// frontend-web/src/services/api.js
+// Remove the duplicate updateProfile at line 86, keep only this one:
+
 export const userAPI = {
   getProfile: (userId) => {
     if (!userId) {
@@ -100,7 +104,10 @@ export const userAPI = {
     }
     return api.get(`/users/profile/${userId}`);
   },
-  updateProfile: (data) => api.put('/users/profile', data),
+  updateProfile: (data) => {
+    console.log('📤 Updating profile with data:', data);
+    return api.put('/users/profile', data);
+  },
   getAllTeachers: () => api.get('/users/teachers'),
   addTeachingSkill: (skillData) => {
     console.log('Adding teaching skill:', skillData);
@@ -117,7 +124,7 @@ export const userAPI = {
   }),
   removeProfileImage: () => api.delete('/users/profile-image'),
   getMatches: () => api.get('/users/matches'),
-  getMutualMatches: () => api.get('/users/mutual-matches'),  // ✅ Add this
+  getMutualMatches: () => api.get('/users/mutual-matches'),
 };
 
 // ==================== SKILL APIs ====================
@@ -251,6 +258,8 @@ export const adminAPI = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getTransactions: (params) => api.get('/admin/transactions', { params }),
   sendNotificationToAll: (data) => api.post('/admin/notifications/send-to-all', data),
+  getUserDetails: (userId) => api.get(`/admin/users/${userId}`),
+  updateUser: (userId, data) => api.put(`/admin/users/${userId}`, data),
 };
 
 export default api;

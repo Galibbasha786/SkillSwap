@@ -606,6 +606,76 @@ exports.sendNotificationToAll = async (req, res) => {
     });
   }
 };
+exports.getUserDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId)
+      .select('-password -otp')
+      .populate('skillsTeach')
+      .populate('skillsLearn');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch user details' 
+    });
+  }
+};
+
+// @desc    Update user by admin
+// @route   PUT /api/admin/users/:userId
+// @access  Private/Admin
+exports.updateUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updateData = req.body;
+    
+    // Remove sensitive fields that shouldn't be updated by admin
+    delete updateData.password;
+    delete updateData.otp;
+    delete updateData.role; // Prevent role changes via this endpoint
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password -otp');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      user,
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update user' 
+    });
+  }
+};
+
+
 
 // ✅ ONE module.exports at the end
 module.exports = {
@@ -620,5 +690,14 @@ module.exports = {
   updateUserStatus: exports.updateUserStatus,
   deleteUser: exports.deleteUser,
   getAllTransactions: exports.getAllTransactions,
-  sendNotificationToAll: exports.sendNotificationToAll
+  sendNotificationToAll: exports.sendNotificationToAll,
+  getUserDetails: exports.getUserDetails,  // ✅ Add this
+  updateUser: exports.updateUser, 
 };
+// backend/controllers/adminController.js
+
+// Add this function at the end of your file
+
+// @desc    Get user details by ID
+// @route   GET /api/admin/users/:userId
+// @access  Private/Admin

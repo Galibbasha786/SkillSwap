@@ -15,7 +15,9 @@ const {
   getAllTransactions,
   sendNotificationToAll,
   sendWithdrawalMessage,
-  getWithdrawalDetails
+  getWithdrawalDetails,
+   getUserDetails,  // ✅ Add this import
+  updateUser 
 } = require('../controllers/adminController');
 
 // All admin routes require authentication and admin role
@@ -31,7 +33,8 @@ router.post('/withdrawals/:id/approve', approveWithdrawal);
 router.post('/withdrawals/:id/complete', completeWithdrawal);
 router.post('/withdrawals/:id/reject', rejectWithdrawal);
 router.post('/withdrawals/:id/message', sendWithdrawalMessage);
-
+router.get('/users/:userId', getUserDetails);  // ✅ Add this route
+router.put('/users/:userId', updateUser); 
 // Users
 router.get('/users', getAllUsers);
 router.put('/users/:id/status', updateUserStatus);

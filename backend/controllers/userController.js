@@ -37,22 +37,114 @@ exports.getProfile = async (req, res) => {
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
+// backend/controllers/userController.js
+
+// backend/controllers/userController.js
+// Update the updateProfile function with more logs
+
 exports.updateProfile = async (req, res) => {
   try {
-    const { bio, location, availability } = req.body;
+    const userId = req.user.id;
     
-    const user = await User.findById(req.user.id);
+    // ✅ DEBUG: Log everything
+    console.log('📥 UPDATE PROFILE REQUEST:');
+    console.log('User ID:', userId);
+    console.log('Request Body:', JSON.stringify(req.body, null, 2));
     
-    if (bio) user.bio = bio;
-    if (location) user.location = location;
-    if (availability) user.availability = availability;
+    // Fields that can be updated
+    const allowedUpdates = [
+      'name', 'bio', 'phone', 'dateOfBirth', 'gender', 'location',
+      'education', 'bankAccount', 'upiId', 'userType'
+    ];
     
-    await user.save();
+    // Build update object
+    const updateData = {};
     
-    res.json(user);
+    for (const field of allowedUpdates) {
+      if (req.body[field] !== undefined && req.body[field] !== null) {
+        updateData[field] = req.body[field];
+        console.log(`✅ Adding field to update: ${field} =`, req.body[field]);
+      }
+    }
+    
+    // Handle nested location object properly
+    if (req.body.location) {
+      updateData.location = {
+        city: req.body.location.city || '',
+        state: req.body.location.state || '',
+        country: req.body.location.country || 'India',
+        pincode: req.body.location.pincode || ''
+      };
+      console.log('📍 Location update:', updateData.location);
+    }
+    
+    // Handle nested education object properly
+    if (req.body.education) {
+      updateData.education = {
+        level: req.body.education.level || 'Other',
+        institution: req.body.education.institution || '',
+        degree: req.body.education.degree || '',
+        fieldOfStudy: req.body.education.fieldOfStudy || '',
+        graduationYear: req.body.education.graduationYear || null
+      };
+      console.log('🎓 Education update:', updateData.education);
+    }
+    
+    // Handle nested bankAccount object
+    if (req.body.bankAccount) {
+      updateData.bankAccount = {
+        accountHolderName: req.body.bankAccount.accountHolderName || '',
+        bankName: req.body.bankAccount.bankName || '',
+        accountNumber: req.body.bankAccount.accountNumber || '',
+        ifscCode: req.body.bankAccount.ifscCode || '',
+        isVerified: false
+      };
+      console.log('🏦 Bank update:', updateData.bankAccount);
+    }
+    
+    // Handle upiId separately
+    if (req.body.upiId !== undefined) {
+      updateData.upiId = req.body.upiId || '';
+    }
+    
+    console.log('📦 Final updateData:', JSON.stringify(updateData, null, 2));
+    
+    // ✅ Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      console.log('⚠️ No fields to update');
+      return res.status(400).json({ message: 'No fields to update' });
+    }
+    
+    // Update user and get the updated document
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // ✅ Log the updated user data
+    console.log('✅ User after update:', {
+      id: user._id,
+      name: user.name,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      gender: user.gender,
+      location: user.location,
+      education: user.education
+    });
+    
+    res.json({
+      success: true,
+      user,
+      message: 'Profile updated successfully'
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Error updating profile:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
