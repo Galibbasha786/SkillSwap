@@ -47,6 +47,25 @@ const examSchema = new mongoose.Schema({
     },
     keywords: [String]
   }],
+  
+  // ✅ EXAM ACCESS CONTROL
+  accessControl: {
+    type: {
+      type: String,
+      enum: ['all', 'passcode', 'specific'],
+      default: 'all'
+    },
+    passcode: {
+      type: String,
+      default: null
+    },
+    allowedEmails: [{
+      type: String,
+      lowercase: true,
+      trim: true
+    }]
+  },
+  
   proctoring: {
     enabled: { type: Boolean, default: true },
     faceDetection: { type: Boolean, default: true },
@@ -58,7 +77,6 @@ const examSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  // ✅ Date Range for exam availability
   availableFrom: {
     type: Date,
     required: true,
@@ -68,7 +86,6 @@ const examSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  // ✅ Status fields
   status: {
     type: String,
     enum: ['active', 'cancelled', 'expired', 'completed'],

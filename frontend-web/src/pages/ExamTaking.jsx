@@ -3,10 +3,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiClock, FiCheckCircle, FiCamera, FiMonitor, FiAlertTriangle } from 'react-icons/fi';
+import { 
+  FiClock, FiCheckCircle, FiCamera, FiMonitor, FiAlertTriangle, 
+  FiLock, FiShield, FiEye, FiVideo, FiUser,FiAward
+} from 'react-icons/fi';
 import { examAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Proctoring from '../components/exam/Proctoring';
+
 const ExamTaking = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -18,26 +22,18 @@ const ExamTaking = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [instructionsAccepted, setInstructionsAccepted] = useState(false);
   const [fullscreenRequired, setFullscreenRequired] = useState(false);
   const [allAnswersSubmitted, setAllAnswersSubmitted] = useState(false);
   const [violations, setViolations] = useState(0);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [passcode, setPasscode] = useState('');
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessChecking, setAccessChecking] = useState(false);
+  const [cameraInitialized, setCameraInitialized] = useState(false);
+  
   const timerRef = useRef(null);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
 
   // Timer countdown
   useEffect(() => {
@@ -59,6 +55,57 @@ const ExamTaking = () => {
     return () => clearInterval(timerRef.current);
   }, [examStarted, timeLeft, allAnswersSubmitted]);
 
+  // Fetch exam details
+  useEffect(() => {
+    const fetchExamDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await examAPI.getExamById(examId);
+        setExam(response.data.exam);
+        
+        const accessControl = response.data.exam.accessControl;
+        if (accessControl && accessControl.type !== 'all') {
+          setShowAccessModal(true);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching exam:', error);
+        toast.error('Failed to load exam');
+        navigate('/exams');
+      }
+    };
+    
+    fetchExamDetails();
+  }, [examId, navigate]);
+
+  const verifyAccess = async () => {
+    setAccessChecking(true);
+    try {
+      const userEmail = JSON.parse(localStorage.getItem('user') || '{}').email;
+      const response = await examAPI.verifyExamAccess(examId, {
+        type: exam.accessControl.type,
+        passcode: passcode,
+        email: userEmail
+      });
+      
+      if (response.data.allowed) {
+        setShowAccessModal(false);
+        setAccessDenied(false);
+        setCameraInitialized(true);
+      } else {
+        setAccessDenied(true);
+        toast.error(response.data.message || 'Access denied');
+      }
+    } catch (error) {
+      console.error('Access verification error:', error);
+      setAccessDenied(true);
+      toast.error(error.response?.data?.message || 'Access verification failed');
+    } finally {
+      setAccessChecking(false);
+    }
+  };
+
   const startExam = async () => {
     try {
       setLoading(true);
@@ -71,21 +118,29 @@ const ExamTaking = () => {
         const remaining = response.data.remainingTime || response.data.exam.duration * 60;
         setTimeLeft(remaining);
         setExamStarted(true);
-        setLoading(false);
         
-        setTimeout(() => {
-          requestPermissions();
-        }, 500);
+        // Request fullscreen
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (err) {
+          setFullscreenRequired(true);
+        }
+        
+        setLoading(false);
       } else {
         setExam(response.data.exam);
         setAttempt(response.data.attempt);
         setTimeLeft(response.data.exam.duration * 60);
         setExamStarted(true);
-        setLoading(false);
         
-        setTimeout(() => {
-          requestPermissions();
-        }, 500);
+        // Request fullscreen
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (err) {
+          setFullscreenRequired(true);
+        }
+        
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error starting exam:', error);
@@ -94,75 +149,19 @@ const ExamTaking = () => {
     }
   };
 
-  const requestPermissions = async () => {
-    // Request fullscreen with user gesture
-    try {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        setFullscreenRequired(true);
-      }
-    } catch (err) {
-      console.log('Fullscreen request failed:', err);
-    }
-    
-    // Request camera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: false 
-      });
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-        setCameraError(false);
-        console.log('✅ Camera started successfully');
-      }
-    } catch (err) {
-      console.error('Camera error:', err);
-      setCameraError(true);
-      setCameraActive(false);
-      toast.error('Camera access required for proctoring');
-    }
+  const acceptInstructions = () => {
+    setInstructionsAccepted(true);
+    setShowInstructions(false);
+    startExam();
   };
 
   const handleFullscreenClick = async () => {
     try {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        await elem.requestFullscreen();
-        setFullscreenRequired(false);
-        toast.success('Fullscreen mode enabled');
-      }
+      await document.documentElement.requestFullscreen();
+      setFullscreenRequired(false);
+      toast.success('Fullscreen mode enabled');
     } catch (err) {
       toast.error('Please manually enter fullscreen mode');
-    }
-  };
-
-  const handleCameraRetry = async () => {
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: false 
-      });
-      
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-        setCameraError(false);
-      }
-      toast.success('Camera connected!');
-    } catch (err) {
-      toast.error('Camera access denied. Please allow camera permissions.');
     }
   };
 
@@ -211,8 +210,6 @@ const ExamTaking = () => {
         timeSpent: exam.duration * 60 - timeLeft
       });
       
-      console.log('Answer submitted:', response.data);
-      
       if (currentQuestion === exam.questions.length - 1) {
         await finishExam();
       } else {
@@ -237,10 +234,140 @@ const ExamTaking = () => {
     }
   };
 
-  // Initialize exam
-  useEffect(() => {
-    startExam();
-  }, [examId]);
+  // Access Control Modal
+  if (showAccessModal && exam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"
+        >
+          <div className="text-center mb-6">
+            <FiLock className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900">Exam Access Required</h2>
+            <p className="text-gray-600 mt-2">This exam is protected. Please provide the required information.</p>
+          </div>
+          
+          {exam.accessControl?.type === 'passcode' && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Exam Passcode
+              </label>
+              <input
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Enter the passcode provided by your teacher"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                onKeyPress={(e) => e.key === 'Enter' && verifyAccess()}
+              />
+            </div>
+          )}
+          
+          {accessDenied && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">Access denied. Please check your passcode or contact your teacher.</p>
+            </div>
+          )}
+          
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/exams')}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={verifyAccess}
+              disabled={accessChecking}
+              className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+            >
+              {accessChecking ? 'Verifying...' : 'Verify Access'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Instructions Page
+  if (showInstructions && exam) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-xl overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <h1 className="text-2xl font-bold">{exam?.title}</h1>
+              <p className="text-blue-100 mt-1">{exam?.description}</p>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <FiShield className="w-6 h-6 text-blue-500" />
+                <h2 className="text-xl font-semibold text-gray-900">Exam Instructions</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <FiClock className="w-4 h-4 text-blue-500" />
+                    General Information
+                  </h3>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li>• Duration: {exam?.duration} minutes</li>
+                    <li>• Total Questions: {exam?.questions?.length}</li>
+                    <li>• Passing Score: {exam?.passingScore}%</li>
+                  </ul>
+                </div>
+
+                <div className="bg-red-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <FiEye className="w-4 h-4 text-red-500" />
+                    Proctoring Rules
+                  </h3>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li>• Camera must remain on throughout</li>
+                    <li>• Your face must be visible at all times</li>
+                    <li>• No other people allowed in frame</li>
+                    <li>• Do not switch tabs or windows</li>
+                    <li>• Stay in fullscreen mode</li>
+                    <li>• Maximum 5 violations allowed</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={instructionsAccepted}
+                    onChange={(e) => setInstructionsAccepted(e.target.checked)}
+                    className="w-4 h-4 text-blue-500 rounded"
+                  />
+                  <span className="text-sm text-gray-700">
+                    I have read and understood all instructions. I agree to follow the proctoring rules.
+                  </span>
+                </label>
+
+                <button
+                  onClick={acceptInstructions}
+                  disabled={!instructionsAccepted}
+                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  I Understand, Start Exam
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -248,24 +375,6 @@ const ExamTaking = () => {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading exam...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!examStarted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-          <FiAlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Ready to Start?</h2>
-          <p className="text-gray-600 mb-6">Click start when you're ready to begin the exam</p>
-          <button
-            onClick={() => setExamStarted(true)}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-          >
-            Start Exam
-          </button>
         </div>
       </div>
     );
@@ -295,8 +404,8 @@ const ExamTaking = () => {
   const seconds = timeLeft % 60;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      {/* Proctoring Component - Pass violations state */}
+    <div className="min-h-screen bg-gray-50">
+      {/* Proctoring Component - This now includes the top bar with camera feed */}
       <Proctoring 
         examId={examId} 
         onViolation={handleViolation} 
@@ -304,8 +413,10 @@ const ExamTaking = () => {
         violations={violations}
       />
       
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      {/* Main Content Area - with top padding to avoid overlap with proctoring bar */}
+      <div className="pt-20 max-w-6xl mx-auto px-4 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           {/* Timer Card */}
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center gap-3">
@@ -333,57 +444,14 @@ const ExamTaking = () => {
             </div>
           </div>
           
-          {/* Camera Feed Card */}
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="p-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FiCamera className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-medium text-gray-700">Proctoring Camera</span>
+          {/* Info Card */}
+          <div className="bg-white rounded-xl shadow-md p-4">
+            <div className="flex items-center gap-3">
+              <FiAward className="w-6 h-6 text-purple-500" />
+              <div>
+                <p className="text-sm text-gray-500">Passing Score</p>
+                <p className="text-2xl font-bold text-gray-900">{exam?.passingScore}%</p>
               </div>
-              {cameraActive && (
-                <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">Active</span>
-              )}
-              {violations > 0 && (
-                <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Violations: {violations}/5</span>
-              )}
-            </div>
-            <div className="p-2 bg-gray-900">
-              {cameraError ? (
-                <div className="w-full h-40 bg-gray-800 rounded-lg flex flex-col items-center justify-center">
-                  <FiCamera className="w-10 h-10 text-gray-500 mb-2" />
-                  <p className="text-xs text-gray-400 mb-2">Camera access required</p>
-                  <button
-                    onClick={handleCameraRetry}
-                    className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <div className="relative w-full h-40 bg-gray-900 rounded-lg overflow-hidden">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover transform scale-x-[-1]"
-                    style={{ display: cameraActive ? 'block' : 'none' }}
-                  />
-                  {!cameraActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                        <p className="text-xs text-gray-400">Starting camera...</p>
-                      </div>
-                    </div>
-                  )}
-                  {cameraActive && (
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
-                      Face Monitoring
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -431,7 +499,7 @@ const ExamTaking = () => {
             <button
               onClick={submitAnswer}
               disabled={submitting}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 transition-all"
             >
               {currentQuestion === exam?.questions.length - 1 ? 'Submit Exam' : 'Next Question'}
             </button>
@@ -441,8 +509,5 @@ const ExamTaking = () => {
     </div>
   );
 };
-
-// Add Proctoring import at the top
-
 
 export default ExamTaking;

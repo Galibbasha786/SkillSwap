@@ -1109,3 +1109,113 @@ exports.deleteExam = async (req, res) => {
     res.status(500).json({ message: 'Failed to delete exam', error: error.message });
   }
 };
+// backend/controllers/examController.js
+
+// @desc    Verify exam access
+// @route   POST /api/exams/:examId/verify-access
+// @access  Private
+exports.verifyExamAccess = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { type, passcode, email } = req.body;
+    
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    // Check if exam is active
+    const now = new Date();
+    if (now < exam.availableFrom || now > exam.availableTo) {
+      return res.status(403).json({ 
+        allowed: false, 
+        message: 'Exam is not available at this time' 
+      });
+    }
+    
+    // Verify based on access type
+    if (type === 'passcode') {
+      if (exam.accessControl.passcode !== passcode) {
+        return res.status(403).json({ 
+          allowed: false, 
+          message: 'Invalid passcode' 
+        });
+      }
+    } else if (type === 'specific') {
+      if (!exam.accessControl.allowedEmails.includes(email)) {
+        return res.status(403).json({ 
+          allowed: false, 
+          message: 'You are not authorized to take this exam' 
+        });
+      }
+    }
+    
+    res.json({ allowed: true });
+  } catch (error) {
+    console.error('Error verifying exam access:', error);
+    res.status(500).json({ message: 'Failed to verify access' });
+  }
+};// backend/controllers/examController.js
+// Add this function
+
+// @desc    Get exam by ID
+// @route   GET /api/exams/:examId
+// @access  Private
+exports.getExamById = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await Exam.findById(examId)
+      .populate('teacherId', 'name email profileImage');
+    
+    if (!exam) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Exam not found' 
+      });
+    }
+    
+    // Check if user has access to view this exam
+    const user = await User.findById(req.user.id);
+    const isTeacher = exam.teacherId._id.toString() === req.user.id;
+    const isAdmin = user.role === 'admin';
+    
+    // For students, check if they have a session with this teacher
+    let hasAccess = false;
+    if (!isTeacher && !isAdmin) {
+      const session = await Session.findOne({
+        teacherId: exam.teacherId._id,
+        learnerId: req.user.id,
+        status: { $in: ['completed', 'scheduled'] }
+      });
+      hasAccess = !!session;
+    } else {
+      hasAccess = true;
+    }
+    
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You do not have access to this exam' 
+      });
+    }
+    
+    // For students, remove correct answers
+    if (!isTeacher && !isAdmin) {
+      const examObj = exam.toObject();
+      examObj.questions = examObj.questions.map(q => {
+        const { correctAnswer, ...rest } = q;
+        return rest;
+      });
+      return res.json({ success: true, exam: examObj });
+    }
+    
+    res.json({ success: true, exam });
+  } catch (error) {
+    console.error('Error fetching exam:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch exam' 
+    });
+  }
+};

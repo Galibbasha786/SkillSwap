@@ -10,9 +10,11 @@ const {
   startExam,
   submitAnswer,
   finishExam,
+  getExamById,
   recordViolation,
   cancelExam,  // ✅ Add this import
-  deleteExam
+  deleteExam,
+  verifyExamAccess
 } = require('../controllers/examController');
 
 // All routes require authentication
@@ -21,11 +23,12 @@ router.use(auth);
 router.post('/', createExam);
 router.get('/teacher', getTeacherExams);
 router.get('/available', getAvailableExams);
+router.get('/:examId', getExamById);
 router.post('/:examId/start', startExam);
 router.post('/:examId/submit', submitAnswer);
 router.post('/:examId/finish', finishExam);
 router.post('/:examId/violation', recordViolation);
 router.post('/:examId/cancel', cancelExam);  // ✅ Add cancel route
 router.delete('/:examId', deleteExam);
-
+router.post('/:examId/verify-access', verifyExamAccess);
 module.exports = router;

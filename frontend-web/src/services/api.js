@@ -183,17 +183,21 @@ export const walletAPI = {
 };
 
 // ==================== EXAM APIs ====================
+// frontend-web/src/services/api.js
+// Update your examAPI section to this:
+
 export const examAPI = {
   createExam: (examData) => api.post('/exams', examData),
   getTeacherExams: () => api.get('/exams/teacher'),
   getAvailableExams: () => api.get('/exams/available'),
-    
+  getExamById: (examId) => api.get(`/exams/${examId}`), // ✅ ADD THIS - Missing!
   startExam: (examId) => api.post(`/exams/${examId}/start`),
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
   recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),
   cancelExam: (examId, data) => api.post(`/exams/${examId}/cancel`, data),
   deleteExam: (examId) => api.delete(`/exams/${examId}`),
+  verifyExamAccess: (examId, data) => api.post(`/exams/${examId}/verify-access`, data), // ✅ ADD THIS for access control
 };
 
 // ==================== CERTIFICATE APIs ====================
