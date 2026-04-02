@@ -5,11 +5,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   FiClock, FiCheckCircle, FiCamera, FiMonitor, FiAlertTriangle, 
-  FiLock, FiShield, FiEye, FiVideo, FiUser,FiAward
+  FiLock, FiShield, FiEye, FiVideo, FiUser, FiAward
 } from 'react-icons/fi';
 import { examAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Proctoring from '../components/exam/Proctoring';
+import CodeEditor from '../components/exam/CodeEditor';
 
 const ExamTaking = () => {
   const { examId } = useParams();
@@ -32,8 +33,10 @@ const ExamTaking = () => {
   const [accessDenied, setAccessDenied] = useState(false);
   const [accessChecking, setAccessChecking] = useState(false);
   const [cameraInitialized, setCameraInitialized] = useState(false);
+  const [isCodingSubmitted, setIsCodingSubmitted] = useState(false);
   
   const timerRef = useRef(null);
+  const codeEditorRef = useRef(null);
 
   // Timer countdown
   useEffect(() => {
@@ -119,7 +122,6 @@ const ExamTaking = () => {
         setTimeLeft(remaining);
         setExamStarted(true);
         
-        // Request fullscreen
         try {
           await document.documentElement.requestFullscreen();
         } catch (err) {
@@ -133,7 +135,6 @@ const ExamTaking = () => {
         setTimeLeft(response.data.exam.duration * 60);
         setExamStarted(true);
         
-        // Request fullscreen
         try {
           await document.documentElement.requestFullscreen();
         } catch (err) {
@@ -196,16 +197,39 @@ const ExamTaking = () => {
     }
   };
 
+  // ✅ FIXED: Handle coding questions separately
+  const handleCodingQuestionComplete = (passed) => {
+    setIsCodingSubmitted(true);
+    if (currentQuestion === exam?.questions.length - 1) {
+      finishExam();
+    } else {
+      setCurrentQuestion(currentQuestion + 1);
+      setIsCodingSubmitted(false);
+    }
+  };
+
+  // ✅ FIXED: Skip coding questions in submitAnswer
   const submitAnswer = async () => {
-    const answer = answers[currentQuestion];
-    if (!answer && exam?.questions[currentQuestion]?.type !== 'viva') {
+    const currentQ = exam?.questions[currentQuestion];
+    
+    // Skip coding questions - they are handled separately
+    if (currentQ?.type === 'coding') {
+      if (!isCodingSubmitted) {
+        toast.info('Please click "Submit" in the code editor first');
+      }
+      return;
+    }
+    
+    let answer = answers[currentQuestion];
+    
+    if (!answer && currentQ?.type !== 'viva') {
       toast.error('Please answer the question');
       return;
     }
 
     try {
       const response = await examAPI.submitAnswer(examId, {
-        questionId: exam.questions[currentQuestion]._id,
+        questionId: currentQ._id,
         answer: answer || '',
         timeSpent: exam.duration * 60 - timeLeft
       });
@@ -405,7 +429,6 @@ const ExamTaking = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Proctoring Component - This now includes the top bar with camera feed */}
       <Proctoring 
         examId={examId} 
         onViolation={handleViolation} 
@@ -413,11 +436,8 @@ const ExamTaking = () => {
         violations={violations}
       />
       
-      {/* Main Content Area - with top padding to avoid overlap with proctoring bar */}
       <div className="pt-20 max-w-6xl mx-auto px-4 py-8">
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* Timer Card */}
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center gap-3">
               <FiClock className="w-6 h-6 text-blue-500" />
@@ -430,7 +450,6 @@ const ExamTaking = () => {
             </div>
           </div>
           
-          {/* Progress Card */}
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center gap-3">
               <FiCheckCircle className="w-6 h-6 text-green-500" />
@@ -444,7 +463,6 @@ const ExamTaking = () => {
             </div>
           </div>
           
-          {/* Info Card */}
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center gap-3">
               <FiAward className="w-6 h-6 text-purple-500" />
@@ -456,7 +474,6 @@ const ExamTaking = () => {
           </div>
         </div>
 
-        {/* Question Card */}
         <motion.div
           key={currentQuestion}
           initial={{ opacity: 0, x: 20 }}
@@ -494,11 +511,33 @@ const ExamTaking = () => {
               placeholder="Type your answer here..."
             />
           )}
+          
+          {question?.type === 'coding' && (
+            <CodeEditor
+              ref={codeEditorRef}
+              question={question}
+              onRunCode={async (data) => {
+                const response = await examAPI.runCode(examId, {
+                  ...data,
+                  questionId: question._id
+                });
+                return response.data;
+              }}
+              onSubmitCode={async (data) => {
+                const response = await examAPI.submitCoding(examId, {
+                  ...data,
+                  questionId: question._id
+                });
+                handleCodingQuestionComplete(response.data.passed);
+                return response.data;
+              }}
+            />
+          )}
 
           <div className="mt-8 flex justify-end">
             <button
               onClick={submitAnswer}
-              disabled={submitting}
+              disabled={submitting || (question?.type === 'coding' && !isCodingSubmitted)}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 transition-all"
             >
               {currentQuestion === exam?.questions.length - 1 ? 'Submit Exam' : 'Next Question'}

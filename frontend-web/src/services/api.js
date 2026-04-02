@@ -205,6 +205,8 @@ export const examAPI = {
   cancelExam: (examId, data) => api.post(`/exams/${examId}/cancel`, data),
   deleteExam: (examId) => api.delete(`/exams/${examId}`),
   verifyExamAccess: (examId, data) => api.post(`/exams/${examId}/verify-access`, data), // ✅ ADD THIS for access control
+  runCode: (examId, data) => api.post(`/exams/${examId}/run-code`, data),
+  submitCoding: (examId, data) => api.post(`/exams/${examId}/submit-coding`, data),
 };
 
 // ==================== CERTIFICATE APIs ====================

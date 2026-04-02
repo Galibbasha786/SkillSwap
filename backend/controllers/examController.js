@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const Session = require('../models/Session');
 const { getLogoBase64 } = require('../utils/logoUtil');
 const fs = require('fs');
+const { executeCode } = require('../services/codeExecutionService');
 // @desc    Create exam
 // @route   POST /api/exams
 // @access  Private (Teacher only)
@@ -328,6 +329,11 @@ exports.submitAnswer = async (req, res) => {
 // @desc    Finish exam
 // @route   POST /api/exams/:examId/finish
 // @access  Private
+// backend/controllers/examController.js
+
+// @desc    Finish exam
+// @route   POST /api/exams/:examId/finish
+// @access  Private
 exports.finishExam = async (req, res) => {
   try {
     // Check if already finished
@@ -358,9 +364,14 @@ exports.finishExam = async (req, res) => {
 
     const exam = await Exam.findById(req.params.examId);
     
+    // Calculate total marks from all questions
     const totalMarks = exam.questions.reduce((sum, q) => sum + q.marks, 0);
+    
+    // Calculate percentage based on obtained marks
     const percentage = totalMarks > 0 ? (attempt.obtainedMarks / totalMarks) * 100 : 0;
     const passed = percentage >= exam.passingScore;
+
+    console.log(`Exam finished - Total Marks: ${totalMarks}, Obtained: ${attempt.obtainedMarks}, Percentage: ${percentage}%, Passed: ${passed}`);
 
     attempt.totalMarks = totalMarks;
     attempt.percentage = percentage;
@@ -373,7 +384,6 @@ exports.finishExam = async (req, res) => {
     if (passed) {
       try {
         certificate = await generateCertificate(exam, attempt, req.user);
-        // Save certificate ID to attempt
         attempt.certificateId = certificate._id;
         await attempt.save();
         console.log('✅ Certificate created:', certificate._id);
@@ -401,7 +411,6 @@ exports.finishExam = async (req, res) => {
     res.status(500).json({ message: 'Failed to finish exam' });
   }
 };
-
 
 
 // @desc    Record proctoring violation
@@ -1217,5 +1226,149 @@ exports.getExamById = async (req, res) => {
       success: false, 
       message: 'Failed to fetch exam' 
     });
+  }
+};
+exports.runCode = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { code, language, questionId, testCases } = req.body;
+    
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    const question = exam.questions.id(questionId);
+    if (!question || question.type !== 'coding') {
+      return res.status(400).json({ message: 'Invalid coding question' });
+    }
+    
+    // Run code with provided test cases
+    const results = await executeCode(
+      code,
+      language,
+      testCases || question.coding.testCases,
+      question.coding.functionName
+    );
+    
+    const output = results.map(r => 
+      `Input: ${r.input}\nExpected: ${r.expectedOutput}\nOutput: ${r.actualOutput}\n${r.passed ? '✓ Passed' : '✗ Failed'}`
+    ).join('\n\n');
+    
+    res.json({
+      success: true,
+      output,
+      testResults: results
+    });
+  } catch (error) {
+    console.error('Error running code:', error);
+    res.status(500).json({ message: 'Failed to run code', error: error.message });
+  }
+};
+
+// @desc    Submit coding solution
+// @route   POST /api/exams/:examId/submit-coding
+// @access  Private
+// backend/controllers/examController.js
+
+// @desc    Submit coding solution
+// @route   POST /api/exams/:examId/submit-coding
+// @access  Private
+exports.submitCoding = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { code, language, questionId } = req.body;
+    
+    console.log('📝 Submitting coding solution for question:', questionId);
+    console.log('Code length:', code?.length);
+    
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    const question = exam.questions.id(questionId);
+    if (!question || question.type !== 'coding') {
+      return res.status(400).json({ message: 'Invalid coding question' });
+    }
+    
+    // Find the attempt
+    const attempt = await ExamAttempt.findOne({
+      examId,
+      studentId: req.user.id,
+      status: 'in_progress'
+    });
+    
+    if (!attempt) {
+      return res.status(404).json({ message: 'Attempt not found' });
+    }
+    
+    console.log('Found attempt:', attempt._id);
+    console.log('Current obtained marks before:', attempt.obtainedMarks);
+    
+    // Run code with all test cases
+    const testResults = await executeCode(
+      code,
+      language,
+      question.coding.testCases,
+      question.coding.functionName
+    );
+    
+    const passedTests = testResults.filter(r => r.passed).length;
+    const totalTests = testResults.length;
+    const score = (passedTests / totalTests) * question.marks;
+    const allPassed = passedTests === totalTests;
+    
+    console.log(`Test results: ${passedTests}/${totalTests} passed, Score: ${score}`);
+    
+    // Check if question already answered
+    const existingAnswerIndex = attempt.answers.findIndex(a => a.questionId === questionId);
+    
+    const answerData = {
+      questionId,
+      answer: code,
+      isCorrect: allPassed,
+      marksObtained: score,
+      codingResults: {
+        testResults,
+        passedTests,
+        totalTests,
+        language,
+        code: code.substring(0, 500) // Store first 500 chars
+      }
+    };
+    
+    if (existingAnswerIndex !== -1) {
+      // Update existing answer
+      const oldMarks = attempt.answers[existingAnswerIndex].marksObtained;
+      attempt.obtainedMarks -= oldMarks;
+      attempt.answers[existingAnswerIndex] = answerData;
+      console.log(`Updated existing answer, old marks: ${oldMarks}`);
+    } else {
+      // Add new answer
+      attempt.answers.push(answerData);
+      console.log('Added new answer');
+    }
+    
+    attempt.obtainedMarks += score;
+    console.log(`New obtained marks: ${attempt.obtainedMarks}`);
+    
+    await attempt.save();
+    
+    // Also update the answers state in the frontend by saving to the attempt in session
+    // The frontend will get this via the response
+    
+    res.json({
+      success: true,
+      passed: allPassed,
+      score,
+      passedTests,
+      totalTests,
+      testResults,
+      obtainedMarks: attempt.obtainedMarks
+    });
+  } catch (error) {
+    console.error('Error submitting coding solution:', error);
+    res.status(500).json({ message: 'Failed to submit solution', error: error.message });
   }
 };

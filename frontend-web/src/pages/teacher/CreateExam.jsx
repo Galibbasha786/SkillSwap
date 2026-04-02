@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers, FiCode } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -36,7 +36,17 @@ const CreateExam = () => {
     options: ['', '', '', ''],
     correctAnswer: '',
     marks: 1,
-    keywords: []
+    keywords: [],
+    // Coding fields
+    coding: {
+      programmingLanguage: 'javascript',
+      initialCode: '// Write your code here\nfunction solve(input) {\n  // Your code here\n  return result;\n}',
+      solutionCode: '',
+      functionName: 'solve',
+      testCases: [],
+      timeLimit: 2000,
+      memoryLimit: 256
+    }
   });
   const [loading, setLoading] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -58,6 +68,17 @@ const CreateExam = () => {
       }
     }
     
+    if (currentQuestion.type === 'coding') {
+      if (currentQuestion.coding.testCases.length === 0) {
+        toast.error('Please add at least one test case');
+        return;
+      }
+      if (!currentQuestion.coding.solutionCode) {
+        toast.error('Please provide solution code');
+        return;
+      }
+    }
+    
     const newQuestion = {
       type: currentQuestion.type,
       question: currentQuestion.question,
@@ -69,6 +90,8 @@ const CreateExam = () => {
       newQuestion.correctAnswer = currentQuestion.correctAnswer;
     } else if (currentQuestion.type === 'theory') {
       newQuestion.keywords = currentQuestion.keywords;
+    } else if (currentQuestion.type === 'coding') {
+      newQuestion.coding = currentQuestion.coding;
     }
     
     setExam({
@@ -82,7 +105,16 @@ const CreateExam = () => {
       options: ['', '', '', ''],
       correctAnswer: '',
       marks: 1,
-      keywords: []
+      keywords: [],
+      coding: {
+        programmingLanguage: 'javascript',
+        initialCode: '// Write your code here\nfunction solve(input) {\n  // Your code here\n  return result;\n}',
+        solutionCode: '',
+        functionName: 'solve',
+        testCases: [],
+        timeLimit: 2000,
+        memoryLimit: 256
+      }
     });
     
     toast.success('Question added!');
@@ -120,6 +152,39 @@ const CreateExam = () => {
       accessControl: {
         ...exam.accessControl,
         allowedEmails: exam.accessControl.allowedEmails.filter(e => e !== email)
+      }
+    });
+  };
+
+  const addTestCase = () => {
+    setCurrentQuestion({
+      ...currentQuestion,
+      coding: {
+        ...currentQuestion.coding,
+        testCases: [...currentQuestion.coding.testCases, { input: '', expectedOutput: '', isHidden: false }]
+      }
+    });
+  };
+
+  const removeTestCase = (index) => {
+    const newTestCases = currentQuestion.coding.testCases.filter((_, i) => i !== index);
+    setCurrentQuestion({
+      ...currentQuestion,
+      coding: {
+        ...currentQuestion.coding,
+        testCases: newTestCases
+      }
+    });
+  };
+
+  const updateTestCase = (index, field, value) => {
+    const newTestCases = [...currentQuestion.coding.testCases];
+    newTestCases[index][field] = value;
+    setCurrentQuestion({
+      ...currentQuestion,
+      coding: {
+        ...currentQuestion.coding,
+        testCases: newTestCases
       }
     });
   };
@@ -164,6 +229,9 @@ const CreateExam = () => {
         }),
         ...(q.type === 'theory' && {
           keywords: q.keywords
+        }),
+        ...(q.type === 'coding' && {
+          coding: q.coding
         })
       })),
       proctoring: exam.proctoring
@@ -299,7 +367,7 @@ const CreateExam = () => {
             </div>
           </div>
           
-          {/* ✅ Access Control Section */}
+          {/* Access Control Section */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <FiLock className="w-5 h-5 text-blue-500" />
@@ -515,6 +583,7 @@ const CreateExam = () => {
                 >
                   <option value="mcq">Multiple Choice (MCQ)</option>
                   <option value="theory">Theory / Essay</option>
+                  <option value="coding">Coding Assessment</option>
                 </select>
                 
                 <textarea
@@ -572,6 +641,152 @@ const CreateExam = () => {
                   </div>
                 )}
                 
+                {currentQuestion.type === 'coding' && (
+                  <div className="space-y-4 border-t pt-4">
+                    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <FiCode className="text-blue-500" /> Coding Assessment Settings
+                    </h4>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Programming Language
+                      </label>
+                      <select
+                        value={currentQuestion.coding.programmingLanguage}
+                        onChange={(e) => setCurrentQuestion({
+                          ...currentQuestion,
+                          coding: { ...currentQuestion.coding, programmingLanguage: e.target.value }
+                        })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="javascript">JavaScript</option>
+                        <option value="python">Python</option>
+                        <option value="java">Java</option>
+                        <option value="cpp">C++</option>
+                        <option value="c">C</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Function Name
+                      </label>
+                      <input
+                        type="text"
+                        value={currentQuestion.coding.functionName}
+                        onChange={(e) => setCurrentQuestion({
+                          ...currentQuestion,
+                          coding: { ...currentQuestion.coding, functionName: e.target.value }
+                        })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        placeholder="solve"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Initial Code (Template)
+                      </label>
+                      <textarea
+                        value={currentQuestion.coding.initialCode}
+                        onChange={(e) => setCurrentQuestion({
+                          ...currentQuestion,
+                          coding: { ...currentQuestion.coding, initialCode: e.target.value }
+                        })}
+                        rows="6"
+                        className="w-full font-mono text-sm p-3 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Solution Code
+                      </label>
+                      <textarea
+                        value={currentQuestion.coding.solutionCode}
+                        onChange={(e) => setCurrentQuestion({
+                          ...currentQuestion,
+                          coding: { ...currentQuestion.coding, solutionCode: e.target.value }
+                        })}
+                        rows="6"
+                        className="w-full font-mono text-sm p-3 border border-gray-300 rounded-lg"
+                        placeholder="function solve(input) {\n  // Correct solution\n  return result;\n}"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Test Cases
+                      </label>
+                      <div className="space-y-2">
+                        {currentQuestion.coding.testCases.map((testCase, idx) => (
+                          <div key={idx} className="flex gap-2 p-3 bg-gray-50 rounded-lg">
+                            <input
+                              type="text"
+                              value={testCase.input}
+                              onChange={(e) => updateTestCase(idx, 'input', e.target.value)}
+                              placeholder="Input"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <input
+                              type="text"
+                              value={testCase.expectedOutput}
+                              onChange={(e) => updateTestCase(idx, 'expectedOutput', e.target.value)}
+                              placeholder="Expected Output"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeTestCase(idx)}
+                              className="px-2 text-red-500 hover:text-red-700"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addTestCase}
+                          className="text-sm text-blue-500 hover:text-blue-600"
+                        >
+                          + Add Test Case
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Time Limit (ms)
+                        </label>
+                        <input
+                          type="number"
+                          value={currentQuestion.coding.timeLimit}
+                          onChange={(e) => setCurrentQuestion({
+                            ...currentQuestion,
+                            coding: { ...currentQuestion.coding, timeLimit: parseInt(e.target.value) }
+                          })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Memory Limit (MB)
+                        </label>
+                        <input
+                          type="number"
+                          value={currentQuestion.coding.memoryLimit}
+                          onChange={(e) => setCurrentQuestion({
+                            ...currentQuestion,
+                            coding: { ...currentQuestion.coding, memoryLimit: parseInt(e.target.value) }
+                          })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-4">
                   <label className="text-sm font-medium">Marks:</label>
                   <input
@@ -580,7 +795,7 @@ const CreateExam = () => {
                     onChange={(e) => setCurrentQuestion({ ...currentQuestion, marks: parseInt(e.target.value) })}
                     className="w-20 px-2 py-1 border border-gray-300 rounded"
                     min="1"
-                    max="10"
+                    max="100"
                   />
                 </div>
                 

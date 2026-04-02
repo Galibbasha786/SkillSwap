@@ -32,20 +32,67 @@ const examSchema = new mongoose.Schema({
   questions: [{
     type: {
       type: String,
-      enum: ['mcq', 'theory', 'viva'],
+      enum: ['mcq', 'theory', 'viva', 'coding'],
       required: true
     },
     question: {
       type: String,
       required: true
     },
-    options: [String],
-    correctAnswer: String,
     marks: {
       type: Number,
       default: 1
     },
-    keywords: [String]
+    
+    // MCQ fields
+    options: [String],
+    correctAnswer: String,
+    
+    // Theory fields
+    keywords: [String],
+    
+    // ✅ CODING ASSESSMENT FIELDS
+    coding: {
+      programmingLanguage: {
+        type: String,
+        enum: ['javascript', 'python', 'java', 'cpp', 'c'],
+        default: 'javascript'
+      },
+      initialCode: {
+        type: String,
+        default: '// Write your code here\n'
+      },
+      solutionCode: {
+        type: String,
+        default: ''
+      },
+      functionName: {
+        type: String,
+        default: 'solve'
+      },
+      testCases: [{
+        input: {
+          type: String,
+          required: true
+        },
+        expectedOutput: {
+          type: String,
+          required: true
+        },
+        isHidden: {
+          type: Boolean,
+          default: false
+        }
+      }],
+      timeLimit: {
+        type: Number,
+        default: 2000 // milliseconds
+      },
+      memoryLimit: {
+        type: Number,
+        default: 256 // MB
+      }
+    }
   }],
   
   // ✅ EXAM ACCESS CONTROL

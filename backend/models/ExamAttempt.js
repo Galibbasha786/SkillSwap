@@ -23,7 +23,23 @@ const examAttemptSchema = new mongoose.Schema({
     answer: mongoose.Schema.Types.Mixed,
     isCorrect: Boolean,
     marksObtained: Number,
-    timeSpent: Number
+    timeSpent: Number,
+    
+    // ✅ For coding questions - store detailed results
+    codingResults: {
+      testResults: [{
+        input: String,
+        expectedOutput: String,
+        actualOutput: String,
+        passed: Boolean
+      }],
+      passedTests: Number,
+      totalTests: Number,
+      language: String,
+      code: String,
+      executionTime: Number,
+      memoryUsed: Number
+    }
   }],
   totalMarks: {
     type: Number,
@@ -44,7 +60,7 @@ const examAttemptSchema = new mongoose.Schema({
   certificateUrl: String,
   certificateId: String,
   
-  // ✅ Updated proctoringLogs with all possible violation types
+  // Proctoring logs
   proctoringLogs: [{
     type: {
       type: String,

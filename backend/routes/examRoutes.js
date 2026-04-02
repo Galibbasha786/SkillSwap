@@ -14,7 +14,9 @@ const {
   recordViolation,
   cancelExam,  // ✅ Add this import
   deleteExam,
-  verifyExamAccess
+  verifyExamAccess,
+  runCode,
+  submitCoding
 } = require('../controllers/examController');
 
 // All routes require authentication
@@ -31,4 +33,6 @@ router.post('/:examId/violation', recordViolation);
 router.post('/:examId/cancel', cancelExam);  // ✅ Add cancel route
 router.delete('/:examId', deleteExam);
 router.post('/:examId/verify-access', verifyExamAccess);
+router.post('/:examId/run-code', auth, runCode);
+router.post('/:examId/submit-coding', auth, submitCoding);
 module.exports = router;
