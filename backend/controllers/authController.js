@@ -25,30 +25,28 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    await User.create({
+    // Temporarily skip OTP verification - set email as verified
+    const user = await User.create({
       name,
       email,
       password: hashedPassword,
-      isEmailVerified: false,
-      otp: { code: otp, expiresAt, type: 'verification' }
+      isEmailVerified: true, // Skip verification for now
+      // otp: { code: otp, expiresAt, type: 'verification' } // Commented out
     });
 
-    // Send OTP email asynchronously (don't block registration if email fails)
-    sendOTPEmail(email, otp, 'verification').catch(err => {
-      console.error(`⚠️ Email send failed for ${email}:`, err.message);
-    });
+    // Skip OTP email sending for now
+    // sendOTPEmail(email, otp, 'verification').catch(err => {
+    //   console.error(`⚠️ Email send failed for ${email}:`, err.message);
+    // });
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Please verify your email.',
+      message: 'Registration successful!',
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        isEmailVerified: false
+        isEmailVerified: true
       }
     });
   } catch (error) {
@@ -139,12 +137,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    if (!user.isEmailVerified) {
-      return res.status(401).json({ 
-        message: 'Email not verified. Please verify your email.',
-        error: 'Email not verified'
-      });
-    }
+    // Temporarily skip email verification check
+    // if (!user.isEmailVerified) {
+    //   return res.status(401).json({ 
+    //     message: 'Email not verified. Please verify your email.',
+    //     error: 'Email not verified'
+    //   });
+    // }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
