@@ -5,7 +5,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const { initializeSocket } = require('./socket');
 const googleMeetRoutes = require('./routes/googleMeetRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -46,14 +45,6 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
 
 // CORS configuration
 const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
