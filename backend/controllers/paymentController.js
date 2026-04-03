@@ -156,11 +156,13 @@ exports.testBookSession = async (req, res) => {
       learnerId: session.learnerId._id,
       teacherId: session.teacherId._id,
       amount: session.totalAmount || 0,
+      teacherEarnings: 0, // No earnings in test mode
       status: 'completed',
+      paymentMethod: 'upi_qr', // Valid enum value
       upiTransactionId: transactionId,
+      transferStatus: 'pending', // Valid enum value (not 'pending_real_payment')
       paidAt: new Date(),
-      testMode: true,
-      transferStatus: 'pending_real_payment'
+      testMode: true
     });
 
     console.log('✅ Transaction created:', testTransaction._id);
