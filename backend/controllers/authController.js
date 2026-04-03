@@ -28,7 +28,7 @@ exports.register = async (req, res) => {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    const user = await User.create({
+    await User.create({
       name,
       email,
       password: hashedPassword,
@@ -36,7 +36,10 @@ exports.register = async (req, res) => {
       otp: { code: otp, expiresAt, type: 'verification' }
     });
 
-    await sendOTPEmail(email, otp, 'verification');
+    // Send OTP email asynchronously (don't block registration if email fails)
+    sendOTPEmail(email, otp, 'verification').catch(err => {
+      console.error(`⚠️ Email send failed for ${email}:`, err.message);
+    });
 
     res.status(201).json({
       success: true,
@@ -70,7 +73,10 @@ exports.sendOTP = async (req, res) => {
     user.otp = { code: otp, expiresAt, type };
     await user.save();
 
-    await sendOTPEmail(email, otp, type);
+    // Send OTP email asynchronously (don't block if email fails)
+    sendOTPEmail(email, otp, type).catch(err => {
+      console.error(`⚠️ Email send failed for ${email}:`, err.message);
+    });
 
     res.json({ success: true, message: `OTP sent to ${email}` });
   } catch (error) {
