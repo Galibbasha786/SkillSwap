@@ -98,8 +98,8 @@ const Certificate = () => {
           {/* Certificate Header */}
           <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-8 text-white text-center">
             <FiAward className="w-16 h-16 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold">Certificate of Achievement</h1>
-            <p className="text-blue-100 mt-2">SkillSwap Platform</p>
+            <h1 className="text-3xl font-bold mb-2">Certificate of Achievement</h1>
+            <p className="text-blue-100">SkillSwap Platform</p>
           </div>
 
           {/* Certificate Content */}
@@ -110,42 +110,42 @@ const Certificate = () => {
             <h3 className="text-2xl font-semibold text-blue-600 mb-6">{certificate.skillName}</h3>
             <p className="text-gray-600 mb-2">with a score of</p>
             <p className="text-4xl font-bold text-green-600 mb-6">{certificate.percentage?.toFixed(2)}%</p>
-            
-            <div className="border-t border-gray-200 pt-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-gray-500 text-sm">Issued on</p>
-                  <p className="font-medium">{new Date(certificate.issueDate).toLocaleDateString()}</p>
+
+            <div className="border-t border-gray-200 pt-6 mt-8">
+              <div className="grid grid-cols-2 gap-8 max-w-md mx-auto">
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm mb-1">Issued on</p>
+                  <p className="font-medium text-gray-900">{new Date(certificate.issueDate).toLocaleDateString()}</p>
                 </div>
-                <div>
-                  <p className="text-gray-500 text-sm">Certificate ID</p>
-                  <p className="font-mono text-sm">{certificate.certificateId?.slice(0, 16)}...</p>
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm mb-1">Certificate ID</p>
+                  <p className="font-mono text-sm text-gray-900 break-all">{certificate.certificateId?.slice(0, 16)}...</p>
                 </div>
               </div>
             </div>
 
             {/* QR Code (if available) */}
             {certificate.qrCode && (
-              <div className="mt-8">
-                <img src={certificate.qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+              <div className="mt-8 flex flex-col items-center">
+                <img src={certificate.qrCode} alt="QR Code" className="w-32 h-32 border-2 border-gray-200 rounded-lg" />
                 <p className="text-xs text-gray-500 mt-2">Scan to verify authenticity</p>
               </div>
             )}
           </div>
 
           {/* Actions */}
-          <div className="bg-gray-50 p-6 flex gap-4 justify-center">
+          <div className="bg-gray-50 p-6 flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
               onClick={handleDownload}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 font-medium"
             >
-              <FiDownload /> Download PDF
+              <FiDownload className="w-5 h-5" /> Download PDF
             </button>
             <button
               onClick={handleShare}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2"
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 font-medium"
             >
-              <FiShare2 /> Share
+              <FiShare2 className="w-5 h-5" /> Share
             </button>
           </div>
         </motion.div>
