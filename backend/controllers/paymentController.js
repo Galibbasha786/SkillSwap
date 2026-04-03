@@ -5,7 +5,7 @@ const Transaction = require('../models/Transaction');
 const Session = require('../models/Session');
 const { generateUPIQR, generateOrderId, verifyUPIPayment, PLATFORM_UPI_ID } = require('../services/upiService');
 
-// @desc    Create UPI payment for session booking (Student pays to Platform)
+// @desc    Create UPI payment for session booking (Test Mode - No Real Payment)
 // @route   POST /api/payments/create-upi-payment
 // @access  Private
 exports.createUPIPayment = async (req, res) => {
@@ -19,49 +19,19 @@ exports.createUPIPayment = async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
-    
-    const orderId = generateOrderId();
-    const amount = session.totalAmount;
-    
-    // Generate UPI QR Code and Intent Link for platform's UPI
-    const { upiIntent, qrCode } = await generateUPIQR(
-      amount,
-      orderId,
-      session.learnerId.name,
-      session.skillName
-    );
-    
-    // Create transaction record with pending status
-    const transaction = await Transaction.create({
-      sessionId: session._id,
-      learnerId: session.learnerId._id,
-      teacherId: session.teacherId._id,
-      amount: session.totalAmount,
-      platformFee: session.platformFee,
-      teacherEarnings: session.teacherEarnings,
-      status: 'pending',
-      paymentMethod: 'upi_qr',
-      upiId: PLATFORM_UPI_ID,
-      upiQRCode: qrCode,
-      upiIntentLink: upiIntent,
-      upiExpiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
-      duration: session.duration / 60,
-      hourlyRate: session.hourlyRate,
-      skillName: session.skillName,
-      transferStatus: 'pending'
-    });
-    
-    console.log(`💳 UPI payment created for session ${sessionId}: ₹${amount}`);
+
+    // ⚠️ TEST MODE: Skip real payment, just return test message
+    console.log(`⚠️ TEST MODE: Skipping real payment for session ${sessionId}`);
     
     res.json({
       success: true,
-      transaction: {
-        id: transaction._id,
-        amount: transaction.amount,
-        upiId: PLATFORM_UPI_ID,
-        upiQRCode: qrCode,
-        upiIntentLink: upiIntent,
-        expiresAt: transaction.upiExpiresAt
+      message: '⚠️ TEST MODE - Real-time payment is not active yet. Please enter any transaction ID to proceed.',
+      testMode: true,
+      session: {
+        id: session._id,
+        title: session.title,
+        amount: session.totalAmount,
+        teacher: session.teacherId.name
       }
     });
   } catch (error) {
@@ -70,74 +40,128 @@ exports.createUPIPayment = async (req, res) => {
   }
 };
 
-// @desc    Verify UPI payment after student pays
+// @desc    Verify payment (Test Mode - Accept Any Transaction ID)
 // @route   POST /api/payments/verify-upi-payment
 // @access  Private
 exports.verifyUPIPayment = async (req, res) => {
   try {
     const { transactionId, upiTransactionId } = req.body;
     
-    const transaction = await Transaction.findById(transactionId)
-      .populate('sessionId');
-    
-    if (!transaction) {
-      return res.status(404).json({ message: 'Transaction not found' });
+    // ⚠️ TEST MODE: Accept any transaction ID without verification
+    if (!upiTransactionId || upiTransactionId.trim() === '') {
+      return res.status(400).json({ message: 'Please enter a transaction ID' });
+    }
+
+    // Find the session from transactionId or just validate format
+    let session = null;
+    try {
+      session = await Session.findById(transactionId);
+    } catch (e) {
+      // If not a valid session ID, create a dummy transaction record for testing
     }
     
-    if (transaction.status === 'completed') {
-      return res.status(400).json({ message: 'Payment already verified' });
+    if (!session && transactionId) {
+      // For test mode, accept any transaction ID
+      session = await Session.findOne({ _id: { $exists: true } }).limit(1);
     }
-    
-    if (transaction.upiExpiresAt < new Date()) {
-      transaction.status = 'failed';
-      await transaction.save();
-      return res.status(400).json({ message: 'Payment link expired. Please try again.' });
+
+    if (!session) {
+      return res.status(404).json({ message: 'No session found' });
     }
+
+    // ⚠️ TEST MODE: Skip wallet updates, just confirm the booking
+    console.log(`⚠️ TEST MODE: Confirming session ${session._id} with test transaction ID: ${upiTransactionId}`);
     
-    // Verify payment with UPI (simulate)
-    const verification = await verifyUPIPayment(
-      upiTransactionId,
-      transaction.amount,
-      transaction.upiId
-    );
-    
-    if (verification.success) {
-      transaction.status = 'completed';
-      transaction.upiTransactionId = upiTransactionId;
-      transaction.paidAt = new Date();
-      await transaction.save();
-      
-      // Update session payment status
-      await Session.findByIdAndUpdate(transaction.sessionId._id, {
-        paymentStatus: 'completed'
-      });
-      
-      // Update teacher's wallet (teacher gets 90%)
-      const teacher = await User.findById(transaction.teacherId);
-      teacher.wallet.balance += transaction.teacherEarnings;
-      teacher.totalEarnings += transaction.teacherEarnings;
-      teacher.wallet.lastTransactionAt = new Date();
-      await teacher.save();
-      
-      // Update student's total spent
-      await User.findByIdAndUpdate(transaction.learnerId, {
-        $inc: { totalSpent: transaction.amount }
-      });
-      
-      console.log(`✅ UPI payment verified: ₹${transaction.amount} added to teacher's wallet`);
-      
-      res.json({
-        success: true,
-        message: 'Payment verified successfully! Session confirmed.',
-        transaction
-      });
-    } else {
-      transaction.status = 'failed';
-      await transaction.save();
-      res.status(400).json({ message: 'Payment verification failed' });
-    }
+    // Update session payment status (for testing only)
+    await Session.findByIdAndUpdate(session._id, {
+      paymentStatus: 'completed'
+    });
+
+    // Create test transaction record (NO WALLET UPDATES)
+    const testTransaction = await Transaction.create({
+      sessionId: session._id,
+      learnerId: session.learnerId,
+      teacherId: session.teacherId,
+      amount: session.totalAmount || 0,
+      status: 'completed',
+      upiTransactionId: upiTransactionId,
+      paidAt: new Date(),
+      testMode: true,
+      transferStatus: 'pending_real_payment' // Mark as pending until real payment is enabled
+    });
+
+    res.json({
+      success: true,
+      message: '✅ SESSION BOOKED IN TEST MODE! Real-time payment will be enabled soon. You will be notified.',
+      testMode: true,
+      session: {
+        id: session._id,
+        title: session.title,
+        date: session.date,
+        duration: session.duration
+      },
+      transaction: testTransaction._id
+    });
   } catch (error) {
-    console.error('Error verifying UPI payment:', error);
+    console.error('Error verifying payment:', error);
     res.status(500).json({ message: 'Failed to verify payment' });
   }
 };
+
+// @desc    Book session in test mode (just enter transaction ID, no real payment)
+// @route   POST /api/payments/test-book-session
+// @access  Private
+exports.testBookSession = async (req, res) => {
+  try {
+    const { sessionId, transactionId } = req.body;
+
+    if (!sessionId || !transactionId || transactionId.trim() === '') {
+      return res.status(400).json({ message: 'Session ID and Transaction ID are required' });
+    }
+
+    const session = await Session.findById(sessionId)
+      .populate('teacherId', 'name')
+      .populate('learnerId', 'name');
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    // ⚠️ TEST MODE: Confirm booking without real payment or wallet updates
+    console.log(`⚠️ TEST MODE: Booking session ${sessionId} with test transaction ID: ${transactionId}`);
+
+    await Session.findByIdAndUpdate(sessionId, {
+      paymentStatus: 'completed',
+      status: 'scheduled'
+    });
+
+    // Create test transaction record (NO WALLET UPDATES)
+    const testTransaction = await Transaction.create({
+      sessionId: session._id,
+      learnerId: session.learnerId._id,
+      teacherId: session.teacherId._id,
+      amount: session.totalAmount || 0,
+      status: 'completed',
+      upiTransactionId: transactionId,
+      paidAt: new Date(),
+      testMode: true,
+      transferStatus: 'pending_real_payment'
+    });
+
+    res.json({
+      success: true,
+      message: '✅ SESSION BOOKED SUCCESSFULLY IN TEST MODE!\n⚠️ This is a test booking. Real-time payment is not active yet.\n📢 You will be notified when live payments are enabled.',
+      testMode: true,
+      session: {
+        id: session._id,
+        title: session.title,
+        teacher: session.teacherId.name,
+        date: session.date,
+        duration: session.duration
+      },
+      transactionId: testTransaction._id
+    });
+  } catch (error) {
+    console.error('Error booking session in test mode:', error);
+    res.status(500).json({ message: 'Failed to book session' });
+  }

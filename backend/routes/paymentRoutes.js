@@ -5,11 +5,15 @@ const router = express.Router();
 const { auth } = require('../middleware/auth');
 const {
   createUPIPayment,
-  verifyUPIPayment
+  verifyUPIPayment,
+  testBookSession
 } = require('../controllers/paymentController');
 
 // UPI Payment routes
 router.post('/create-upi-payment', auth, createUPIPayment);
 router.post('/verify-upi-payment', auth, verifyUPIPayment);
+
+// ⚠️ TEST MODE: Direct session booking without real payment
+router.post('/test-book-session', auth, testBookSession);
 
 module.exports = router;
