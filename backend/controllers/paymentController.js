@@ -165,3 +165,4 @@ exports.testBookSession = async (req, res) => {
     console.error('Error booking session in test mode:', error);
     res.status(500).json({ message: 'Failed to book session' });
   }
+};
