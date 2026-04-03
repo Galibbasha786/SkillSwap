@@ -4,6 +4,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { initializeSocket } = require('./socket');
 const googleMeetRoutes = require('./routes/googleMeetRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -12,12 +14,14 @@ const { startAutoCompleteService } = require('./services/sessionAutoComplete');
 // Load environment variables
 dotenv.config();
 
-// Log environment variables (without exposing secrets)
-console.log('✅ Environment loaded:');
-console.log('- PORT:', process.env.PORT || 5000);
-console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Using default');
-console.log('- RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? '✅ Present' : '❌ Missing');
-console.log('- RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET ? '✅ Present' : '❌ Missing');
+// Log environment variables (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('✅ Environment loaded:');
+  console.log('- PORT:', process.env.PORT || 5000);
+  console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Using default');
+  console.log('- RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? '✅ Present' : '❌ Missing');
+  console.log('- RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET ? '✅ Present' : '❌ Missing');
+}
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -37,9 +41,20 @@ const rewardsRoutes = require('./routes/rewardsRoutes');
 // Initialize express
 const app = express();
 
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use(limiter);
+
 // CORS configuration
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
 
