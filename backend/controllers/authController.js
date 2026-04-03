@@ -39,14 +39,26 @@ exports.register = async (req, res) => {
     //   console.error(`⚠️ Email send failed for ${email}:`, err.message);
     // });
 
+    // ✅ Generate token for immediate login
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(201).json({
       success: true,
       message: 'Registration successful!',
+      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        isEmailVerified: true
+        role: user.role,
+        profileImage: user.profileImage,
+        isEmailVerified: true,
+        bio: user.bio,
+        location: user.location
       }
     });
   } catch (error) {
@@ -181,6 +193,8 @@ exports.login = async (req, res) => {
 exports.googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
+
+    console.log('🔐 Google login attempt with credential');
     
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
@@ -190,9 +204,12 @@ exports.googleLogin = async (req, res) => {
     const payload = ticket.getPayload();
     const { name, email, picture } = payload;
     
+    console.log(`✅ Google verified: ${email}`);
+
     let user = await User.findOne({ email });
     
     if (!user) {
+      console.log(`📝 Creating new user from Google: ${email}`);
       user = await User.create({
         name,
         email,
@@ -200,6 +217,12 @@ exports.googleLogin = async (req, res) => {
         password: Math.random().toString(36),
         isEmailVerified: true
       });
+    } else {
+      // Update profile image if not set
+      if (!user.profileImage && picture) {
+        user.profileImage = picture;
+        await user.save();
+      }
     }
     
     const token = jwt.sign(
@@ -208,6 +231,8 @@ exports.googleLogin = async (req, res) => {
       { expiresIn: '7d' }
     );
     
+    console.log(`✅ Google login successful for: ${email}`);
+
     res.json({
       success: true,
       token,
@@ -216,12 +241,13 @@ exports.googleLogin = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {
-    console.error('❌ Google auth error:', error);
-    res.status(401).json({ success: false, message: 'Google authentication failed' });
+    console.error('❌ Google auth error:', error.message);
+    res.status(401).json({ success: false, message: 'Google authentication failed', error: error.message });
   }
 };
 
