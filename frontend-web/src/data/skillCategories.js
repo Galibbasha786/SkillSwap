@@ -25,7 +25,7 @@ export const skillCategories = [
     skills: [
       'iOS Development', 'Android Development', 'React Native',
       'Flutter', 'SwiftUI', 'Jetpack Compose', 'Mobile UI/UX'
-    ]
+    ]//heloo
   },
   {
     name: 'Data Science',
