@@ -9,5 +9,25 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom']
   },
-   publicDir: 'public',
+  publicDir: 'public',
+  build: {
+    minify: 'terser',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('@mui') || id.includes('react')) {
+              return 'vendor';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
+  },
+  server: {
+    host: true,
+    port: 5173
+  }
 })

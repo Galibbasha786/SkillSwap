@@ -145,7 +145,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     
     setVerifying(true);
     try {
-      const response = await fetch('http://localhost:5001/api/payments/verify-upi-payment', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-upi-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   const createUPIPayment = async () => {
     try {
       setProcessing(true);
-      const response = await fetch('http://localhost:5001/api/payments/create-upi-payment', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-upi-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
