@@ -263,5 +263,9 @@ export const adminAPI = {
   getUserDetails: (userId) => api.get(`/admin/users/${userId}`),
   updateUser: (userId, data) => api.put(`/admin/users/${userId}`, data),
 };
-
+export const rewardsAPI = {
+  getBalance: () => api.get('/rewards/balance'),
+  getHistory: () => api.get('/rewards/history'),
+  redeemFreeSession: (data) => api.post('/rewards/redeem-free-session', data)
+};
 export default api;

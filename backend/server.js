@@ -33,6 +33,7 @@ const certificateRoutes = require('./routes/certificateRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const swapRoutes = require('./routes/swapRoutes');
+const rewardsRoutes = require('./routes/rewardsRoutes');
 // Initialize express
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/swaps', swapRoutes);
+app.use('/api/rewards', rewardsRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

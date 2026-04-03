@@ -1,14 +1,33 @@
 // backend/utils/emailService.js
 
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
+
+// Initialize Resend only if API key exists and in production
+let resend = null;
+if (process.env.NODE_ENV === 'production' && process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log('✅ Resend initialized for production');
+}
 
 // Generate OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Create transporter with retry logic
-const createTransporter = () => {
+// Determine which email provider to use
+const shouldUseResend = () => {
+  return process.env.NODE_ENV === 'production' && process.env.RESEND_API_KEY;
+};
+
+// Create SMTP transporter (for localhost/development)
+const createSMTPTransporter = () => {
+  // Only create if SMTP credentials exist
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log('⚠️ SMTP credentials missing, emails will be logged to console');
+    return null;
+  }
+  
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -23,53 +42,113 @@ const createTransporter = () => {
   });
 };
 
-// Send OTP email with retry
+// Generic email sender
+const sendEmail = async (to, subject, html) => {
+  const useResend = shouldUseResend();
+  
+  console.log(`📧 Sending email to ${to} via ${useResend ? 'Resend' : 'SMTP/Console'}`);
+  
+  // In development without SMTP, just log to console
+  if (process.env.NODE_ENV !== 'production' && !process.env.EMAIL_USER) {
+    console.log(`\n📧 [DEV MODE] Email would be sent to: ${to}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`HTML: ${html.substring(0, 200)}...\n`);
+    return true;
+  }
+  
+  if (useResend && resend) {
+    // Production: Use Resend
+    try {
+      const { data, error } = await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'SkillSwap <noreply@skillswap.com>',
+        to: to,
+        subject: subject,
+        html: html,
+      });
+      
+      if (error) throw new Error(error.message);
+      console.log(`✅ Email sent via Resend: ${data?.id}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Resend email error:`, error.message);
+      throw error;
+    }
+  } else {
+    // Localhost: Use SMTP
+    const transporter = createSMTPTransporter();
+    
+    if (!transporter) {
+      console.log(`📧 [FALLBACK] Would send email to: ${to}`);
+      return true;
+    }
+    
+    try {
+      await transporter.sendMail({
+        from: `"SkillSwap" <${process.env.EMAIL_USER}>`,
+        to: to,
+        subject: subject,
+        html: html,
+      });
+      console.log(`✅ Email sent via SMTP to ${to}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ SMTP email error:`, error.message);
+      throw error;
+    }
+  }
+};
+
+// Send OTP email
 const sendOTPEmail = async (email, otp, type = 'verification') => {
   const subject = type === 'verification' 
     ? 'Verify Your SkillSwap Account' 
     : 'Reset Your SkillSwap Password';
   
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
-        <h1 style="color: white; margin: 0;">SkillSwap</h1>
-      </div>
-      <div style="padding: 20px; border: 1px solid #e0e0e0; border-top: none;">
-        <h2>${type === 'verification' ? 'Email Verification' : 'Password Reset'}</h2>
-        <p>Your OTP code is:</p>
-        <div style="background: #f5f5f5; padding: 15px; text-align: center; font-size: 32px; letter-spacing: 5px; font-weight: bold; border-radius: 8px;">
-          ${otp}
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .header h1 { color: white; margin: 0; }
+        .content { padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px; }
+        .otp-code { background: #f5f5f5; padding: 15px; text-align: center; font-size: 32px; letter-spacing: 5px; font-weight: bold; border-radius: 8px; margin: 20px 0; }
+        .footer { text-align: center; padding-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>SkillSwap</h1>
         </div>
-        <p>This code will expire in 10 minutes.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-        <hr />
-        <p style="color: #666; font-size: 12px;">SkillSwap - Exchange Skills, Learn Together</p>
+        <div class="content">
+          <h2>${type === 'verification' ? 'Verify Your Email' : 'Password Reset'}</h2>
+          <p>Your OTP code is:</p>
+          <div class="otp-code">${otp}</div>
+          <p>This code will expire in 10 minutes.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+          <hr />
+          <p style="color: #666; font-size: 12px;">SkillSwap - Exchange Skills, Learn Together</p>
+          <p style="color: #666; font-size: 12px;">
+            <a href="${clientUrl}" style="color: #667eea;">Visit our website</a>
+          </p>
+        </div>
+        <div class="footer">
+          <p>© 2024 SkillSwap. All rights reserved.</p>
+        </div>
       </div>
-    </div>
+    </body>
+    </html>
   `;
 
-  let lastError;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const transporter = createTransporter();
-      await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject,
-        html,
-      });
-      console.log(`✅ Email sent to ${email}`);
-      return true;
-    } catch (error) {
-      lastError = error;
-      console.log(`❌ Email attempt ${i + 1} failed:`, error.message);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-  throw lastError || new Error('Failed to send email after 3 attempts');
+  return await sendEmail(email, subject, html);
 };
 
-// ✅ NEW: Send Session Booked Email to Teacher
+// Send Session Booked Email to Teacher
 const sendSessionBookedToTeacher = async (session, teacher, learner) => {
   const sessionDate = new Date(session.date);
   const formattedDate = sessionDate.toLocaleDateString('en-US', {
@@ -82,6 +161,8 @@ const sendSessionBookedToTeacher = async (session, teacher, learner) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+  
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
   const html = `
     <!DOCTYPE html>
@@ -126,14 +207,7 @@ const sendSessionBookedToTeacher = async (session, teacher, learner) => {
             <li>Rating: ${learner.rating || 'New'} ⭐</li>
           </ul>
           
-          <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/sessions/${session._id}" class="button">View Session Details</a>
-          
-          <p style="margin-top: 20px;"><strong>📌 Important:</strong></p>
-          <ul>
-            <li>Please join the meeting at the scheduled time</li>
-            <li>You can start the session by clicking "Start Session" in your dashboard</li>
-            <li>After the session, mark it as completed to receive payment</li>
-          </ul>
+          <a href="${clientUrl}/sessions/${session._id}" class="button">View Session Details</a>
           
           <p>Happy Teaching! 🎓<br>Team SkillSwap</p>
         </div>
@@ -146,28 +220,10 @@ const sendSessionBookedToTeacher = async (session, teacher, learner) => {
     </html>
   `;
 
-  let lastError;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const transporter = createTransporter();
-      await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.EMAIL_USER}>`,
-        to: teacher.email,
-        subject: `🎉 New Session Booked: ${session.skillName} with ${learner.name}`,
-        html,
-      });
-      console.log(`✅ Session email sent to teacher: ${teacher.email}`);
-      return true;
-    } catch (error) {
-      lastError = error;
-      console.log(`❌ Email attempt ${i + 1} failed:`, error.message);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-  throw lastError || new Error('Failed to send email after 3 attempts');
+  return await sendEmail(teacher.email, `🎉 New Session Booked: ${session.skillName} with ${learner.name}`, html);
 };
 
-// ✅ NEW: Send Session Confirmation Email to Learner
+// Send Session Confirmation Email to Learner
 const sendSessionBookedToLearner = async (session, teacher, learner) => {
   const sessionDate = new Date(session.date);
   const formattedDate = sessionDate.toLocaleDateString('en-US', {
@@ -180,6 +236,8 @@ const sendSessionBookedToLearner = async (session, teacher, learner) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+  
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
   const html = `
     <!DOCTYPE html>
@@ -232,15 +290,7 @@ const sendSessionBookedToLearner = async (session, teacher, learner) => {
             <li>Total Sessions: ${teacher.totalSessions || 0}</li>
           </ul>
           
-          <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/sessions/${session._id}" class="button">View Session Details</a>
-          
-          <p style="margin-top: 20px;"><strong>📌 Tips for a Great Session:</strong></p>
-          <ul>
-            <li>Join the meeting 5 minutes early</li>
-            <li>Prepare your questions in advance</li>
-            <li>Ensure your mic and camera are working</li>
-            <li>Take notes during the session</li>
-          </ul>
+          <a href="${clientUrl}/sessions/${session._id}" class="button">View Session Details</a>
           
           <p>After the session, don't forget to rate your teacher!</p>
           
@@ -255,36 +305,12 @@ const sendSessionBookedToLearner = async (session, teacher, learner) => {
     </html>
   `;
 
-  let lastError;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const transporter = createTransporter();
-      await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.EMAIL_USER}>`,
-        to: learner.email,
-        subject: `✅ Session Confirmed: ${session.skillName} with ${teacher.name}`,
-        html,
-      });
-      console.log(`✅ Session confirmation email sent to learner: ${learner.email}`);
-      return true;
-    } catch (error) {
-      lastError = error;
-      console.log(`❌ Email attempt ${i + 1} failed:`, error.message);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-  throw lastError || new Error('Failed to send email after 3 attempts');
-};
-
-// For development - log OTP to console instead of sending email
-const sendOTPEmailDev = async (email, otp, type = 'verification') => {
-  console.log(`\n📧 [DEV MODE] OTP for ${email}: ${otp}\n`);
-  return true;
+  return await sendEmail(learner.email, `✅ Session Confirmed: ${session.skillName} with ${teacher.name}`, html);
 };
 
 module.exports = { 
-  sendOTPEmail: process.env.NODE_ENV === 'production' ? sendOTPEmail : sendOTPEmailDev,
+  sendOTPEmail,
   generateOTP,
   sendSessionBookedToTeacher,
-  sendSessionBookedToLearner
+  sendSessionBookedToLearner,
 };

@@ -35,7 +35,10 @@ const notificationSchema = new mongoose.Schema({
          'swap_request',      // When someone wants to swap skills
       'swap_confirmed',    // When swap is confirmed
       'swap_completed',     // When swap sessions are completed
-      'account_status'
+      'account_status',
+       'reward_earned',      // ✅ Add this
+    'reward_redeemed',    // ✅ Add this  
+    'reward_bonus'        // ✅ Add this
     ],
     required: true
   },

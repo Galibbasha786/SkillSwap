@@ -1,6 +1,6 @@
 // frontend-web/src/components/sessions/BookingModal.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FiX, 
@@ -11,9 +11,12 @@ import {
   FiCheckCircle,
   FiDollarSign,
   FiCopy,
-  FiExternalLink
+  FiExternalLink,
+  FiGift,
+  FiStar,
+  FiAward
 } from 'react-icons/fi';
-import { sessionAPI } from '../../services/api';
+import { sessionAPI, rewardsAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
@@ -27,6 +30,24 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   const [upiPaymentData, setUpiPaymentData] = useState(null);
   const [upiTransactionId, setUpiTransactionId] = useState('');
   const [verifying, setVerifying] = useState(false);
+  
+  // Rewards State
+  const [useRewards, setUseRewards] = useState(false);
+  const [rewardsBalance, setRewardsBalance] = useState(0);
+  const [rewardsLoading, setRewardsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchRewardsBalance();
+  }, []);
+
+  const fetchRewardsBalance = async () => {
+    try {
+      const response = await rewardsAPI.getBalance();
+      setRewardsBalance(response.data.balance);
+    } catch (error) {
+      console.error('Error fetching rewards:', error);
+    }
+  };
 
   const calculateTotal = () => {
     const hours = duration / 60;
@@ -39,6 +60,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     };
   };
 
+  // ✅ FIXED: Don't create session here when using rewards
   const handleDateTimeSelect = async () => {
     if (!date || !time) {
       toast.error('Please select date and time');
@@ -69,18 +91,49 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
         hourlyRate: skill.hourlyRate
       };
 
-      console.log('Creating session with data:', sessionData);
-      
-      const response = await sessionAPI.create(sessionData);
-      console.log('✅ Session created:', response.data);
-      
-      setSession(response.data);
-      setStep(2);
+      // ✅ If using rewards, go directly to rewards booking (no session creation)
+      if (useRewards && rewardsBalance >= 20) {
+        await handleRewardsBooking(sessionData);
+      } else {
+        // Regular paid session - create session first
+        const response = await sessionAPI.create(sessionData);
+        console.log('✅ Session created:', response.data);
+        setSession(response.data);
+        setStep(2);
+      }
     } catch (error) {
-      console.error('Error creating session:', error);
-      toast.error('Failed to create session. Please try again.');
+      console.error('Error:', error);
+      toast.error('Failed to process booking. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ Handle booking with rewards - creates session via rewards API
+  const handleRewardsBooking = async (sessionData) => {
+    setRewardsLoading(true);
+    try {
+      const response = await rewardsAPI.redeemFreeSession({
+        teacherId: teacher._id,
+        skillId: skill._id,
+        skillName: skill.name,
+        title: sessionData.title,
+        description: sessionData.description,
+        date: sessionData.date,
+        duration: duration,
+        hourlyRate: skill.hourlyRate
+      });
+      
+      if (response.data.success) {
+        toast.success(`🎉 Free session booked! You used 20 rewards. ${response.data.rewardsLeft} rewards left.`);
+        onBooked(response.data.session);
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error booking with rewards:', error);
+      toast.error(error.response?.data?.message || 'Failed to book with rewards');
+    } finally {
+      setRewardsLoading(false);
     }
   };
 
@@ -148,6 +201,8 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   };
 
   const totals = calculateTotal();
+  const canUseRewards = rewardsBalance >= 20;
+  const freeSessionAvailable = canUseRewards;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -187,6 +242,43 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
               <p className="text-sm text-green-600 font-medium">₹{skill?.hourlyRate}/hour</p>
             </div>
           </div>
+
+          {/* Rewards Banner */}
+          {step === 1 && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2 mb-2">
+                <FiGift className="w-5 h-5 text-amber-600" />
+                <span className="font-semibold text-amber-800">Rewards Available!</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-amber-700">You have <span className="font-bold">{rewardsBalance}</span> rewards</p>
+                  {freeSessionAvailable && (
+                    <p className="text-xs text-amber-600">20 rewards = 1 free session!</p>
+                  )}
+                </div>
+                {freeSessionAvailable && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useRewards}
+                      onChange={(e) => setUseRewards(e.target.checked)}
+                      className="w-4 h-4 text-amber-500 rounded"
+                    />
+                    <span className="text-sm font-medium text-amber-700">Use 20 rewards</span>
+                  </label>
+                )}
+              </div>
+              {useRewards && (
+                <div className="mt-2 p-2 bg-green-50 rounded-lg">
+                  <p className="text-xs text-green-700 flex items-center gap-1">
+                    <FiAward className="w-3 h-3" />
+                    Free session! No payment required. Teacher gets 10 bonus rewards.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {step === 1 && (
             <div className="space-y-4">
@@ -231,42 +323,55 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
                 </select>
               </div>
 
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Rate:</span>
-                  <span className="font-medium">₹{skill?.hourlyRate}/hour</span>
-                </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Duration:</span>
-                  <span className="font-medium">{duration} minutes</span>
-                </div>
-                <div className="border-t border-blue-200 my-2 pt-2">
-                  <div className="flex justify-between font-bold">
-                    <span>Total:</span>
-                    <span className="text-green-600">₹{totals.total}</span>
+              {!useRewards && (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600">Rate:</span>
+                    <span className="font-medium">₹{skill?.hourlyRate}/hour</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Includes 10% platform fee</p>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600">Duration:</span>
+                    <span className="font-medium">{duration} minutes</span>
+                  </div>
+                  <div className="border-t border-blue-200 my-2 pt-2">
+                    <div className="flex justify-between font-bold">
+                      <span>Total:</span>
+                      <span className="text-green-600">₹{totals.total}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Includes 10% platform fee</p>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {useRewards && (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="text-center">
+                    <FiGift className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                    <p className="font-bold text-green-700">Free Session!</p>
+                    <p className="text-sm text-green-600">Using 20 rewards points</p>
+                    <p className="text-xs text-green-500 mt-1">Rewards left after booking: {rewardsBalance - 20}</p>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleDateTimeSelect}
-                disabled={loading}
+                disabled={loading || rewardsLoading}
                 className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
               >
-                {loading ? (
+                {loading || rewardsLoading ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating Session...
+                    {useRewards ? 'Booking Free Session...' : 'Creating Session...'}
                   </div>
                 ) : (
-                  'Continue to Payment'
+                  useRewards ? 'Book Free Session with Rewards' : 'Continue to Payment'
                 )}
               </button>
             </div>
           )}
 
-          {step === 2 && session && (
+          {step === 2 && session && !useRewards && (
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
@@ -380,5 +485,4 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   );
 };
 
-// ✅ CORRECT EXPORT - THIS MUST BE AT THE END
 export default BookingModal;

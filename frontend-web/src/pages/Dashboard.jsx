@@ -8,6 +8,7 @@ import ImageUpload from '../components/profile/ImageUpload';
 import NotificationBell from '../components/common/NotificationBell';
 import WalletBalance from '../components/wallet/WalletBalance';
 import RatingModal from '../components/ratings/RatingModal';
+import RewardsCard from '../components/rewards/RewardsCard';
 import { 
   FiLogOut, 
   FiUser, 
@@ -474,6 +475,9 @@ const Dashboard = () => {
             
             {/* Wallet Card */}
             <WalletBalance />
+            <div className="col-span-1">
+  <RewardsCard />
+</div>
           </div>
 
           {/* Rest of your dashboard content remains the same */}

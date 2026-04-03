@@ -129,6 +129,18 @@ const userSchema = new mongoose.Schema({
     fieldOfStudy: { type: String, default: '' },
     graduationYear: { type: Number, min: 1950, max: 2030, default: null }
   },
+  rewards: {
+  balance: { type: Number, default: 0 },
+  totalEarned: { type: Number, default: 0 },
+  totalRedeemed: { type: Number, default: 0 },
+  transactions: [{
+    type: { type: String, enum: ['earned', 'redeemed', 'teacher_bonus'] },
+    amount: Number,
+    description: String,
+    sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
+    date: { type: Date, default: Date.now }
+  }]
+},
   
   // Stats
   rating: { type: Number, default: 0, min: 0, max: 5 },

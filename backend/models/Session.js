@@ -204,6 +204,11 @@ swapMatchId: {
   ref: 'Match',
   default: null
 },
+isFreeReward: {
+  type: Boolean,
+  default: false
+}
+,
   
   // Cancellation
   cancellationReason: String,
