@@ -53,10 +53,26 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const clientUrl = rawClientUrl.replace(/\/+$/, ''); // strip trailing slash
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // non-browser requests
+
+    const allowedOrigins = [clientUrl];
+    // Add more allowed origins here if you host frontend in multiple envs
+    if (allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS not allowed for origin: ' + origin));
+  },
   credentials: true
 }));
+
+// Support preflight requests for all routes
+app.options('*', cors({ origin: clientUrl, credentials: true }));
 
 // Middleware
 app.use(express.json());
