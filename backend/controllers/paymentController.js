@@ -115,7 +115,13 @@ exports.testBookSession = async (req, res) => {
   try {
     const { sessionId, transactionId } = req.body;
 
+    console.log('📤 TEST MODE: Received booking request');
+    console.log('Session ID:', sessionId);
+    console.log('Transaction ID:', transactionId);
+    console.log('User ID:', req.user?.id);
+
     if (!sessionId || !transactionId || transactionId.trim() === '') {
+      console.error('❌ Missing required fields');
       return res.status(400).json({ message: 'Session ID and Transaction ID are required' });
     }
 
@@ -124,16 +130,25 @@ exports.testBookSession = async (req, res) => {
       .populate('learnerId', 'name');
 
     if (!session) {
+      console.error('❌ Session not found:', sessionId);
       return res.status(404).json({ message: 'Session not found' });
     }
+
+    console.log('✅ Session found:', session._id, session.title);
 
     // ⚠️ TEST MODE: Confirm booking without real payment or wallet updates
     console.log(`⚠️ TEST MODE: Booking session ${sessionId} with test transaction ID: ${transactionId}`);
 
-    await Session.findByIdAndUpdate(sessionId, {
-      paymentStatus: 'completed',
-      status: 'scheduled'
-    });
+    const updatedSession = await Session.findByIdAndUpdate(
+      sessionId,
+      {
+        paymentStatus: 'completed',
+        status: 'scheduled'
+      },
+      { new: true }
+    );
+
+    console.log('✅ Session updated:', updatedSession);
 
     // Create test transaction record (NO WALLET UPDATES)
     const testTransaction = await Transaction.create({
@@ -148,7 +163,9 @@ exports.testBookSession = async (req, res) => {
       transferStatus: 'pending_real_payment'
     });
 
-    res.json({
+    console.log('✅ Transaction created:', testTransaction._id);
+
+    const responseData = {
       success: true,
       message: '✅ SESSION BOOKED SUCCESSFULLY IN TEST MODE!\n⚠️ This is a test booking. Real-time payment is not active yet.\n📢 You will be notified when live payments are enabled.',
       testMode: true,
@@ -160,9 +177,13 @@ exports.testBookSession = async (req, res) => {
         duration: session.duration
       },
       transactionId: testTransaction._id
-    });
+    };
+
+    console.log('✅ Sending success response:', responseData);
+    res.json(responseData);
   } catch (error) {
-    console.error('Error booking session in test mode:', error);
-    res.status(500).json({ message: 'Failed to book session' });
+    console.error('❌ Error booking session in test mode:', error);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ message: 'Failed to book session: ' + error.message });
   }
 };

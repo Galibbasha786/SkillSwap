@@ -213,6 +213,10 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
 
     setVerifying(true);
     try {
+      console.log('📤 Sending test mode booking request...');
+      console.log('Session ID:', session._id);
+      console.log('Transaction ID:', upiTransactionId);
+      
       const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/test-book-session`, {
         method: 'POST',
         headers: {
@@ -225,17 +229,31 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
         })
       });
       
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
+      
       if (data.success) {
-        toast.success('✅ Session booked successfully in TEST MODE!');
-        onBooked(session);
-        onClose();
+        toast.success('✅ Session booked successfully in TEST MODE!', {
+          duration: 4000,
+          icon: '✅'
+        });
+        console.log('✅ Booking successful, closing modal...');
+        setTimeout(() => {
+          onBooked(session);
+          onClose();
+        }, 1000);
       } else {
-        toast.error(data.message || 'Booking failed');
+        toast.error(data.message || 'Booking failed', {
+          duration: 3000
+        });
+        console.error('❌ Booking failed:', data.message);
       }
     } catch (error) {
-      console.error('Test mode booking error:', error);
-      toast.error('Failed to book session');
+      console.error('❌ Test mode booking error:', error);
+      toast.error('Failed to book session: ' + error.message, {
+        duration: 3000
+      });
     } finally {
       setVerifying(false);
     }
