@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
 const { sendSessionBookedToTeacher, sendSessionBookedToLearner } = require('../utils/emailService');
+const { addRewardToLearner } = require('./rewardsController');
 
 // ✅ Generate Jitsi Meet link (FREE, works immediately)
 const generateJitsiLink = (sessionId, title) => {
@@ -169,6 +170,15 @@ exports.updateSessionStatus = async (req, res) => {
         { _id: session.teacherId, 'skillsTeach.name': session.skillName },
         { $inc: { 'skillsTeach.$.totalSessions': 1 } }
       );
+
+      // ✅ Add reward to learner for completing session
+      if (!session.isFreeReward) { // Only reward paid sessions, not free reward sessions
+        await addRewardToLearner(
+          session.learnerId, 
+          session._id, 
+          `Reward earned for completing session: ${session.title}`
+        );
+      }
     }
     
     session.status = status;
@@ -316,7 +326,16 @@ exports.completeSession = async (req, res) => {
     
     session.status = 'completed';
     await session.save();
-    
+
+    // ✅ Add reward to learner for completing session
+    if (!session.isFreeReward) { // Only reward paid sessions, not free reward sessions
+      await addRewardToLearner(
+        session.learnerId, 
+        session._id, 
+        `Reward earned for completing session: ${session.title}`
+      );
+    }
+
     // Notify both parties
     await Notification.create({
       userId: session.teacherId,

@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const Session = require('../models/Session');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { addRewardToLearner } = require('../controllers/rewardsController');
 
 // Run every 15 minutes to check for sessions that should be completed
 const startAutoCompleteService = () => {
@@ -70,6 +71,15 @@ const autoCompleteSessions = async () => {
           },
           { $inc: { 'skillsTeach.$.totalSessions': 1 } }
         );
+
+        // ✅ Add reward to learner for completing session
+        if (!session.isFreeReward) { // Only reward paid sessions, not free reward sessions
+          await addRewardToLearner(
+            session.learnerId._id, 
+            session._id, 
+            `Reward earned for completing session: ${session.title}`
+          );
+        }
         
         // Send notification to teacher
         await Notification.create({
