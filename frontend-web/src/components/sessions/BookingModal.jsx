@@ -188,7 +188,12 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       
       const data = await response.json();
       if (data.success) {
-        setUpiPaymentData(data.transaction);
+        // Check if this is TEST MODE response
+        if (data.testMode) {
+          setUpiPaymentData({ testMode: true, message: data.message, sessionId: session._id });
+        } else {
+          setUpiPaymentData(data.transaction);
+        }
       } else {
         toast.error('Failed to create UPI payment');
       }
@@ -197,6 +202,42 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       toast.error('Failed to create payment');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleTestModePayment = async () => {
+    if (!upiTransactionId.trim()) {
+      toast.error('Please enter a transaction ID');
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/test-book-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          sessionId: session._id,
+          transactionId: upiTransactionId
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success('✅ Session booked successfully in TEST MODE!');
+        onBooked(session);
+        onClose();
+      } else {
+        toast.error(data.message || 'Booking failed');
+      }
+    } catch (error) {
+      console.error('Test mode booking error:', error);
+      toast.error('Failed to book session');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -407,7 +448,72 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
                 >
                   {processing ? 'Creating payment...' : 'Pay with UPI'}
                 </button>
+              ) : upiPaymentData.testMode ? (
+                // TEST MODE UI
+                <div className="border-2 border-yellow-400 bg-yellow-50 rounded-lg p-4 space-y-4">
+                  <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">⚠️</div>
+                      <div>
+                        <h3 className="font-bold text-yellow-800">TEST MODE - No Real Payment</h3>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          This is a test booking. Real-time payment is not active yet.
+                        </p>
+                        <p className="text-sm text-yellow-700 mt-2">
+                          You will be notified when live payments are enabled.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-gray-600 mb-2">📌 Instructions for testing:</p>
+                    <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside">
+                      <li>No real payment will be charged</li>
+                      <li>No money will be transferred to the teacher</li>
+                      <li>Enter any fake transaction ID below</li>
+                      <li>Click "Book Session" to proceed</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Enter Any Transaction ID (for testing)
+                    </label>
+                    <input
+                      type="text"
+                      value={upiTransactionId}
+                      onChange={(e) => setUpiTransactionId(e.target.value)}
+                      placeholder="e.g., TEST-12345 or any fake ID"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">You can type anything - it's just for testing</p>
+                  </div>
+                  
+                  <button
+                    onClick={handleTestModePayment}
+                    disabled={verifying}
+                    className="w-full py-3 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:opacity-50"
+                  >
+                    {verifying ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Booking Session...
+                      </div>
+                    ) : (
+                      'Book Session (Test Mode)'
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => setUpiPaymentData(null)}
+                    className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Back
+                  </button>
+                </div>
               ) : (
+                // Real Payment UI (QR Code)
                 <div className="border rounded-lg p-4 space-y-4">
                   <h3 className="font-semibold text-center">Scan QR to Pay</h3>
                   
