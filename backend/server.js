@@ -41,6 +41,9 @@ const rewardsRoutes = require('./routes/rewardsRoutes');
 // Initialize express
 const app = express();
 
+// Trust proxy (required for production when behind reverse proxy like Render, AWS ALB, etc.)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
