@@ -215,7 +215,8 @@ exports.googleLogin = async (req, res) => {
         email,
         profileImage: picture,
         password: Math.random().toString(36),
-        isEmailVerified: true
+        isEmailVerified: true,
+        isOAuth: true
       });
     } else {
       // Update profile image if not set
@@ -335,8 +336,8 @@ exports.changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Please provide current and new password' });
+    if (!newPassword) {
+      return res.status(400).json({ message: 'Please provide new password' });
     }
 
     if (newPassword.length < 6) {
@@ -350,10 +351,15 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check current password
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
+    // If not OAuth user, check current password
+    if (!user.isOAuth) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Please provide current password' });
+      }
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
     }
 
     // Hash new password

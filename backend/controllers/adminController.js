@@ -386,7 +386,7 @@ exports.sendWithdrawalMessage = async (req, res) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res) => {
   try {
-    const { role, search, page = 1, limit = 20 } = req.query;
+    const { role, search, status, dateFrom, dateTo, page = 1, limit = 10000 } = req.query;
     
     let query = {};
     
@@ -398,6 +398,16 @@ exports.getAllUsers = async (req, res) => {
       } else {
         query.role = role;
       }
+    }
+    
+    if (status && status !== 'all') {
+      query.isActive = status === 'active';
+    }
+    
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
     }
     
     if (search) {

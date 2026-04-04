@@ -765,16 +765,32 @@ const UsersTab = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
- const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
+  const navigate = useNavigate();
+
   useEffect(() => {
     fetchUsers();
-  }, [search, roleFilter]);
+  }, [search, roleFilter, statusFilter, dateFrom, dateTo, page]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getUsers({ search, role: roleFilter });
+      const params = { 
+        search, 
+        role: roleFilter, 
+        status: statusFilter,
+        dateFrom,
+        dateTo,
+        page, 
+        limit: 10000 // Show all users
+      };
+      const response = await adminAPI.getUsers(params);
       setUsers(response.data.users);
+      setPagination(response.data.pagination);
     } catch (error) {
       toast.error('Failed to load users');
     } finally {
@@ -815,26 +831,70 @@ const UsersTab = () => {
   return (
     <div>
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex-1 relative">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+      <div className="bg-gray-50 p-4 rounded-lg mb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Search & Filter Users</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Roles</option>
+            <option value="teacher">Teachers</option>
+            <option value="student">Students</option>
+            <option value="admin">Admins</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="From date"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="To date"
+            />
+          </div>
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Users</option>
-          <option value="teacher">Teachers</option>
-          <option value="student">Students</option>
-        </select>
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={() => {
+              setSearch('');
+              setRoleFilter('all');
+              setStatusFilter('all');
+              setDateFrom('');
+              setDateTo('');
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            Clear Filters
+          </button>
+        </div>
       </div>
 
       {/* Users Table */}
@@ -924,6 +984,34 @@ const UsersTab = () => {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {pagination && pagination.pages > 1 && (
+        <div className="flex justify-between items-center mt-6">
+          <div className="text-sm text-gray-500">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} users
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={pagination.page === 1}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1 text-sm text-gray-700">
+              Page {pagination.page} of {pagination.pages}
+            </span>
+            <button
+              onClick={() => setPage(prev => Math.min(pagination.pages, prev + 1))}
+              disabled={pagination.page === pagination.pages}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

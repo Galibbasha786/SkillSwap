@@ -239,10 +239,15 @@ const handleBankUpdate = async (e) => {
     setLoading(true);
     
     try {
-      await authAPI.changePassword({
-        currentPassword: passwordForm.currentPassword,
+      const passwordData = {
         newPassword: passwordForm.newPassword
-      });
+      };
+      
+      if (!user?.isOAuth) {
+        passwordData.currentPassword = passwordForm.currentPassword;
+      }
+      
+      await authAPI.changePassword(passwordData);
       
       toast.success('Password changed successfully!');
       setPasswordForm({
@@ -608,19 +613,21 @@ const handleBankUpdate = async (e) => {
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Change Password</h2>
             
             <form onSubmit={handlePasswordChange} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                <div className="relative">
-                  <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="password"
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+              {!user?.isOAuth && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                  <div className="relative">
+                    <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required={!user?.isOAuth}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>

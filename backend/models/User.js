@@ -93,6 +93,11 @@ const userSchema = new mongoose.Schema({
     default: false
   },
   
+  isOAuth: {
+    type: Boolean,
+    default: false
+  },
+  
   // Bank Account
   bankAccount: {
     accountHolderName: { type: String, default: '' },
