@@ -325,7 +325,7 @@ const Register = () => {
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
                     onError={handleGoogleError}
-                    useOneTap
+                    useOneTap={false}
                     theme="outline"
                     size="large"
                     shape="rectangular"

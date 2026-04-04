@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 
 // Pages
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -116,7 +117,7 @@ const RootRedirect = () => {
   }
   
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Home />;
   }
   
   // Redirect based on user role

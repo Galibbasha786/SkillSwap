@@ -418,7 +418,7 @@ const Login = () => {
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={handleGoogleError}
-                  useOneTap
+                  useOneTap={false}
                   theme="outline"
                   size="large"
                   shape="rectangular"
@@ -426,6 +426,9 @@ const Login = () => {
                   width="100%"
                 />
               </div>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                💡 Tip: If Google login fails, check your email and use password login
+              </p>
             </motion.div>
 
             {/* Divider */}
