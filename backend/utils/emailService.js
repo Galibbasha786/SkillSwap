@@ -59,13 +59,14 @@ const sendEmail = async (to, subject, html) => {
   if (useResend && resend) {
     // Production: Use Resend
     try {
+      // Use Resend's default onboarding sender for dev/testing, or your domain for production
+      const resendFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
       const { data, error } = await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'SkillSwap <noreply@skillswap.com>',
+        from: resendFrom,
         to: to,
         subject: subject,
         html: html,
       });
-      
       if (error) throw new Error(error.message);
       console.log(`✅ Email sent via Resend: ${data?.id}`);
       return true;
