@@ -12,6 +12,7 @@ import {
 import { userAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import ImageUpload from '../components/profile/ImageUpload';
+import BackButton from '../components/common/BackButton';
 
 const Profile = () => {
   const { user, getUserId } = useAuth();
@@ -223,12 +224,7 @@ const Profile = () => {
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <FiArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
+          <BackButton />
           <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
           {!editing && (
             <button

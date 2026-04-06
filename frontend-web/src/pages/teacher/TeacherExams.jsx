@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import BackButton from '../../components/common/BackButton';
 
 const TeacherExams = () => {
   const [exams, setExams] = useState([]);
@@ -140,9 +141,12 @@ const TeacherExams = () => {
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Exams</h1>
-            <p className="text-gray-600 mt-1">Manage your certification exams</p>
+          <div className="flex items-center gap-4">
+            <BackButton />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">My Exams</h1>
+              <p className="text-gray-600 mt-1">Manage your certification exams</p>
+            </div>
           </div>
           <Link to="/teacher/exams/create">
             <button className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg">

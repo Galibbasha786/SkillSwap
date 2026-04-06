@@ -19,6 +19,7 @@ import { userAPI, ratingAPI } from '../services/api';
 import RatingDisplay from '../components/ratings/RatingDisplay';
 import toast from 'react-hot-toast';
 import BookingModal from '../components/sessions/BookingModal';
+import BackButton from '../components/common/BackButton';
 
 const TeacherProfile = () => {
   const { id } = useParams();
@@ -123,12 +124,9 @@ const fetchRatings = async () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-        >
-          <FiArrowLeft /> Back
-        </button>
+        <div className="mb-4">
+          <BackButton />
+        </div>
 
         {/* Profile Header */}
         <motion.div

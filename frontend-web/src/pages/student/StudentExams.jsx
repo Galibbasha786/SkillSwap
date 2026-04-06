@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { FiBook, FiClock, FiAward, FiCheckCircle } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import BackButton from '../../components/common/BackButton';
 
 const StudentExams = () => {
   const [exams, setExams] = useState([]);
@@ -37,6 +38,9 @@ const StudentExams = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Available Certifications</h1>
         
         {exams.length === 0 ? (

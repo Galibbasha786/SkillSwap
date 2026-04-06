@@ -19,6 +19,7 @@ import {
 } from 'react-icons/fi';
 import { sessionAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import BackButton from '../components/common/BackButton';
 
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
@@ -137,10 +138,10 @@ const Sessions = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-4 mb-6">
+          <BackButton />
           <h1 className="text-2xl font-bold text-gray-900">My Sessions</h1>
-          
-          <div className="flex gap-2">
+          <div className="flex gap-2 ml-auto">
             {['upcoming', 'past', 'cancelled'].map((f) => (
               <button
                 key={f}

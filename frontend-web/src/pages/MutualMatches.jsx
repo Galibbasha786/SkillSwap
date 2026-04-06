@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { FiUsers, FiStar, FiCalendar, FiClock, FiCheck, FiX, FiPhone, FiMapPin, FiMail } from 'react-icons/fi';
 import { userAPI, swapAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import BackButton from '../components/common/BackButton';
 
 const MutualMatches = () => {
   const [matches, setMatches] = useState([]);
@@ -65,6 +66,9 @@ const MutualMatches = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">🤝 Mutual Skill Matches</h1>
           <p className="text-gray-600 mt-2">

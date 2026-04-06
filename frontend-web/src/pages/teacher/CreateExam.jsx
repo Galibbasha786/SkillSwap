@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers, FiCode } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import BackButton from '../../components/common/BackButton';
 
 const CreateExam = () => {
   const [availableFrom, setAvailableFrom] = useState('');
@@ -255,6 +256,9 @@ const CreateExam = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Exam</h1>
         
         <form onSubmit={handleSubmit} className="space-y-8">

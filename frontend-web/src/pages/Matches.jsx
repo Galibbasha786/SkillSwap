@@ -12,6 +12,7 @@ import {
   FiArrowRight,
   FiUsers
 } from 'react-icons/fi';
+import BackButton from '../components/common/BackButton';
 
 const Matches = () => {
   const [matches, setMatches] = useState([]);
@@ -122,7 +123,10 @@ const Matches = () => {
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Your Skill Matches</h1>
+          <div className="flex items-center gap-4 mb-4">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-gray-900">Your Skill Matches</h1>
+          </div>
           <p className="text-gray-600">
             Found {filteredMatches.length} people who want to exchange skills with you
           </p>
