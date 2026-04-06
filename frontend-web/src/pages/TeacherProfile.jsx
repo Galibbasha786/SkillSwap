@@ -215,6 +215,20 @@ const fetchRatings = async () => {
               {activeTab === 'about' && (
                 <div>
                   <p className="text-gray-700 mb-4">{teacher?.bio || 'No bio added yet'}</p>
+
+                  {/* Contact Info */}
+                  <div className="mb-4">
+                    <h3 className="text-md font-semibold text-gray-800 mb-2">Contact Information</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-gray-600">Email:</span>
+                      <span className="text-gray-900">{teacher?.email || 'Not provided'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-gray-600">Phone:</span>
+                      <span className="text-gray-900">{teacher?.phone || 'Not provided'}</span>
+                    </div>
+                  </div>
+
                   {teacher?.totalSessions > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-4">
                       <div className="bg-gray-50 rounded-lg p-3 text-center">
