@@ -338,7 +338,7 @@ exports.getMutualMatches = async (req, res) => {
       _id: { $ne: currentUser._id },
       'skillsTeach.name': { $in: currentUser.skillsLearn.map(s => s.name) },
       'skillsLearn.name': { $in: currentUser.skillsTeach.map(s => s.name) }
-    }).select('name email profileImage skillsTeach skillsLearn rating bio');
+    }).select('name email profileImage phone location skillsTeach skillsLearn rating bio');
     
     // Format matches with specific skill pairs
     const formattedMatches = mutualMatches.map(user => {
@@ -369,6 +369,8 @@ exports.getMutualMatches = async (req, res) => {
           name: user.name,
           email: user.email,
           profileImage: user.profileImage,
+          phone: user.phone,
+          location: user.location,
           rating: user.rating,
           bio: user.bio
         },

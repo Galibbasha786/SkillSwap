@@ -57,7 +57,13 @@ exports.createFreeSwap = async (req, res) => {
       meetProvider: 'jitsi',
       paymentStatus: 'completed',
       status: 'scheduled',
-      freeSwap: true
+      freeSwap: true,
+      partnerContactInfo: {
+        name: partner.name,
+        email: partner.email,
+        phone: partner.phone || '',
+        location: partner.location || {}
+      }
     });
     
     // Create session for Partner teaching User (free)
@@ -77,7 +83,13 @@ exports.createFreeSwap = async (req, res) => {
       meetProvider: 'jitsi',
       paymentStatus: 'completed',
       status: 'scheduled',
-      freeSwap: true
+      freeSwap: true,
+      partnerContactInfo: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        location: user.location || {}
+      }
     });
     
     // Create match record
@@ -101,7 +113,13 @@ exports.createFreeSwap = async (req, res) => {
       data: {
         matchId: match._id,
         sessionId: session1._id,
-        user: { _id: user._id, name: user.name },
+        user: { 
+          _id: user._id, 
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          location: user.location || {}
+        },
         myTeachSkill,
         myLearnSkill
       }
@@ -116,7 +134,13 @@ exports.createFreeSwap = async (req, res) => {
       data: {
         matchId: match._id,
         sessionId: session2._id,
-        partner: { _id: partner._id, name: partner.name },
+        partner: { 
+          _id: partner._id, 
+          name: partner.name,
+          email: partner.email,
+          phone: partner.phone || '',
+          location: partner.location || {}
+        },
         myTeachSkill,
         myLearnSkill
       }

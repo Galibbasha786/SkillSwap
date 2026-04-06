@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiUsers, FiStar, FiCalendar, FiClock, FiCheck, FiX } from 'react-icons/fi';
+import { FiUsers, FiStar, FiCalendar, FiClock, FiCheck, FiX, FiPhone, FiMapPin, FiMail } from 'react-icons/fi';
 import { userAPI, swapAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -93,18 +93,43 @@ const MutualMatches = () => {
               >
                 <div className="p-6">
                   <div className="flex items-start gap-6 flex-wrap">
-                    {/* User Info */}
-                    <div className="flex items-center gap-4">
+                  <div className="flex items-start gap-4">
                       <img
                         src={match.user.profileImage || 'https://via.placeholder.com/80'}
                         alt={match.user.name}
                         className="w-16 h-16 rounded-full object-cover"
                       />
-                      <div>
+                      <div className="flex-1">
                         <h3 className="text-xl font-semibold text-gray-900">{match.user.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 mb-2">
                           <FiStar className="text-yellow-500 fill-current" />
                           <span className="text-gray-600">{match.user.rating?.toFixed(1) || 'New'}</span>
+                        </div>
+                        
+                        {/* Contact Info Preview */}
+                        <div className="space-y-1 text-xs text-gray-600">
+                          {match.user.email && (
+                            <div className="flex items-center gap-2">
+                              <FiMail className="w-3 h-3 text-blue-500" />
+                              <span>{match.user.email}</span>
+                            </div>
+                          )}
+                          {match.user.phone && (
+                            <div className="flex items-center gap-2">
+                              <FiPhone className="w-3 h-3 text-blue-500" />
+                              <span>{match.user.phone}</span>
+                            </div>
+                          )}
+                          {match.user.location && (match.user.location.city || match.user.location.state) && (
+                            <div className="flex items-center gap-2">
+                              <FiMapPin className="w-3 h-3 text-blue-500" />
+                              <span>
+                                {[match.user.location.city, match.user.location.state]
+                                  .filter(Boolean)
+                                  .join(', ')}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -156,6 +181,36 @@ const MutualMatches = () => {
               className="bg-white rounded-2xl max-w-md w-full p-6"
             >
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Schedule Free Swap</h2>
+              
+              {/* Partner Info */}
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <h3 className="text-xs font-semibold text-gray-700 mb-2">Partner Details</h3>
+                <div className="space-y-1.5 text-xs text-gray-600">
+                  <div className="font-medium text-gray-900">{selectedMatch.user.name}</div>
+                  {selectedMatch.user.email && (
+                    <div className="flex items-center gap-2">
+                      <FiMail className="w-3 h-3 text-blue-500" />
+                      <span>{selectedMatch.user.email}</span>
+                    </div>
+                  )}
+                  {selectedMatch.user.phone && (
+                    <div className="flex items-center gap-2">
+                      <FiPhone className="w-3 h-3 text-blue-500" />
+                      <span>{selectedMatch.user.phone}</span>
+                    </div>
+                  )}
+                  {selectedMatch.user.location && (selectedMatch.user.location.city || selectedMatch.user.location.state || selectedMatch.user.location.country) && (
+                    <div className="flex items-center gap-2">
+                      <FiMapPin className="w-3 h-3 text-blue-500" />
+                      <span>
+                        {[selectedMatch.user.location.city, selectedMatch.user.location.state, selectedMatch.user.location.country]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
               
               <div className="mb-4 p-3 bg-green-50 rounded-lg">
                 <p className="text-sm text-green-700">

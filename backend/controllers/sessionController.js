@@ -67,8 +67,8 @@ exports.createSession = async (req, res) => {
     console.log('✅ Jitsi Meet link created for session:', session._id);
     console.log('🔗 Meeting URL:', session.meetLink);
     
-    await session.populate('teacherId', 'name email profileImage rating totalSessions');
-    await session.populate('learnerId', 'name email profileImage rating');
+    await session.populate('teacherId', 'name email profileImage phone location rating totalSessions');
+    await session.populate('learnerId', 'name email profileImage phone location rating');
     
     // ✅ Send email notifications (don't block if email fails)
     try {
@@ -109,8 +109,8 @@ exports.getSessions = async (req, res) => {
     }
     
     const sessions = await Session.find(query)
-      .populate('teacherId', 'name email profileImage')
-      .populate('learnerId', 'name email profileImage')
+      .populate('teacherId', 'name email profileImage phone location')
+      .populate('learnerId', 'name email profileImage phone location')
       .sort({ date: -1 });
     
     res.json(sessions);
@@ -126,8 +126,8 @@ exports.getSessions = async (req, res) => {
 exports.getSessionById = async (req, res) => {
   try {
     const session = await Session.findById(req.params.id)
-      .populate('teacherId', 'name email profileImage')
-      .populate('learnerId', 'name email profileImage');
+      .populate('teacherId', 'name email profileImage phone location')
+      .populate('learnerId', 'name email profileImage phone location');
     
     if (!session) return res.status(404).json({ message: 'Session not found' });
     

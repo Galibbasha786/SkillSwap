@@ -12,7 +12,10 @@ import {
   FiXCircle,
   FiExternalLink,
   FiTrash2,
-  FiAlertCircle
+  FiAlertCircle,
+  FiPhone,
+  FiMapPin,
+  FiMail
 } from 'react-icons/fi';
 import { sessionAPI } from '../services/api';
 import toast from 'react-hot-toast';
@@ -202,6 +205,44 @@ const Sessions = () => {
                           <span className="text-xs font-mono text-gray-600">
                             {session.meetLink}
                           </span>
+                        </div>
+                      )}
+
+                      {/* Partner Contact Info */}
+                      {(session.partnerContactInfo || session.teacherId?.phone || session.learnerId?.phone) && (
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                          <h4 className="text-xs font-semibold text-gray-700 mb-2">Partner Contact Info</h4>
+                          <div className="space-y-1.5 text-xs text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <FiUser className="w-4 h-4 text-blue-500" />
+                              <span>{session.partnerContactInfo?.name || session.teacherId?.name || session.learnerId?.name}</span>
+                            </div>
+                            {(session.partnerContactInfo?.email || session.teacherId?.email || session.learnerId?.email) && (
+                              <div className="flex items-center gap-2">
+                                <FiMail className="w-4 h-4 text-blue-500" />
+                                <span>{session.partnerContactInfo?.email || session.teacherId?.email || session.learnerId?.email}</span>
+                              </div>
+                            )}
+                            {(session.partnerContactInfo?.phone || session.teacherId?.phone || session.learnerId?.phone) && (
+                              <div className="flex items-center gap-2">
+                                <FiPhone className="w-4 h-4 text-blue-500" />
+                                <span>{session.partnerContactInfo?.phone || session.teacherId?.phone || session.learnerId?.phone}</span>
+                              </div>
+                            )}
+                            {(session.partnerContactInfo?.location || session.teacherId?.location || session.learnerId?.location) && (
+                              <div className="flex items-start gap-2">
+                                <FiMapPin className="w-4 h-4 text-blue-500 mt-0.5" />
+                                <span>
+                                  {(() => {
+                                    const loc = session.partnerContactInfo?.location || session.teacherId?.location || session.learnerId?.location;
+                                    return [loc?.city, loc?.state, loc?.country]
+                                      .filter(Boolean)
+                                      .join(', ');
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

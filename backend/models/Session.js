@@ -207,8 +207,20 @@ swapMatchId: {
 isFreeReward: {
   type: Boolean,
   default: false
-}
-,
+},
+
+  // Contact Info for Partner
+  partnerContactInfo: {
+    name: String,
+    email: String,
+    phone: String,
+    location: {
+      city: String,
+      state: String,
+      country: String,
+      pincode: String
+    }
+  },
   
   // Cancellation
   cancellationReason: String,
