@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import PWAInstallBanner from './components/common/PWAInstallBanner';
 
 // Pages
 import Home from './pages/Home';
@@ -131,6 +132,7 @@ const RootRedirect = () => {
 function AppContent() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <PWAInstallBanner />
       <Toaster 
         position="top-right"
         toastOptions={{
