@@ -7,10 +7,11 @@ const {
   sendOTP, verifyOTP, resetPassword, changePassword  // ← Add resetPassword
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
+const { captchaMiddleware } = require('../middleware/captcha');
 
 // Public routes
 router.post('/register', register);
-router.post('/login', login);
+router.post('/login', captchaMiddleware, login);
 router.post('/google', googleLogin);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);

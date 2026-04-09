@@ -1,12 +1,13 @@
 // frontend-web/src/pages/Login.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiMail, FiLock, FiArrowRight, FiUser, FiAlertCircle, FiEye, FiEyeOff, FiStar, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { GoogleLogin } from '@react-oauth/google';
+import ReCAPTCHA from 'react-google-recaptcha';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
@@ -23,6 +24,8 @@ const Login = () => {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const captchaRef = useRef();
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -89,11 +92,17 @@ const Login = () => {
       toast.error('Please enter a valid email address');
       return;
     }
+
+    if (!captchaToken) {
+      setLoginError('Please verify the CAPTCHA');
+      toast.error('Please verify the CAPTCHA');
+      return;
+    }
     
     setLoading(true);
     
     try {
-      const result = await login(email, password);
+      const result = await login(email, password, captchaToken);
       
       if (result.success && result.user) {
         if (rememberMe) {
@@ -132,6 +141,14 @@ const Login = () => {
       } else if (errorMessage === 'Account not found') {
         setLoginError('No account found with this email. Please register first.');
         toast.error('No account found with this email. Please register first.');
+      } else if (errorMessage.includes('CAPTCHA')) {
+        setLoginError('CAPTCHA verification failed. Please try again.');
+        toast.error('CAPTCHA verification failed. Please try again.');
+        // Reset captcha
+        if (captchaRef.current) {
+          captchaRef.current.reset();
+          setCaptchaToken(null);
+        }
       } else {
         setLoginError(errorMessage);
         toast.error(errorMessage);
@@ -527,6 +544,25 @@ const Login = () => {
                 >
                   Forgot password?
                 </button>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.65 }}
+                className="flex justify-center"
+              >
+                <ReCAPTCHA
+                  ref={captchaRef}
+                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                  onChange={(token) => {
+                    setCaptchaToken(token);
+                    if (token) {
+                      setLoginError('');
+                    }
+                  }}
+                  theme="light"
+                />
               </motion.div>
 
               <motion.button

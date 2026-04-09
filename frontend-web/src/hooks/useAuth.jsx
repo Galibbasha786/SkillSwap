@@ -37,9 +37,9 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, captchaToken) => {
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email, password, captchaToken });
       const { token, user: userData } = response.data;
       
       const normalizedUser = {
