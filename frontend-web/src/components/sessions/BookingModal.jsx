@@ -14,9 +14,10 @@ import {
   FiExternalLink,
   FiGift,
   FiStar,
-  FiAward
+  FiAward,
+  FiAlertCircle
 } from 'react-icons/fi';
-import { sessionAPI, rewardsAPI } from '../../services/api';
+import { sessionAPI, rewardsAPI, timeSlotAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
@@ -36,6 +37,11 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   const [rewardsBalance, setRewardsBalance] = useState(0);
   const [rewardsLoading, setRewardsLoading] = useState(false);
 
+  // Time Slots State
+  const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
   useEffect(() => {
     fetchRewardsBalance();
   }, []);
@@ -46,6 +52,35 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       setRewardsBalance(response.data.balance);
     } catch (error) {
       console.error('Error fetching rewards:', error);
+    }
+  };
+
+  // Fetch available time slots when date changes
+  const handleDateChange = async (selectedDate) => {
+    setDate(selectedDate);
+    setTime('');
+    setSelectedSlot(null);
+    
+    if (!selectedDate) {
+      setAvailableTimeSlots([]);
+      return;
+    }
+
+    try {
+      setCheckingAvailability(true);
+      const response = await timeSlotAPI.getAvailableSlotsForWeek(teacher._id, selectedDate);
+      setAvailableTimeSlots(response.data.availableSlots || []);
+      
+      if (!response.data.availableSlots || response.data.availableSlots.length === 0) {
+        toast.info(`No available time slots for ${response.data.dayOfWeek}`);
+      }
+    } catch (error) {
+      console.error('Error fetching available slots:', error);
+      setAvailableTimeSlots([]);
+      // Non-fatal error - teacher may not have set up time slots yet
+      toast.warning('Teacher has not set specific time slots yet. You can suggest a time.');
+    } finally {
+      setCheckingAvailability(false);
     }
   };
 
@@ -342,38 +377,79 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Select Date
                 </label>
                 <input
                   type="date"
                   min={new Date().toISOString().split('T')[0]}
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
 
+              {/* Available Time Slots */}
+              {date && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Available Time Slots
+                  </label>
+                  {checkingAvailability ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+                    </div>
+                  ) : availableTimeSlots.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {availableTimeSlots.map((slot, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setSelectedSlot(slot);
+                            setTime(slot.startTime);
+                          }}
+                          className={`p-2 rounded-lg text-sm font-medium transition-colors ${
+                            selectedSlot?._id === slot._id
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-500'
+                          }`}
+                        >
+                          {slot.startTime} - {slot.endTime}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg flex gap-2">
+                      <FiAlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-amber-800 dark:text-amber-200">No scheduled time slots for this day</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">You can still suggest a time below</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Time
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {availableTimeSlots.length > 0 ? 'Or select another time' : 'Select Time'}
                 </label>
                 <input
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Duration (minutes)
                 </label>
                 <select
                   value={duration}
                   onChange={(e) => setDuration(parseInt(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
                   <option value={30}>30 minutes</option>
                   <option value={60}>1 hour</option>

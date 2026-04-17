@@ -14,9 +14,11 @@ import {
   FiBriefcase,
   FiAward,
   FiCreditCard,
-  FiAlertCircle
+  FiAlertCircle,
+  FiClock
 } from 'react-icons/fi';
 import { userAPI, authAPI } from '../services/api';
+import TimeSlotManager from '../components/sessions/TimeSlotManager';
 import toast from 'react-hot-toast';
 import BackButton from '../components/common/BackButton';
 
@@ -26,6 +28,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState(null);
+  const [timeSlotManagerOpen, setTimeSlotManagerOpen] = useState(false);
   
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -265,17 +268,18 @@ const handleBankUpdate = async (e) => {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: FiUser },
     { id: 'bank', label: 'Bank Details', icon: FiCreditCard },
+    { id: 'schedule', label: 'Teaching Schedule', icon: FiClock },
     { id: 'password', label: 'Password', icon: FiLock }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <BackButton />
-            <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
           </div>
         </div>
       </div>
@@ -597,6 +601,31 @@ const handleBankUpdate = async (e) => {
           </motion.div>
         )}
 
+        {/* Teaching Schedule Settings */}
+        {activeTab === 'schedule' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
+          >
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Manage Your Teaching Schedule
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Set your available time slots for teaching. Students will only be able to book sessions during these times.
+              </p>
+            </div>
+            <button
+              onClick={() => setTimeSlotManagerOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-colors font-medium"
+            >
+              <FiClock className="w-5 h-5" />
+              Manage Time Slots
+            </button>
+          </motion.div>
+        )}
+
         {/* Password Settings */}
         {activeTab === 'password' && (
           <motion.div
@@ -667,6 +696,13 @@ const handleBankUpdate = async (e) => {
           </motion.div>
         )}
       </div>
+
+      {/* Time Slot Manager Modal */}
+      <TimeSlotManager
+        teacherId={userData?._id || user?.id}
+        isOpen={timeSlotManagerOpen}
+        onClose={() => setTimeSlotManagerOpen(false)}
+      />
     </div>
   );
 };

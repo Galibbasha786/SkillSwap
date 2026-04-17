@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 import './index.css';
 
@@ -19,12 +20,14 @@ if (!GOOGLE_CLIENT_ID) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <GoogleOAuthProvider 
-      clientId={GOOGLE_CLIENT_ID}
-      onScriptLoad={() => console.log('✅ Google OAuth script loaded')}
-      onScriptLoadError={() => console.error('❌ Failed to load Google OAuth script')}
-    >
-      <App />
-    </GoogleOAuthProvider>
+    <ThemeProvider>
+      <GoogleOAuthProvider 
+        clientId={GOOGLE_CLIENT_ID}
+        onScriptLoad={() => console.log('✅ Google OAuth script loaded')}
+        onScriptLoadError={() => console.error('❌ Failed to load Google OAuth script')}
+      >
+        <App />
+      </GoogleOAuthProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );

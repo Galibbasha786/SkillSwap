@@ -268,4 +268,31 @@ export const rewardsAPI = {
   getHistory: () => api.get('/rewards/history'),
   redeemFreeSession: (data) => api.post('/rewards/redeem-free-session', data)
 };
+
+export const timeSlotAPI = {
+  // Get all time slots for a teacher
+  getTeacherSlots: (teacherId) => api.get(`/timeslots/teacher/${teacherId}`),
+  
+  // Create a new time slot
+  create: (data) => api.post('/timeslots', data),
+  
+  // Update a time slot
+  update: (slotId, data) => api.put(`/timeslots/${slotId}`, data),
+  
+  // Delete a time slot
+  delete: (slotId) => api.delete(`/timeslots/${slotId}`),
+  
+  // Check availability for a specific date/time
+  checkAvailability: (teacherId, date, startTime, endTime) => 
+    api.get(`/timeslots/check/${teacherId}`, {
+      params: { date, startTime, endTime }
+    }),
+  
+  // Get available slots for a specific week
+  getAvailableSlotsForWeek: (teacherId, startDate) =>
+    api.get(`/timeslots/week/${teacherId}`, {
+      params: { startDate }
+    })
+};
+
 export default api;

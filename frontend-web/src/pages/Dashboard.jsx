@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import ImageUpload from '../components/profile/ImageUpload';
 import NotificationBell from '../components/common/NotificationBell';
+import ThemeToggle from '../components/common/ThemeToggle';
 import WalletBalance from '../components/wallet/WalletBalance';
 import RatingModal from '../components/ratings/RatingModal';
 import RewardsCard from '../components/rewards/RewardsCard';
@@ -407,10 +408,11 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
         {/* Header */}
-        <nav className="bg-white shadow-sm sticky top-0 z-10">
+        <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-end items-center gap-4">
               <NotificationBell />
+              <ThemeToggle />
               <ImageUpload
   currentImage={profileImage}
   onImageUpdate={handleImageUpdate}
@@ -419,7 +421,7 @@ const Dashboard = () => {
 />
               <button
                 onClick={() => navigate('/profile')}
-                className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
+                className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               >
                 <span className="hidden sm:inline font-medium text-sm">
                   {userData?.name || user?.name}
@@ -437,10 +439,10 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             className="mb-8"
           >
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               Welcome back, {userData?.name || user?.name}! 👋
             </h2>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
               Ready to learn and share knowledge today?
             </p>
           </motion.div>

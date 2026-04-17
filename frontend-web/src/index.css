@@ -12,6 +12,81 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Dark Mode Styles */
+  :root.dark {
+    color-scheme: dark;
+  }
+
+  :root.dark body {
+    @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100;
+  }
+
+  :root.dark {
+    --color-bg: #111827;
+    --color-bg-secondary: #1f2937;
+    --color-text: #f3f4f6;
+    --color-text-secondary: #d1d5db;
+    --color-border: #374151;
+  }
+
+  /* Dark mode color transitions */
+  :root.dark input,
+  :root.dark textarea,
+  :root.dark select {
+    @apply bg-gray-700 text-gray-100 border-gray-600;
+  }
+
+  :root.dark input::placeholder,
+  :root.dark textarea::placeholder {
+    @apply text-gray-400;
+  }
+
+  :root.dark .bg-white {
+    @apply bg-gray-800;
+  }
+
+  :root.dark .bg-gray-50 {
+    @apply bg-gray-900;
+  }
+
+  :root.dark .bg-gray-100 {
+    @apply bg-gray-800;
+  }
+
+  :root.dark .text-gray-900 {
+    @apply text-gray-100;
+  }
+
+  :root.dark .text-gray-600 {
+    @apply text-gray-400;
+  }
+
+  :root.dark .border-gray-200 {
+    @apply border-gray-700;
+  }
+
+  :root.dark .border-gray-300 {
+    @apply border-gray-600;
+  }
+
+  :root.dark .bg-blue-50 {
+    @apply bg-blue-900/20;
+  }
+
+  :root.dark .bg-gray-200 {
+    @apply bg-gray-700;
+  }
+
+  :root.dark .hover\:bg-gray-50:hover {
+    @apply bg-gray-700;
+  }
+
+  :root.dark .shadow-md,
+  :root.dark .shadow-lg,
+  :root.dark .shadow-xl {
+    --tw-shadow-color: rgba(0, 0, 0, 0.5);
+  }
 }
 
 @layer components {
