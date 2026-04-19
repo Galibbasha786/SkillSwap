@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSend, FiVideo, FiPaperclip, FiSmile, FiX } from 'react-icons/fi';
+import { FiSend, FiVideo, FiPaperclip, FiSmile, FiX, FiMessageCircle } from 'react-icons/fi';
 import { useSocket } from '../../hooks/useSocket';
 import { useAuth } from '../../hooks/useAuth';
 import { chatAPI } from '../../services/api';
@@ -19,7 +19,10 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  // Add these to ChatWindow.jsx
+  
+  // WhatsApp Integration State
+  const [participantPhone, setParticipantPhone] = useState(null);
+  const [phoneLoading, setPhoneLoading] = useState(false);
 
 // State for unread messages
 const [unreadMessages, setUnreadMessages] = useState([]);
@@ -79,9 +82,47 @@ useEffect(() => {
   useEffect(() => {
     if (chat?._id) {
       fetchMessages();
+      fetchParticipantPhone();
       joinChat(chat._id);
     }
   }, [chat?._id]);
+
+  // Fetch participant's phone number
+  const fetchParticipantPhone = async () => {
+    try {
+      setPhoneLoading(true);
+      const otherUser = chat?.participants?.find(p => p._id !== user.id);
+      if (otherUser?._id) {
+        // This endpoint will be created in the backend
+        const response = await chatAPI.getParticipantDetails(otherUser._id);
+        setParticipantPhone(response.data?.phone || null);
+      }
+    } catch (error) {
+      console.error('Error fetching participant phone:', error);
+      setParticipantPhone(null);
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+
+  // Generate WhatsApp link
+  const getWhatsAppLink = () => {
+    if (!participantPhone) return null;
+    // Format: https://wa.me/COUNTRY_CODE_PHONE_NUMBER
+    // Assuming Indian numbers (country code: 91)
+    const phoneNumber = participantPhone.replace(/\D/g, '');
+    return `https://wa.me/91${phoneNumber}`;
+  };
+
+  // Handle WhatsApp button click
+  const handleWhatsAppClick = () => {
+    const link = getWhatsAppLink();
+    if (link) {
+      window.open(link, '_blank');
+    } else {
+      toast.error('Phone number not available');
+    }
+  };
 
   // Listen for new messages via socket
   useEffect(() => {
@@ -187,29 +228,51 @@ useEffect(() => {
     <div className="flex flex-col h-full bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Chat Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <img
             src={otherParticipant?.profileImage || 'https://via.placeholder.com/40'}
             alt={otherParticipant?.name}
             className="w-10 h-10 rounded-full border-2 border-white"
           />
-          <div>
+          <div className="flex-1">
             <h3 className="font-semibold">{otherParticipant?.name || 'Teacher'}</h3>
-            <p className="text-xs text-blue-100">
-              {typingUsers.includes(otherParticipant?._id) ? 'Typing...' : 'Online'}
-            </p>
+            <div className="text-xs text-blue-100 flex items-center gap-2">
+              {phoneLoading ? (
+                <span>Loading contact...</span>
+              ) : participantPhone ? (
+                <span className="flex items-center gap-1">
+                  📱 {participantPhone}
+                </span>
+              ) : (
+                <span className="text-blue-100">No mobile number</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {participantPhone && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleWhatsAppClick}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors flex items-center gap-1 px-3"
+              title="Chat on WhatsApp"
+            >
+              <FiMessageCircle className="w-5 h-5" />
+              <span className="text-xs hidden sm:inline">WhatsApp</span>
+            </motion.button>
+          )}
           <button
             onClick={() => onStartCall(otherParticipant)}
             className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            title="Start video call"
           >
             <FiVideo className="w-5 h-5" />
           </button>
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            title="Close chat"
           >
             <FiX className="w-5 h-5" />
           </button>

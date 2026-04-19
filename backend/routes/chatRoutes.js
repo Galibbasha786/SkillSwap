@@ -8,7 +8,8 @@ const {
   getMessages,
   sendMessage,
   createChat,
-  markAsRead
+  markAsRead,
+  getParticipantDetails
 } = require('../controllers/chatController');
 
 // All routes require authentication
@@ -17,5 +18,6 @@ router.post('/', auth, createChat);
 router.get('/:chatId/messages', auth, getMessages);
 router.post('/:chatId/messages', auth, sendMessage);
 router.put('/:chatId/read', auth, markAsRead);
+router.get('/participant/:userId', auth, getParticipantDetails);
 
 module.exports = router;

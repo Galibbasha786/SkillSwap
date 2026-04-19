@@ -91,9 +91,10 @@ const executePython = async (code, testCases, functionName = 'solve') => {
   for (const testCase of testCases) {
     try {
       const wrappedCode = `
-${code}
-x
 import json
+
+${code}
+
 input_data = ${JSON.stringify(testCase.input)}
 result = ${functionName}(input_data)
 print(json.dumps(result))
@@ -134,22 +135,54 @@ const executeJava = async (code, testCases, functionName = 'solve') => {
   const results = [];
   const className = 'Main';
   
-  // Wrap code in a class for Java
+  // Wrap code in a class for Java without external dependencies
   const wrappedJavaCode = `
 import java.util.*;
-import com.google.gson.Gson;
 
 public class ${className} {
     ${code}
     
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         Scanner scanner = new Scanner(System.in);
-        String input = scanner.nextLine();
-        // Parse input as JSON
-        Gson gson = new Gson();
-        Object inputData = gson.fromJson(input, Object.class);
+        String input = scanner.nextLine().trim();
+        
+        // Simple JSON parsing for basic types
+        Object inputData = parseSimpleJson(input);
         Object result = ${functionName}(inputData);
-        System.out.println(gson.toJson(result));
+        System.out.println(convertToString(result));
+    }
+    
+    // Simple JSON parser helper
+    static Object parseSimpleJson(String str) {
+        if (str.isEmpty()) return null;
+        if (str.equals("true")) return true;
+        if (str.equals("false")) return false;
+        if (str.equals("null")) return null;
+        if (str.startsWith("\\"") && str.endsWith("\\"")) {
+            return str.substring(1, str.length() - 1);
+        }
+        if (str.startsWith("[") || str.startsWith("{")) {
+            return str; // Return as string for complex types
+        }
+        try {
+            if (str.contains(".")) return Double.parseDouble(str);
+            return Integer.parseInt(str);
+        } catch (Exception e) {
+            return str;
+        }
+    }
+    
+    // Convert result to string
+    static String convertToString(Object obj) {
+        if (obj == null) return "null";
+        if (obj instanceof String) return "\\"" + obj + "\\"";
+        if (obj instanceof Boolean) return obj.toString();
+        if (obj instanceof Double) {
+            double d = (Double) obj;
+            if (d == (long) d) return String.valueOf((long) d);
+            return String.valueOf(d);
+        }
+        return obj.toString();
     }
 }
   `;
@@ -161,10 +194,11 @@ public class ${className} {
       fs.writeFileSync(filePath, wrappedJavaCode);
       
       // Compile Java code
-      const compileResult = await execPromise(`javac ${filePath}`, { timeout: 10000 });
-      
-      if (compileResult.stderr) {
-        throw new Error(compileResult.stderr);
+      try {
+        await execPromise(`javac ${filePath}`, { timeout: 10000 });
+      } catch (compileError) {
+        fs.unlinkSync(filePath);
+        throw new Error(`Compilation error: ${compileError.stderr || compileError.message}`);
       }
       
       // Run Java code with input
@@ -190,6 +224,11 @@ public class ${className} {
         passed
       });
     } catch (error) {
+      // Clean up in case of error
+      const fileName = `temp_${Date.now()}_${Math.random()}.java`;
+      const filePath = path.join(TEMP_DIR, fileName);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
@@ -353,19 +392,47 @@ int main() {
 
 // ==================== MAIN EXECUTION FUNCTION ====================
 const executeCode = async (code, language, testCases, functionName = 'solve') => {
-  switch (language) {
-    case 'javascript':
-      return await executeJavaScript(code, testCases, functionName);
-    case 'python':
-      return await executePython(code, testCases, functionName);
-    case 'java':
-      return await executeJava(code, testCases, functionName);
-    case 'cpp':
-      return await executeCpp(code, testCases, functionName);
-    case 'c':
-      return await executeC(code, testCases, functionName);
-    default:
-      throw new Error(`Language ${language} not supported`);
+  try {
+    // Validate inputs
+    if (!code || !language || !testCases || testCases.length === 0) {
+      throw new Error('Invalid input: code, language, and testCases are required');
+    }
+
+    if (!Array.isArray(testCases)) {
+      throw new Error('testCases must be an array');
+    }
+
+    const normalizedLanguage = language.toLowerCase().trim();
+
+    switch (normalizedLanguage) {
+      case 'javascript':
+        return await executeJavaScript(code, testCases, functionName);
+      case 'python':
+        return await executePython(code, testCases, functionName);
+      case 'java':
+        return await executeJava(code, testCases, functionName);
+      case 'cpp':
+      case 'c++':
+        return await executeCpp(code, testCases, functionName);
+      case 'c':
+        return await executeC(code, testCases, functionName);
+      default:
+        console.error(`❌ Unsupported language: ${language}`);
+        return [{
+          input: testCases[0]?.input || 'N/A',
+          expectedOutput: testCases[0]?.expectedOutput || 'N/A',
+          actualOutput: `Language '${language}' is not supported. Supported languages: javascript, python, java, cpp, c`,
+          passed: false
+        }];
+    }
+  } catch (error) {
+    console.error('❌ Code execution error:', error);
+    return testCases.map(testCase => ({
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      actualOutput: error.message,
+      passed: false
+    }));
   }
 };
 

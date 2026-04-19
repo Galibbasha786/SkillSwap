@@ -7,7 +7,10 @@ import toast from 'react-hot-toast';
 const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => {
   const [faceDetected, setFaceDetected] = useState(false);
   const [multipleFaces, setMultipleFaces] = useState(false);
-  const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [fullscreenActive, setFullscreenActive] = useState(() => {
+    // Initialize with current fullscreen state
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  });
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [loadingModels, setLoadingModels] = useState(true);
@@ -18,7 +21,13 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
   const streamRef = useRef(null);
   const detectionIntervalRef = useRef(null);
   const canvasRef = useRef(null);
-  const lastViolationTimeRef = useRef(0);
+  const lastViolationTimeRef = useRef({
+    face_missing: 0,
+    multiple_faces: 0,
+    tab_switch: 0,
+    fullscreen_exit: 0,
+    mouse_leave: 0
+  });
 
   // Load face-api.js models
   useEffect(() => {
@@ -151,27 +160,28 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
         const hasMultiple = faceCount > 1;
         setMultipleFaces(hasMultiple);
         
-        // Debounced violations - only trigger every 5 seconds
+        // Debounced violations - only trigger every 5 seconds per violation type
         const now = Date.now();
+        const DEBOUNCE_INTERVAL = 5000;
         
         if (!facePresent) {
           noFaceCount++;
-          if (noFaceCount >= 3 && (now - lastViolationTimeRef.current > 5000)) {
+          if (noFaceCount >= 3 && (now - lastViolationTimeRef.current.face_missing > DEBOUNCE_INTERVAL)) {
             console.log('⚠️ No face detected violation');
             onViolation({ type: 'face_missing', details: 'Face not detected' });
             toast.warning('Warning: Face not detected!', { duration: 2000 });
-            lastViolationTimeRef.current = now;
+            lastViolationTimeRef.current.face_missing = now;
             noFaceCount = 0;
           }
         } else {
           noFaceCount = 0;
         }
         
-        if (hasMultiple && (now - lastViolationTimeRef.current > 5000)) {
+        if (hasMultiple && (now - lastViolationTimeRef.current.multiple_faces > DEBOUNCE_INTERVAL)) {
           console.log('⚠️ Multiple faces detected');
           onViolation({ type: 'multiple_faces', details: 'Multiple faces detected' });
           toast.error('Warning: Multiple faces detected!', { duration: 2000 });
-          lastViolationTimeRef.current = now;
+          lastViolationTimeRef.current.multiple_faces = now;
         }
         
         // Draw detection on canvas
@@ -216,44 +226,45 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
   useEffect(() => {
     if (!enabled) return;
 
-    let tabSwitchCount = 0;
-    let fullscreenExitCount = 0;
+    const DEBOUNCE_INTERVAL = 5000;
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        tabSwitchCount++;
-        if (tabSwitchCount >= 2) {
-          onViolation({ type: 'tab_switch', details: 'Switched to another tab' });
-          toast.error('Warning: Tab switching detected!');
-          tabSwitchCount = 0;
-        } else {
-          toast.warning('Warning: Do not switch tabs during exam');
-        }
+      const now = Date.now();
+      if (document.hidden && (now - lastViolationTimeRef.current.tab_switch > DEBOUNCE_INTERVAL)) {
+        onViolation({ type: 'tab_switch', details: 'Switched to another tab' });
+        toast.error('Warning: Tab switching detected!');
+        lastViolationTimeRef.current.tab_switch = now;
+      } else if (document.hidden) {
+        toast.warning('Warning: Do not switch tabs during exam');
       }
     };
 
     const handleFullscreenChange = () => {
-      const isFullscreen = !!document.fullscreenElement;
+      const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      const now = Date.now();
       setFullscreenActive(isFullscreen);
       
       if (!isFullscreen && fullscreenActive) {
-        fullscreenExitCount++;
-        if (fullscreenExitCount >= 2) {
+        if (now - lastViolationTimeRef.current.fullscreen_exit > DEBOUNCE_INTERVAL) {
           onViolation({ type: 'fullscreen_exit', details: 'Exited fullscreen mode' });
           toast.error('Warning: Fullscreen mode required!');
-          fullscreenExitCount = 0;
+          lastViolationTimeRef.current.fullscreen_exit = now;
         } else {
           toast.warning('Please stay in fullscreen mode');
         }
       } else if (isFullscreen) {
-        fullscreenExitCount = 0;
+        lastViolationTimeRef.current.fullscreen_exit = 0;
       }
     };
 
     const handleMouseLeave = (e) => {
+      const now = Date.now();
       if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
-        onViolation({ type: 'mouse_leave', details: 'Mouse left the window' });
-        toast.warning('Warning: Stay within the exam window!');
+        if (now - lastViolationTimeRef.current.mouse_leave > DEBOUNCE_INTERVAL) {
+          onViolation({ type: 'mouse_leave', details: 'Mouse left the window' });
+          toast.warning('Warning: Stay within the exam window!');
+          lastViolationTimeRef.current.mouse_leave = now;
+        }
       }
     };
 

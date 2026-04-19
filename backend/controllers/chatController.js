@@ -13,7 +13,7 @@ exports.getConversations = async (req, res) => {
     const chats = await Chat.find({
       participants: req.user.id
     })
-    .populate('participants', 'name email profileImage')
+    .populate('participants', 'name email profileImage phone')
     .populate('lastMessageSender', 'name')
     .sort({ lastMessageTime: -1 });
     
@@ -58,7 +58,7 @@ exports.createChat = async (req, res) => {
     // Check if chat already exists
     const existingChat = await Chat.findOne({
       participants: { $all: [req.user.id, participantId] }
-    }).populate('participants', 'name email profileImage');
+    }).populate('participants', 'name email profileImage phone');
     
     if (existingChat) {
       console.log('Chat already exists:', existingChat._id);
@@ -75,7 +75,7 @@ exports.createChat = async (req, res) => {
     await chat.save();
     console.log('New chat created:', chat._id);
     
-    await chat.populate('participants', 'name email profileImage');
+    await chat.populate('participants', 'name email profileImage phone');
     
     res.status(201).json(chat);
   } catch (error) {
@@ -187,5 +187,35 @@ exports.markAsRead = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in markAsRead:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get participant details (including phone number for WhatsApp)
+// @route   GET /api/chats/participant/:userId
+// @access  Private
+exports.getParticipantDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+    
+    const user = await User.findById(userId).select('name email profileImage phone');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage,
+      phone: user.phone || null
+    });
+  } catch (error) {
+    console.error('❌ Error in getParticipantDetails:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

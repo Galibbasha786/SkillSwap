@@ -160,6 +160,7 @@ export const chatAPI = {
   sendMessage: (chatId, message) => api.post(`/chats/${chatId}/messages`, { message }),
   createChat: (data) => api.post('/chats', data),
   markAsRead: (chatId) => api.put(`/chats/${chatId}/read`),
+  getParticipantDetails: (userId) => api.get(`/chats/participant/${userId}`),
 };
 
 // ==================== PAYMENT APIs ====================
