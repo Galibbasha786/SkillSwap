@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSend, FiVideo, FiPaperclip, FiSmile, FiX, FiMessageCircle } from 'react-icons/fi';
+import { FiSend, FiVideo, FiPhone, FiPaperclip, FiSmile, FiX, FiMessageCircle } from 'react-icons/fi';
 import { useSocket } from '../../hooks/useSocket';
 import { useAuth } from '../../hooks/useAuth';
 import { chatAPI } from '../../services/api';
 import MessageBubble from './MessageBubble';
 import toast from 'react-hot-toast';
 
-const ChatWindow = ({ chat, onClose, onStartCall }) => {
+const ChatWindow = ({ chat, onClose, onStartCall, onMessagesUpdate }) => {
   const { user } = useAuth();
   const { socket, sendMessage, sendTyping, joinChat } = useSocket();
   const [messages, setMessages] = useState([]);
@@ -24,59 +24,59 @@ const ChatWindow = ({ chat, onClose, onStartCall }) => {
   const [participantPhone, setParticipantPhone] = useState(null);
   const [phoneLoading, setPhoneLoading] = useState(false);
 
-// State for unread messages
-const [unreadMessages, setUnreadMessages] = useState([]);
+  // State for unread messages
+  const [unreadMessages, setUnreadMessages] = useState([]);
 
-// Mark messages as read when user views them
-useEffect(() => {
-  if (messages.length > 0 && chat?._id) {
-    const unread = messages.filter(
-      msg => !msg.read && msg.senderId !== user.id
-    );
-    
-    if (unread.length > 0) {
-      const unreadIds = unread.map(msg => msg._id);
-      
-      // Mark as read via socket
-      socket?.emit('mark-read', {
-        chatId: chat._id,
-        messageIds: unreadIds
-      });
-      
-      // Update local state
-      setMessages(prev =>
-        prev.map(msg =>
-          unreadIds.includes(msg._id)
-            ? { ...msg, read: true }
-            : msg
-        )
+  // Mark messages as read when user views them
+  useEffect(() => {
+    if (messages.length > 0 && chat?._id) {
+      const unread = messages.filter(
+        msg => !msg.read && msg.senderId !== user.id
       );
+      
+      if (unread.length > 0) {
+        const unreadIds = unread.map(msg => msg._id);
+        
+        // Mark as read via socket
+        socket?.emit('mark-read', {
+          chatId: chat._id,
+          messageIds: unreadIds
+        });
+        
+        // Update local state
+        setMessages(prev =>
+          prev.map(msg =>
+            unreadIds.includes(msg._id)
+              ? { ...msg, read: true }
+              : msg
+          )
+        );
+      }
     }
-  }
-}, [messages.length, chat?._id]); // Run when messages load or change
+  }, [messages.length, chat?._id]);
 
-// Listen for read receipts
-useEffect(() => {
-  if (!socket) return;
+  // Listen for read receipts
+  useEffect(() => {
+    if (!socket) return;
 
-  const handleMessagesRead = ({ messageIds, readerId, readAt }) => {
-    if (readerId !== user.id) {
-      setMessages(prev =>
-        prev.map(msg =>
-          messageIds.includes(msg._id)
-            ? { ...msg, read: true, readAt }
-            : msg
-        )
-      );
-    }
-  };
+    const handleMessagesRead = ({ messageIds, readerId, readAt }) => {
+      if (readerId !== user.id) {
+        setMessages(prev =>
+          prev.map(msg =>
+            messageIds.includes(msg._id)
+              ? { ...msg, read: true, readAt }
+              : msg
+          )
+        );
+      }
+    };
 
-  socket.on('messages-read', handleMessagesRead);
+    socket.on('messages-read', handleMessagesRead);
 
-  return () => {
-    socket.off('messages-read', handleMessagesRead);
-  };
-}, [socket, user.id]);
+    return () => {
+      socket.off('messages-read', handleMessagesRead);
+    };
+  }, [socket, user.id]);
 
   // Fetch messages when chat changes
   useEffect(() => {
@@ -93,7 +93,6 @@ useEffect(() => {
       setPhoneLoading(true);
       const otherUser = chat?.participants?.find(p => p._id !== user.id);
       if (otherUser?._id) {
-        // This endpoint will be created in the backend
         const response = await chatAPI.getParticipantDetails(otherUser._id);
         setParticipantPhone(response.data?.phone || null);
       }
@@ -108,8 +107,6 @@ useEffect(() => {
   // Generate WhatsApp link
   const getWhatsAppLink = () => {
     if (!participantPhone) return null;
-    // Format: https://wa.me/COUNTRY_CODE_PHONE_NUMBER
-    // Assuming Indian numbers (country code: 91)
     const phoneNumber = participantPhone.replace(/\D/g, '');
     return `https://wa.me/91${phoneNumber}`;
   };
@@ -131,6 +128,7 @@ useEffect(() => {
     const handleNewMessage = (message) => {
       console.log('New message received:', message);
       setMessages(prev => [...prev, message]);
+      if (onMessagesUpdate) onMessagesUpdate();
     };
 
     const handleUserTyping = ({ userId, isTyping }) => {
@@ -148,7 +146,7 @@ useEffect(() => {
       socket.off('new-message', handleNewMessage);
       socket.off('user-typing', handleUserTyping);
     };
-  }, [socket, user.id]);
+  }, [socket, user.id, onMessagesUpdate]);
 
   useEffect(() => {
     scrollToBottom();
@@ -190,6 +188,7 @@ useEffect(() => {
     sendMessage(chat._id, messageData);
     
     setNewMessage('');
+    if (onMessagesUpdate) onMessagesUpdate();
   };
 
   const handleTyping = (e) => {
@@ -214,6 +213,24 @@ useEffect(() => {
     }
   };
 
+  // Handle video call
+  const handleVideoCall = () => {
+    if (onStartCall) {
+      onStartCall(otherParticipant, true);
+    } else {
+      toast.error('Video call feature coming soon');
+    }
+  };
+
+  // Handle audio call
+  const handleAudioCall = () => {
+    if (onStartCall) {
+      onStartCall(otherParticipant, false);
+    } else {
+      toast.error('Audio call feature coming soon');
+    }
+  };
+
   const otherParticipant = chat?.participants?.find(p => p._id !== user.id);
 
   if (loading) {
@@ -232,7 +249,7 @@ useEffect(() => {
           <img
             src={otherParticipant?.profileImage || 'https://via.placeholder.com/40'}
             alt={otherParticipant?.name}
-            className="w-10 h-10 rounded-full border-2 border-white"
+            className="w-10 h-10 rounded-full border-2 border-white object-cover"
           />
           <div className="flex-1">
             <h3 className="font-semibold">{otherParticipant?.name || 'Teacher'}</h3>
@@ -250,6 +267,29 @@ useEffect(() => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Video Call Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleVideoCall}
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            title="Start video call"
+          >
+            <FiVideo className="w-5 h-5" />
+          </motion.button>
+          
+          {/* Audio Call Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleAudioCall}
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            title="Start audio call"
+          >
+            <FiPhone className="w-5 h-5" />
+          </motion.button>
+          
+          {/* WhatsApp Button */}
           {participantPhone && (
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -262,13 +302,8 @@ useEffect(() => {
               <span className="text-xs hidden sm:inline">WhatsApp</span>
             </motion.button>
           )}
-          <button
-            onClick={() => onStartCall(otherParticipant)}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-            title="Start video call"
-          >
-            <FiVideo className="w-5 h-5" />
-          </button>
+          
+          {/* Close Button */}
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -279,6 +314,13 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* Typing Indicator */}
+      {typingUsers.length > 0 && (
+        <div className="px-4 py-2 text-sm text-gray-500 italic">
+          {otherParticipant?.name} is typing...
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
         {messages.length === 0 ? (
@@ -287,7 +329,7 @@ useEffect(() => {
             <p className="text-sm mt-2">Send a message to start the conversation</p>
           </div>
         ) : (
-          <AnimatePresence>
+          <>
             {messages.map((message, index) => (
               <MessageBubble
                 key={message._id || message.id || index}
@@ -295,7 +337,14 @@ useEffect(() => {
                 isOwn={message.senderId === user.id || message.senderId?._id === user.id}
               />
             ))}
-          </AnimatePresence>
+            {typingUsers.length > 0 && (
+              <div className="flex justify-start">
+                <div className="bg-gray-200 rounded-lg px-4 py-2 text-gray-500 text-sm">
+                  {otherParticipant?.name} is typing...
+                </div>
+              </div>
+            )}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>

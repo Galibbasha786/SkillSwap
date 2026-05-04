@@ -8,7 +8,7 @@ let io;
 const initializeSocket = (server) => {
   io = socketIO(server, {
     cors: {
-      origin: 'http://localhost:5173',
+      origin: ['http://localhost:5173', process.env.CLIENT_URL],
       credentials: true
     }
   });
@@ -30,6 +30,13 @@ const initializeSocket = (server) => {
 
     // Join user to their personal room
     socket.join(`user:${socket.userId}`);
+
+    // Store user info for call lookups
+    socket.on('register-user', (userId) => {
+      socket.userId = userId;
+      socket.join(`user:${userId}`);
+      console.log(`User ${userId} registered with socket ${socket.id}`);
+    });
 
     // Join chat room
     socket.on('join-chat', (chatId) => {
@@ -91,7 +98,7 @@ const initializeSocket = (server) => {
       });
     });
 
-    // ✅ FIXED: Mark messages as read - Now properly inside socket.on
+    // Mark messages as read
     socket.on('mark-read', async ({ chatId, messageIds }) => {
       try {
         console.log('Marking messages as read:', { chatId, messageIds });
@@ -129,6 +136,104 @@ const initializeSocket = (server) => {
       }
     });
 
+    // ========== WEBRTC VIDEO/AUDIO CALL SIGNALING ==========
+
+    // Initiate a call to another user
+    socket.on('call-user', ({ to, signal, callerName, from, isVideo }) => {
+      console.log(`📞 Call from ${callerName} (${socket.userId}) to ${to}`);
+      
+      // Find the target user's socket
+      const targetSockets = [...io.sockets.sockets.values()].filter(
+        s => s.userId === to
+      );
+      
+      if (targetSockets.length > 0) {
+        targetSockets.forEach(targetSocket => {
+          targetSocket.emit('incoming-call', {
+            from: socket.userId,
+            callerName,
+            signal,
+            isVideo
+          });
+        });
+        console.log(`📞 Incoming call sent to ${to}`);
+      } else {
+        console.log(`❌ User ${to} not connected`);
+        socket.emit('call-error', { message: 'User not available' });
+      }
+    });
+
+    // Accept an incoming call
+    socket.on('accept-call', ({ to, signal, from }) => {
+      console.log(`✅ Call accepted from ${socket.userId} to ${to}`);
+      
+      const targetSockets = [...io.sockets.sockets.values()].filter(
+        s => s.userId === to
+      );
+      
+      if (targetSockets.length > 0) {
+        targetSockets.forEach(targetSocket => {
+          targetSocket.emit('call-accepted', { signal, from: socket.userId });
+        });
+      }
+    });
+
+    // Reject an incoming call
+    socket.on('reject-call', ({ to, reason }) => {
+      console.log(`❌ Call rejected from ${socket.userId} to ${to}, reason: ${reason}`);
+      
+      const targetSockets = [...io.sockets.sockets.values()].filter(
+        s => s.userId === to
+      );
+      
+      if (targetSockets.length > 0) {
+        targetSockets.forEach(targetSocket => {
+          targetSocket.emit('call-rejected', { from: socket.userId, reason });
+        });
+      }
+    });
+
+    // Send an emoji reaction during an ongoing call
+    socket.on('call-reaction', ({ to, emoji }) => {
+      console.log(`✨ Call reaction from ${socket.userId} to ${to}: ${emoji}`);
+
+      const targetSockets = [...io.sockets.sockets.values()].filter(
+        s => String(s.userId) === String(to)
+      );
+
+      targetSockets.forEach(targetSocket => {
+        targetSocket.emit('call-reaction', {
+          from: socket.userId,
+          emoji
+        });
+      });
+    });
+
+    // End an ongoing call
+    socket.on('end-call', ({ to }) => {
+      console.log(`🔴 Call ended between ${socket.userId} and ${to}`);
+      
+      const targetSockets = [...io.sockets.sockets.values()].filter(
+        s => s.userId === to
+      );
+      
+      if (targetSockets.length > 0) {
+        targetSockets.forEach(targetSocket => {
+          targetSocket.emit('call-ended', { from: socket.userId });
+        });
+      }
+      
+      // Also notify the caller
+      socket.emit('call-ended', { from: to });
+    });
+
+    // Get user socket status (for checking if user is online)
+    socket.on('check-user-status', ({ userId }) => {
+      const isOnline = [...io.sockets.sockets.values()].some(s => s.userId === userId);
+      socket.emit('user-status', { userId, isOnline });
+    });
+
+    // Disconnect
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.userId);
     });

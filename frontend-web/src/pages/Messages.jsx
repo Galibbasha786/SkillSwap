@@ -1,21 +1,30 @@
 // src/pages/Messages.jsx
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { FiSearch, FiUser } from 'react-icons/fi';
 import ChatWindow from '../components/chat/ChatWindow';
+import VideoCallModal from '../components/calls/VideoCallModal';
 import { useAuth } from '../hooks/useAuth';
 import { chatAPI } from '../services/api';
+import webrtcService from '../services/webrtcService';
 import toast from 'react-hot-toast';
 
 const Messages = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, getUserId } = useAuth();
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // WebRTC Call State
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [callType, setCallType] = useState('video');
+  const [remoteUser, setRemoteUser] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
+  
+  const userId = getUserId() || user?.id;
 
   // Format time for display
   const formatTime = (timestamp) => {
@@ -57,6 +66,48 @@ const Messages = () => {
     ).length;
   };
 
+  // Initialize WebRTC Service
+  useEffect(() => {
+    if (!userId) return;
+
+    const initWebRTC = async () => {
+      webrtcService.init(userId, {
+        onIncomingCall: ({ from, callerName, signal, isVideo }) => {
+          console.log('📞 Incoming call from:', callerName);
+          setIncomingCall({ from, callerName, signal });
+          setRemoteUser({ _id: from, name: callerName });
+          setCallType(isVideo ? 'video' : 'audio');
+          setShowVideoCall(true);
+          toast.info(`${callerName} is calling you...`);
+        },
+        onCallAccepted: async (signal, from) => {
+          console.log('✅ Call accepted from:', from);
+        },
+        onRemoteStream: () => {
+          // Handled by VideoCallModal
+          console.log('📹 Remote stream received');
+        },
+        onCallEnd: ({ rejected, ended, reason }) => {
+          console.log('🔴 Call ended:', { rejected, ended, reason });
+          setShowVideoCall(false);
+          setIncomingCall(null);
+          if (rejected) {
+            toast.info(reason || 'Call declined');
+          } else if (ended) {
+            toast.info('Call ended');
+          }
+        }
+      });
+    };
+
+    initWebRTC();
+
+    return () => {
+      webrtcService.disconnect();
+    };
+  }, [userId]);
+
+  // Fetch chats
   useEffect(() => {
     fetchChats();
   }, []);
@@ -137,6 +188,49 @@ const Messages = () => {
     setSelectedChat(chat);
   };
 
+  // Start a call with selected user
+  const handleStartCall = async (participant, isVideo = true) => {
+    if (!participant?._id) {
+      toast.error('Cannot start call: User not found');
+      return;
+    }
+
+    setRemoteUser({ _id: participant._id, name: participant.name });
+    setCallType(isVideo ? 'video' : 'audio');
+    
+    try {
+      await webrtcService.startCall(participant._id, user?.name || 'User', isVideo);
+      setShowVideoCall(true);
+    } catch (error) {
+      console.error('Error starting call:', error);
+      toast.error('Could not start call. Please check camera/microphone permissions.');
+    }
+  };
+
+  // Accept incoming call
+  const handleAcceptCall = async () => {
+    if (incomingCall) {
+      await webrtcService.acceptCall(incomingCall.from, incomingCall.signal, callType === 'video');
+      setIncomingCall(null);
+    }
+  };
+
+  // Reject incoming call
+  const handleRejectCall = () => {
+    if (incomingCall) {
+      webrtcService.rejectCall(incomingCall.from, 'User busy');
+      setIncomingCall(null);
+      setShowVideoCall(false);
+    }
+  };
+
+  // Close call modal
+  const handleCloseCall = () => {
+    webrtcService.endCall();
+    setShowVideoCall(false);
+    setIncomingCall(null);
+  };
+
   const filteredChats = Array.isArray(chats) 
     ? chats.filter(chat => {
         if (!chat || !chat.participants) return false;
@@ -157,118 +251,129 @@ const Messages = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] bg-gray-50">
-      <div className="flex h-full">
-        {/* Chat List Sidebar */}
-        <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold mb-4">Messages</h2>
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search conversations..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {filteredChats.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FiUser className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>No conversations yet</p>
-                <p className="text-sm mt-2">Go to marketplace and message a teacher!</p>
+    <>
+      <div className="h-[calc(100vh-64px)] bg-gray-50">
+        <div className="flex h-full">
+          {/* Chat List Sidebar */}
+          <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold mb-4">Messages</h2>
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
-            ) : (
-              filteredChats.map((chat) => {
-                if (!chat || !chat.participants) return null;
-                
-                const otherParticipant = chat.participants.find(p => p._id !== user?.id);
-                const lastMessage = chat.lastMessage;
-                const unreadCount = getUnreadCount(chat);
-                const lastMessageTime = chat.lastMessageTime || chat.updatedAt;
-                
-                return (
-                  <motion.div
-                    key={chat._id}
-                    whileHover={{ backgroundColor: '#f3f4f6' }}
-                    onClick={() => handleChatSelect(chat)}
-                    className={`p-4 cursor-pointer border-b border-gray-100 transition-colors ${
-                      selectedChat?._id === chat._id ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <img
-                          src={otherParticipant?.profileImage || 'https://via.placeholder.com/40'}
-                          alt={otherParticipant?.name}
-                          className="w-12 h-12 rounded-full"
-                        />
-                        {unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                            {unreadCount > 9 ? '9+' : unreadCount}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-1">
-                          <h3 className={`font-semibold truncate ${
-                            unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
-                            {otherParticipant?.name || 'Unknown User'}
-                          </h3>
-                          {lastMessageTime && (
-                            <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">
-                              {formatTime(lastMessageTime)}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {filteredChats.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <FiUser className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>No conversations yet</p>
+                  <p className="text-sm mt-2">Go to marketplace and message a teacher!</p>
+                </div>
+              ) : (
+                filteredChats.map((chat) => {
+                  if (!chat || !chat.participants) return null;
+                  
+                  const otherParticipant = chat.participants.find(p => p._id !== user?.id);
+                  const lastMessage = chat.lastMessage;
+                  const unreadCount = getUnreadCount(chat);
+                  const lastMessageTime = chat.lastMessageTime || chat.updatedAt;
+                  
+                  return (
+                    <div
+                      key={chat._id}
+                      onClick={() => handleChatSelect(chat)}
+                      className={`p-4 cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-100 ${
+                        selectedChat?._id === chat._id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <img
+                            src={otherParticipant?.profileImage || 'https://via.placeholder.com/40'}
+                            alt={otherParticipant?.name}
+                            className="w-12 h-12 rounded-full"
+                          />
+                          {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                              {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                           )}
                         </div>
-                        {lastMessage ? (
-                          <p className={`text-sm truncate ${
-                            unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'
-                          }`}>
-                            {lastMessage}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic">
-                            No messages yet
-                          </p>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start mb-1">
+                            <h3 className={`font-semibold truncate ${
+                              unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'
+                            }`}>
+                              {otherParticipant?.name || 'Unknown User'}
+                            </h3>
+                            {lastMessageTime && (
+                              <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">
+                                {formatTime(lastMessageTime)}
+                              </span>
+                            )}
+                          </div>
+                          {lastMessage ? (
+                            <p className={`text-sm truncate ${
+                              unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'
+                            }`}>
+                              {lastMessage}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic">
+                              No messages yet
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </motion.div>
-                );
-              })
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Chat Window */}
+          <div className="flex-1">
+            {selectedChat ? (
+              <ChatWindow
+                chat={selectedChat}
+                onClose={() => setSelectedChat(null)}
+                onStartCall={handleStartCall}
+                onMessagesUpdate={fetchChats}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <FiUser className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium mb-2">Your Messages</p>
+                  <p className="text-sm">Select a conversation to start messaging</p>
+                </div>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Chat Window */}
-        <div className="flex-1">
-          {selectedChat ? (
-            <ChatWindow
-              chat={selectedChat}
-              onClose={() => setSelectedChat(null)}
-              onStartCall={(participant) => {
-                toast.success('Video call coming soon!');
-              }}
-              onMessagesUpdate={fetchChats} // Refresh chat list when messages change
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <FiUser className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium mb-2">Your Messages</p>
-                <p className="text-sm">Select a conversation to start messaging</p>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
+
+      {/* Video/Audio Call Modal */}
+      <VideoCallModal
+        key={`${showVideoCall}-${incomingCall?.from || remoteUser?._id || 'none'}-${callType}`}
+        isOpen={showVideoCall}
+        onClose={handleCloseCall}
+        callType={callType}
+        remoteUser={remoteUser}
+        isIncoming={!!incomingCall}
+        onAccept={handleAcceptCall}
+        onReject={handleRejectCall}
+      />
+    </>
   );
 };
 
