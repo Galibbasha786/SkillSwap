@@ -3,8 +3,94 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --theme-primary: #3b82f6;
+    --theme-primary-hover: #2563eb;
+    --theme-primary-soft: #dbeafe;
+    --theme-primary-muted: #bfdbfe;
+    --theme-primary-text: #2563eb;
+    --theme-secondary: #a855f7;
+    --theme-secondary-hover: #9333ea;
+    --theme-secondary-soft: #f3e8ff;
+    --theme-page-from: #eff6ff;
+    --theme-page-via: #ffffff;
+    --theme-page-to: #faf5ff;
+    --theme-page-bg: #f8fbff;
+    --theme-surface-bg: #ffffff;
+    --theme-subtle-bg: #eff6ff;
+  }
+
+  :root[data-color-theme='emerald'] {
+    --theme-primary: #10b981;
+    --theme-primary-hover: #059669;
+    --theme-primary-soft: #d1fae5;
+    --theme-primary-muted: #a7f3d0;
+    --theme-primary-text: #047857;
+    --theme-secondary: #14b8a6;
+    --theme-secondary-hover: #0d9488;
+    --theme-secondary-soft: #ccfbf1;
+    --theme-page-from: #ecfdf5;
+    --theme-page-via: #ffffff;
+    --theme-page-to: #f0fdfa;
+    --theme-page-bg: #f0fdf4;
+    --theme-surface-bg: #ffffff;
+    --theme-subtle-bg: #dcfce7;
+  }
+
+  :root[data-color-theme='sunset'] {
+    --theme-primary: #f97316;
+    --theme-primary-hover: #ea580c;
+    --theme-primary-soft: #ffedd5;
+    --theme-primary-muted: #fed7aa;
+    --theme-primary-text: #c2410c;
+    --theme-secondary: #ec4899;
+    --theme-secondary-hover: #db2777;
+    --theme-secondary-soft: #fce7f3;
+    --theme-page-from: #fff7ed;
+    --theme-page-via: #ffffff;
+    --theme-page-to: #fdf2f8;
+    --theme-page-bg: #fff7ed;
+    --theme-surface-bg: #ffffff;
+    --theme-subtle-bg: #ffedd5;
+  }
+
+  :root[data-color-theme='rose'] {
+    --theme-primary: #e11d48;
+    --theme-primary-hover: #be123c;
+    --theme-primary-soft: #ffe4e6;
+    --theme-primary-muted: #fecdd3;
+    --theme-primary-text: #be123c;
+    --theme-secondary: #f43f5e;
+    --theme-secondary-hover: #e11d48;
+    --theme-secondary-soft: #fff1f2;
+    --theme-page-from: #fff1f2;
+    --theme-page-via: #ffffff;
+    --theme-page-to: #fdf2f8;
+    --theme-page-bg: #fff1f2;
+    --theme-surface-bg: #ffffff;
+    --theme-subtle-bg: #ffe4e6;
+  }
+
+  :root[data-color-theme='slate'] {
+    --theme-primary: #475569;
+    --theme-primary-hover: #334155;
+    --theme-primary-soft: #e2e8f0;
+    --theme-primary-muted: #cbd5e1;
+    --theme-primary-text: #334155;
+    --theme-secondary: #0f766e;
+    --theme-secondary-hover: #0f5f59;
+    --theme-secondary-soft: #ccfbf1;
+    --theme-page-from: #f1f5f9;
+    --theme-page-via: #ffffff;
+    --theme-page-to: #f0fdfa;
+    --theme-page-bg: #f1f5f9;
+    --theme-surface-bg: #ffffff;
+    --theme-subtle-bg: #e2e8f0;
+  }
+
   body {
-    @apply bg-gradient-to-br from-blue-50 via-white to-purple-50 text-gray-900;
+    background: linear-gradient(135deg, var(--theme-page-from), var(--theme-page-via), var(--theme-page-to));
+    @apply text-gray-900;
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -16,6 +102,12 @@
   /* Dark Mode Styles */
   :root.dark {
     color-scheme: dark;
+    --theme-primary-soft: color-mix(in srgb, var(--theme-primary) 22%, transparent);
+    --theme-primary-muted: color-mix(in srgb, var(--theme-primary) 35%, #111827);
+    --theme-secondary-soft: color-mix(in srgb, var(--theme-secondary) 22%, transparent);
+    --theme-page-bg: #111827;
+    --theme-surface-bg: #1f2937;
+    --theme-subtle-bg: #111827;
   }
 
   :root.dark body {
@@ -135,6 +227,133 @@
   
   .gradient-text {
     @apply bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text;
+  }
+}
+
+@layer utilities {
+  :root[data-color-theme] .from-blue-50,
+  :root[data-color-theme] .from-indigo-50 {
+    --tw-gradient-from: var(--theme-page-from) var(--tw-gradient-from-position);
+    --tw-gradient-to: color-mix(in srgb, var(--theme-page-from) 0%, transparent) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  :root[data-color-theme] .via-purple-50,
+  :root[data-color-theme] .via-white {
+    --tw-gradient-to: color-mix(in srgb, var(--theme-page-via) 0%, transparent) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--theme-page-via) var(--tw-gradient-via-position), var(--tw-gradient-to);
+  }
+
+  :root[data-color-theme] .to-purple-50,
+  :root[data-color-theme] .to-indigo-50 {
+    --tw-gradient-to: var(--theme-page-to) var(--tw-gradient-to-position);
+  }
+
+  :root[data-color-theme] .from-blue-400,
+  :root[data-color-theme] .from-blue-500,
+  :root[data-color-theme] .from-blue-600 {
+    --tw-gradient-from: var(--theme-primary) var(--tw-gradient-from-position);
+    --tw-gradient-to: color-mix(in srgb, var(--theme-primary) 0%, transparent) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  :root[data-color-theme] .to-blue-600,
+  :root[data-color-theme] .to-blue-700,
+  :root[data-color-theme] .to-purple-500,
+  :root[data-color-theme] .to-purple-600,
+  :root[data-color-theme] .to-indigo-500,
+  :root[data-color-theme] .to-indigo-700 {
+    --tw-gradient-to: var(--theme-secondary) var(--tw-gradient-to-position);
+  }
+
+  :root[data-color-theme] .via-purple-600 {
+    --tw-gradient-to: color-mix(in srgb, var(--theme-secondary) 0%, transparent) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--theme-secondary) var(--tw-gradient-via-position), var(--tw-gradient-to);
+  }
+
+  :root[data-color-theme] .hover\:from-blue-600:hover {
+    --tw-gradient-from: var(--theme-primary-hover) var(--tw-gradient-from-position);
+    --tw-gradient-to: color-mix(in srgb, var(--theme-primary-hover) 0%, transparent) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  :root[data-color-theme] .hover\:to-blue-700:hover,
+  :root[data-color-theme] .hover\:to-purple-600:hover {
+    --tw-gradient-to: var(--theme-secondary-hover) var(--tw-gradient-to-position);
+  }
+
+  :root[data-color-theme] .bg-blue-50,
+  :root[data-color-theme] .bg-indigo-50 {
+    background-color: var(--theme-primary-soft);
+  }
+
+  :root[data-color-theme]:not(.dark) .bg-gray-50 {
+    background-color: var(--theme-page-bg);
+  }
+
+  :root[data-color-theme]:not(.dark) .bg-white {
+    background-color: var(--theme-surface-bg);
+  }
+
+  :root[data-color-theme]:not(.dark) .bg-gray-100 {
+    background-color: var(--theme-subtle-bg);
+  }
+
+  :root[data-color-theme] .bg-blue-100,
+  :root[data-color-theme] .bg-indigo-100 {
+    background-color: var(--theme-primary-muted);
+  }
+
+  :root[data-color-theme] .bg-blue-300,
+  :root[data-color-theme] .bg-blue-500,
+  :root[data-color-theme] .bg-blue-600,
+  :root[data-color-theme] .bg-indigo-700 {
+    background-color: var(--theme-primary);
+  }
+
+  :root[data-color-theme] .hover\:bg-blue-50:hover,
+  :root[data-color-theme] .hover\:bg-blue-100:hover {
+    background-color: var(--theme-primary-soft);
+  }
+
+  :root[data-color-theme] .hover\:bg-blue-600:hover {
+    background-color: var(--theme-primary-hover);
+  }
+
+  :root[data-color-theme] .text-blue-100 {
+    color: color-mix(in srgb, var(--theme-primary-soft) 78%, white);
+  }
+
+  :root[data-color-theme] .text-blue-500,
+  :root[data-color-theme] .text-blue-600,
+  :root[data-color-theme] .text-blue-700,
+  :root[data-color-theme] .text-indigo-500 {
+    color: var(--theme-primary-text);
+  }
+
+  :root[data-color-theme] .hover\:text-blue-500:hover,
+  :root[data-color-theme] .hover\:text-blue-600:hover,
+  :root[data-color-theme] .hover\:text-blue-800:hover {
+    color: var(--theme-primary-hover);
+  }
+
+  :root[data-color-theme] .border-blue-100,
+  :root[data-color-theme] .border-blue-200 {
+    border-color: var(--theme-primary-muted);
+  }
+
+  :root[data-color-theme] .border-blue-500,
+  :root[data-color-theme] .hover\:border-blue-500:hover {
+    border-color: var(--theme-primary);
+  }
+
+  :root[data-color-theme] .ring-blue-500,
+  :root[data-color-theme] .focus\:ring-blue-500:focus {
+    --tw-ring-color: var(--theme-primary);
+  }
+
+  :root[data-color-theme] .text-purple-600 {
+    color: var(--theme-secondary);
   }
 }
 /* Add these animation utilities */

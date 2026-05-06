@@ -1,30 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { 
   FiUser, 
-  FiMail, 
   FiLock, 
   FiSave, 
-  FiArrowLeft,
   FiSmartphone,
   FiCalendar,
-  FiMapPin,
-  FiBriefcase,
-  FiAward,
   FiCreditCard,
   FiAlertCircle,
-  FiClock
+  FiClock,
+  FiDroplet
 } from 'react-icons/fi';
 import { userAPI, authAPI } from '../services/api';
 import TimeSlotManager from '../components/sessions/TimeSlotManager';
 import toast from 'react-hot-toast';
 import BackButton from '../components/common/BackButton';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Settings = () => {
   const { user, getUserId } = useAuth();
-  const navigate = useNavigate();
+  const { colorTheme, setColorTheme, colorThemes } = useTheme();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState(null);
@@ -269,8 +265,15 @@ const handleBankUpdate = async (e) => {
     { id: 'profile', label: 'Profile', icon: FiUser },
     { id: 'bank', label: 'Bank Details', icon: FiCreditCard },
     { id: 'schedule', label: 'Teaching Schedule', icon: FiClock },
+    { id: 'appearance', label: 'Appearance', icon: FiDroplet },
     { id: 'password', label: 'Password', icon: FiLock }
   ];
+
+  const handleColorThemeChange = (themeId) => {
+    setColorTheme(themeId);
+    const selectedTheme = colorThemes.find((themeOption) => themeOption.id === themeId);
+    toast.success(`${selectedTheme?.name || 'Theme'} theme applied`);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -294,7 +297,7 @@ const handleBankUpdate = async (e) => {
               className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
                 activeTab === tab.id
                   ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -308,9 +311,9 @@ const handleBankUpdate = async (e) => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-md p-6"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Profile Information</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Profile Information</h2>
             
             <form onSubmit={handleProfileUpdate} className="space-y-5">
               <div>
@@ -511,10 +514,10 @@ const handleBankUpdate = async (e) => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-md p-6"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Bank Account Details</h2>
-            <p className="text-sm text-gray-500 mb-6">Add your bank details to receive payments for teaching sessions</p>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Bank Account Details</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Add your bank details to receive payments for teaching sessions</p>
             
             <form onSubmit={handleBankUpdate} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -601,6 +604,66 @@ const handleBankUpdate = async (e) => {
           </motion.div>
         )}
 
+        {/* Appearance Settings */}
+        {activeTab === 'appearance' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
+          >
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Color Theme
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Choose the accent colors used across SkillSwap.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {colorThemes.map((themeOption) => {
+                const isSelected = colorTheme === themeOption.id;
+
+                return (
+                  <button
+                    type="button"
+                    key={themeOption.id}
+                    onClick={() => handleColorThemeChange(themeOption.id)}
+                    className={`text-left p-4 rounded-lg border-2 transition-all bg-white dark:bg-gray-700 ${
+                      isSelected
+                        ? 'border-blue-500 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-blue-500'
+                    }`}
+                    aria-pressed={isSelected}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{themeOption.name}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{themeOption.description}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'border-blue-500' : 'border-gray-300 dark:border-gray-500'
+                      }`}>
+                        {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      {themeOption.colors.map((color) => (
+                        <span
+                          key={color}
+                          className="h-8 flex-1 rounded-md border border-black/5 dark:border-white/10"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
         {/* Teaching Schedule Settings */}
         {activeTab === 'schedule' && (
           <motion.div
@@ -631,9 +694,9 @@ const handleBankUpdate = async (e) => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-md p-6"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Change Password</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Change Password</h2>
             
             <form onSubmit={handlePasswordChange} className="space-y-5">
               {!user?.isOAuth && (
