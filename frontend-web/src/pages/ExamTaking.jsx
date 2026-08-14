@@ -1,6 +1,6 @@
 // frontend-web/src/pages/ExamTaking.jsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -11,10 +11,12 @@ import { examAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Proctoring from '../components/exam/Proctoring';
 import CodeEditor from '../components/exam/CodeEditor';
+import { useAuth } from '../hooks/useAuth';
 
 const ExamTaking = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [exam, setExam] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -30,6 +32,7 @@ const ExamTaking = () => {
   const [violations, setViolations] = useState(0);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [passcode, setPasscode] = useState('');
+  const [accessVerified, setAccessVerified] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [accessChecking, setAccessChecking] = useState(false);
   const [cameraInitialized, setCameraInitialized] = useState(false);
@@ -37,6 +40,7 @@ const ExamTaking = () => {
   
   const timerRef = useRef(null);
   const codeEditorRef = useRef(null);
+  const accessVerifiedRef = useRef(false);
 
   // Timer countdown
   useEffect(() => {
@@ -58,43 +62,90 @@ const ExamTaking = () => {
     return () => clearInterval(timerRef.current);
   }, [examStarted, timeLeft, allAnswersSubmitted]);
 
-  // Fetch exam details
+  // Fetch exam details and handle access verification
   useEffect(() => {
+    accessVerifiedRef.current = false;
+    setShowAccessModal(false);
+    setAccessVerified(false);
+    setAccessDenied(false);
+    setAccessChecking(false);
+    setShowInstructions(true);
+    setExamStarted(false);
+
+    let cancelled = false;
+
     const fetchExamDetails = async () => {
       try {
         setLoading(true);
         const response = await examAPI.getExamById(examId);
-        setExam(response.data.exam);
-        
-        const accessControl = response.data.exam.accessControl;
-        if (accessControl && accessControl.type !== 'all') {
+        if (cancelled) return;
+
+        const loadedExam = response.data.exam;
+        setExam(loadedExam);
+
+        const accessControl = loadedExam.accessControl;
+        if (!accessControl || accessControl.type === 'all') {
+          accessVerifiedRef.current = true;
+          setAccessVerified(true);
+          setLoading(false);
+          return;
+        }
+
+        if (accessControl.type === 'specific') {
+          setShowAccessModal(true);
+          setAccessChecking(true);
+          try {
+            const verifyRes = await examAPI.verifyExamAccess(examId, { passcode: '' });
+            if (cancelled) return;
+
+            if (verifyRes.data.allowed) {
+              accessVerifiedRef.current = true;
+              setAccessVerified(true);
+              setShowAccessModal(false);
+              setAccessDenied(false);
+              setCameraInitialized(true);
+            } else {
+              setAccessDenied(true);
+            }
+          } catch (verifyError) {
+            if (cancelled) return;
+            setAccessDenied(true);
+            toast.error(verifyError.response?.data?.message || 'Access verification failed');
+          } finally {
+            if (!cancelled) setAccessChecking(false);
+          }
+        } else if (accessControl.type === 'passcode') {
           setShowAccessModal(true);
         }
-        
+
         setLoading(false);
       } catch (error) {
+        if (cancelled) return;
         console.error('Error fetching exam:', error);
         toast.error('Failed to load exam');
         navigate('/exams');
       }
     };
-    
+
     fetchExamDetails();
+
+    return () => {
+      cancelled = true;
+    };
   }, [examId, navigate]);
 
   const verifyAccess = async () => {
     setAccessChecking(true);
     try {
-      const userEmail = JSON.parse(localStorage.getItem('user') || '{}').email;
       const response = await examAPI.verifyExamAccess(examId, {
-        type: exam.accessControl.type,
-        passcode: passcode,
-        email: userEmail
+        passcode
       });
-      
+
       if (response.data.allowed) {
+        accessVerifiedRef.current = true;
         setShowAccessModal(false);
         setAccessDenied(false);
+        setAccessVerified(true);
         setCameraInitialized(true);
       } else {
         setAccessDenied(true);
@@ -112,8 +163,13 @@ const ExamTaking = () => {
   const startExam = async () => {
     try {
       setLoading(true);
+
+      const startPayload = {};
+      if (exam?.accessControl?.type === 'passcode' && passcode) {
+        startPayload.passcode = passcode;
+      }
       
-      const response = await examAPI.startExam(examId);
+      const response = await examAPI.startExam(examId, startPayload);
       
       if (response.data.existing) {
         setExam(response.data.exam);
@@ -245,7 +301,7 @@ const ExamTaking = () => {
     }
   };
 
-  const handleViolation = async (violation) => {
+  const handleViolation = useCallback(async (violation) => {
     try {
       const response = await examAPI.recordViolation(examId, violation);
       setViolations(response.data.violations);
@@ -256,10 +312,12 @@ const ExamTaking = () => {
     } catch (error) {
       console.error('Failed to record violation');
     }
-  };
+  }, [examId, navigate]);
 
   // Access Control Modal
   if (showAccessModal && exam) {
+    const userEmail = user?.email || JSON.parse(localStorage.getItem('user') || '{}').email;
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
         <motion.div
@@ -270,9 +328,31 @@ const ExamTaking = () => {
           <div className="text-center mb-6">
             <FiLock className="w-16 h-16 text-blue-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900">Exam Access Required</h2>
-            <p className="text-gray-600 mt-2">This exam is protected. Please provide the required information.</p>
+            <p className="text-gray-600 mt-2">
+              {exam.accessControl?.type === 'specific'
+                ? 'This exam is restricted to specific students only.'
+                : 'This exam is protected. Please provide the required information.'}
+            </p>
           </div>
           
+          {exam.accessControl?.type === 'specific' && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-gray-700 mb-1">Checking access for:</p>
+              <p className="font-medium text-gray-900">{userEmail}</p>
+              {accessChecking ? (
+                <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />
+                  Verifying your email...
+                </p>
+              ) : accessDenied ? null : (
+                <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                  <FiCheckCircle className="w-4 h-4" />
+                  Access granted
+                </p>
+              )}
+            </div>
+          )}
+
           {exam.accessControl?.type === 'passcode' && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -291,7 +371,11 @@ const ExamTaking = () => {
           
           {accessDenied && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">Access denied. Please check your passcode or contact your teacher.</p>
+              <p className="text-sm text-red-600">
+                {exam.accessControl?.type === 'specific'
+                  ? 'Access denied. Your email is not on the allowed list for this exam. Contact your teacher.'
+                  : 'Access denied. Please check your passcode or contact your teacher.'}
+              </p>
             </div>
           )}
           
@@ -302,6 +386,7 @@ const ExamTaking = () => {
             >
               Cancel
             </button>
+            {exam.accessControl?.type === 'passcode' && (
             <button
               onClick={verifyAccess}
               disabled={accessChecking}
@@ -309,6 +394,7 @@ const ExamTaking = () => {
             >
               {accessChecking ? 'Verifying...' : 'Verify Access'}
             </button>
+            )}
           </div>
         </motion.div>
       </div>
@@ -430,9 +516,11 @@ const ExamTaking = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Proctoring 
-        examId={examId} 
+        examId={examId}
+        studentId={user?.id || user?._id}
+        studentName={user?.name}
         onViolation={handleViolation} 
-        enabled={exam?.proctoring?.enabled}
+        enabled={exam?.proctoring?.enabled !== false}
         violations={violations}
       />
       

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiCheck, FiCheckSquare } from 'react-icons/fi';
+import { FiCheck, FiCheckSquare, FiPhone, FiVideo } from 'react-icons/fi';
 
 const MessageBubble = ({ message, isOwn }) => {
   // Safely format date
@@ -45,6 +45,28 @@ const MessageBubble = ({ message, isOwn }) => {
     }
     return <FiCheck className="w-3 h-3" />;
   };
+
+  if (message.type === 'call') {
+    const duration = message.call?.durationSeconds || 0;
+    const mins = Math.floor(duration / 60);
+    const secs = duration % 60;
+    const durationText = duration > 0 ? ` · ${mins}:${secs.toString().padStart(2, '0')}` : '';
+    const Icon = message.call?.callType === 'audio' ? FiPhone : FiVideo;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-center"
+      >
+        <div className="flex max-w-[80%] items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs text-gray-600 shadow-sm">
+          <Icon className="h-4 w-4 text-gray-500" />
+          <span>{message.content}{durationText}</span>
+          <span className="text-gray-400">{formatTime(message.timestamp || message.createdAt)}</span>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

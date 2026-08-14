@@ -1,17 +1,21 @@
 // frontend-web/src/pages/teacher/CreateExam.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers, FiCode } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import BackButton from '../../components/common/BackButton';
 
 const CreateExam = () => {
+  const { examId: editExamId } = useParams();
+  const isEditMode = Boolean(editExamId);
   const [availableFrom, setAvailableFrom] = useState('');
   const [availableTo, setAvailableTo] = useState('');
   const navigate = useNavigate();
+  const [loadingExam, setLoadingExam] = useState(isEditMode);
+  const [editLocked, setEditLocked] = useState(false);
   const [exam, setExam] = useState({
     skillName: '',
     title: '',
@@ -51,6 +55,60 @@ const CreateExam = () => {
   });
   const [loading, setLoading] = useState(false);
   const [newEmail, setNewEmail] = useState('');
+
+  const formatDateTimeLocal = (dateString) => {
+    const date = new Date(dateString);
+    const offset = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    const loadExam = async () => {
+      try {
+        setLoadingExam(true);
+        const response = await examAPI.getExamById(editExamId);
+        const existingExam = response.data.exam;
+
+        const now = new Date();
+        if (new Date(existingExam.availableFrom) <= now) {
+          setEditLocked(true);
+          toast.error('This exam has already started and can no longer be edited');
+        }
+
+        setExam({
+          skillName: existingExam.skillName || '',
+          title: existingExam.title || '',
+          description: existingExam.description || '',
+          duration: existingExam.duration || 30,
+          passingScore: existingExam.passingScore || 70,
+          questions: existingExam.questions || [],
+          accessControl: existingExam.accessControl || {
+            type: 'all',
+            passcode: '',
+            allowedEmails: []
+          },
+          proctoring: existingExam.proctoring || {
+            enabled: true,
+            faceDetection: true,
+            tabSwitchDetection: true,
+            screenshotDetection: true
+          }
+        });
+        setAvailableFrom(formatDateTimeLocal(existingExam.availableFrom));
+        setAvailableTo(formatDateTimeLocal(existingExam.availableTo));
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Failed to load exam');
+        navigate('/teacher/exams');
+      } finally {
+        setLoadingExam(false);
+      }
+    };
+
+    loadExam();
+  }, [isEditMode, editExamId, navigate]);
 
   const addQuestion = () => {
     if (!currentQuestion.question) {
@@ -129,11 +187,12 @@ const CreateExam = () => {
 
   const addAllowedEmail = () => {
     if (!newEmail) return;
-    if (!newEmail.includes('@')) {
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    if (!normalizedEmail.includes('@')) {
       toast.error('Please enter a valid email');
       return;
     }
-    if (exam.accessControl.allowedEmails.includes(newEmail)) {
+    if (exam.accessControl.allowedEmails.includes(normalizedEmail)) {
       toast.error('Email already added');
       return;
     }
@@ -141,7 +200,7 @@ const CreateExam = () => {
       ...exam,
       accessControl: {
         ...exam.accessControl,
-        allowedEmails: [...exam.accessControl.allowedEmails, newEmail]
+        allowedEmails: [...exam.accessControl.allowedEmails, normalizedEmail]
       }
     });
     setNewEmail('');
@@ -192,6 +251,11 @@ const CreateExam = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (editLocked) {
+      toast.error('This exam can no longer be edited');
+      return;
+    }
     
     if (exam.questions.length === 0) {
       toast.error('Please add at least one question');
@@ -241,17 +305,31 @@ const CreateExam = () => {
     console.log('Submitting exam data:', examData);
     
     try {
-      const response = await examAPI.createExam(examData);
-      console.log('Exam created:', response.data);
-      toast.success('Exam created successfully!');
+      if (isEditMode) {
+        const response = await examAPI.updateExam(editExamId, examData);
+        console.log('Exam updated:', response.data);
+        toast.success('Exam updated successfully!');
+      } else {
+        const response = await examAPI.createExam(examData);
+        console.log('Exam created:', response.data);
+        toast.success('Exam created successfully!');
+      }
       navigate('/teacher/exams');
     } catch (error) {
-      console.error('Failed to create exam:', error.response?.data);
-      toast.error(error.response?.data?.message || 'Failed to create exam');
+      console.error(`Failed to ${isEditMode ? 'update' : 'create'} exam:`, error.response?.data);
+      toast.error(error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} exam`);
     } finally {
       setLoading(false);
     }
   };
+
+  if (loadingExam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -259,7 +337,14 @@ const CreateExam = () => {
         <div className="mb-4">
           <BackButton />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Exam</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isEditMode ? 'Edit Exam' : 'Create New Exam'}
+        </h1>
+        {editLocked && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+            This exam has already started. You can view the details but changes cannot be saved.
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Info */}
@@ -825,10 +910,10 @@ const CreateExam = () => {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || editLocked}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
             >
-              {loading ? 'Creating...' : 'Create Exam'}
+              {loading ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Exam')}
             </button>
           </div>
         </form>

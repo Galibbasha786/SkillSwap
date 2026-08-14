@@ -12,7 +12,8 @@ import {
   FiX,
   FiClock,
   FiCheckCircle,
-  FiCalendar
+  FiCalendar,
+  FiVideo
 } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -268,9 +269,18 @@ const TeacherExams = () => {
                   )}
                   
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     {exam.status !== 'cancelled' && exam.status !== 'expired' ? (
                       <>
+                        {exam.proctoring?.enabled && (
+                          <Link to={`/teacher/exams/${exam._id}/monitor`}>
+                            <button className="w-full px-3 py-2 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-lg hover:from-red-600 hover:to-orange-600 transition-colors text-sm flex items-center justify-center gap-1">
+                              <FiVideo className="w-4 h-4" />
+                              Live Monitor
+                            </button>
+                          </Link>
+                        )}
+                        <div className="flex gap-2">
                         <Link to={`/teacher/exams/${exam._id}/results`} className="flex-1">
                           <button className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm flex items-center justify-center gap-1">
                             <FiUsers className="w-4 h-4" />
@@ -278,7 +288,15 @@ const TeacherExams = () => {
                           </button>
                         </Link>
                         <Link to={`/teacher/exams/${exam._id}/edit`} className="flex-1">
-                          <button className="w-full px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm flex items-center justify-center gap-1">
+                          <button
+                            disabled={exam.availableFrom && new Date(exam.availableFrom) <= new Date()}
+                            className="w-full px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={
+                              exam.availableFrom && new Date(exam.availableFrom) <= new Date()
+                                ? 'Cannot edit after exam start time'
+                                : 'Edit exam'
+                            }
+                          >
                             Edit
                           </button>
                         </Link>
@@ -292,6 +310,7 @@ const TeacherExams = () => {
                           <FiAlertCircle className="w-4 h-4" />
                           Cancel
                         </button>
+                        </div>
                       </>
                     ) : (
                       <button

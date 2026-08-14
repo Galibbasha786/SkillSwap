@@ -19,6 +19,27 @@ class WebRTCService {
     this.isInitialized = false;
   }
 
+  getIceServers() {
+    const iceServers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' }
+    ];
+
+    const turnUrls = import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL;
+    if (turnUrls) {
+      iceServers.push({
+        urls: turnUrls.split(',').map(url => url.trim()).filter(Boolean),
+        username: import.meta.env.VITE_TURN_USERNAME,
+        credential: import.meta.env.VITE_TURN_CREDENTIAL
+      });
+    }
+
+    return iceServers;
+  }
+
   // Initialize socket connection
   init(userId, callbacks) {
     this.onIncomingCall = callbacks.onIncomingCall;
@@ -41,7 +62,8 @@ class WebRTCService {
     
     this.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
-      auth: { token, userId }
+      auth: { token, userId },
+      withCredentials: true
     });
 
     this.socket.on('connect', () => {
@@ -199,13 +221,7 @@ class WebRTCService {
         trickle: false,
         stream: this.localStream,
         config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
-          ]
+          iceServers: this.getIceServers()
         }
       });
 
@@ -241,10 +257,7 @@ class WebRTCService {
         trickle: false,
         stream: this.localStream,
         config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
+          iceServers: this.getIceServers()
         }
       });
 

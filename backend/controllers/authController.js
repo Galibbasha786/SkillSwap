@@ -194,6 +194,20 @@ exports.googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
 
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({
+        success: false,
+        message: 'Google login is not configured on the server'
+      });
+    }
+
+    if (!credential) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing Google credential'
+      });
+    }
+
     console.log('🔐 Google login attempt with credential');
     
     const ticket = await googleClient.verifyIdToken({
@@ -248,7 +262,10 @@ exports.googleLogin = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Google auth error:', error.message);
-    res.status(401).json({ success: false, message: 'Google authentication failed', error: error.message });
+    const message = error.message?.includes('Wrong recipient')
+      ? 'Google login client mismatch. Use the same Google OAuth client ID in frontend and backend.'
+      : 'Google authentication failed';
+    res.status(401).json({ success: false, message, error: error.message });
   }
 };
 

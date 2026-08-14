@@ -6,14 +6,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { 
   FiMail, FiLock, FiUser, FiArrowRight, FiCheckCircle, 
-  FiArrowLeft, FiBook, FiBriefcase, FiMapPin, FiCreditCard,
+  FiArrowLeft, FiBook, FiBriefcase, FiCreditCard,
   FiSmartphone, FiCalendar, FiUsers, FiUserCheck, FiAward,
-  FiGlobe, FiFileText, FiShield
+  FiShield, FiVideo, FiRefreshCw, FiStar
 } from 'react-icons/fi';
-import { FcGoogle } from 'react-icons/fc';
 import { GoogleLogin } from '@react-oauth/google';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
+import skillswapLogo from '../assets/skillswaplogo.jpg';
+import SkillSwapVideoScene from '../components/common/SkillSwapVideoScene';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -271,53 +272,154 @@ const Register = () => {
   };
 
   const handleGoogleError = () => {
-    toast.error('Google signup failed');
+    toast.error(`Google signup failed. Add ${window.location.origin} to Authorized JavaScript origins in Google Cloud Console.`);
   };
 
   const StepIndicator = () => (
-    <div className="flex justify-between mb-8">
-      {[1, 2].map((step) => (
-        <div key={step} className="flex-1 text-center">
-          <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center font-bold ${
-            currentStep >= step 
-              ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' 
-              : 'bg-gray-200 text-gray-500'
-          }`}>
-            {currentStep > step ? <FiCheckCircle className="w-5 h-5" /> : step}
+    <div className="relative mb-8 px-4">
+      <div className="absolute left-[20%] right-[20%] top-5 h-0.5 bg-gray-200 rounded-full" />
+      <motion.div
+        className="absolute left-[20%] top-5 h-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+        initial={false}
+        animate={{ width: currentStep === 1 ? '0%' : '60%' }}
+        transition={{ duration: 0.4 }}
+      />
+      <div className="relative flex justify-between">
+        {[
+          { step: 1, label: 'Personal & Education', icon: FiUser },
+          { step: 2, label: 'Banking & Preferences', icon: FiCreditCard },
+        ].map(({ step, label, icon: Icon }) => (
+          <div key={step} className="flex flex-col items-center">
+            <div
+              className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full font-bold transition-all duration-300 ${
+                currentStep >= step
+                  ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30'
+                  : 'bg-gray-100 text-gray-400 ring-2 ring-gray-200'
+              }`}
+            >
+              {currentStep > step ? <FiCheckCircle className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
+            </div>
+            <p className={`mt-2 max-w-[7rem] text-center text-xs font-medium ${currentStep >= step ? 'text-emerald-700' : 'text-gray-400'}`}>
+              {label}
+            </p>
           </div>
-          <p className={`text-sm mt-2 ${
-            currentStep >= step ? 'text-blue-600' : 'text-gray-400'
-          }`}>
-            {step === 1 && 'Personal & Education'}
-            {step === 2 && 'Banking & Preferences'}
-          </p>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 
+  const highlights = [
+    { icon: FiVideo, text: 'Live 1-on-1 video sessions with expert peers' },
+    { icon: FiRefreshCw, text: 'Swap skills — teach what you know, learn what you need' },
+    { icon: FiStar, text: 'Build your profile and grow your learning network' },
+  ];
+
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animation-delay-2000"></div>
-          <div className="absolute top-40 left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float animation-delay-4000"></div>
-        </div>
-
+      <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-slate-50 via-white to-emerald-50/40">
+        {/* Left — Brand & animation */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative z-10 w-full max-w-2xl"
+          initial={{ x: -80, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+          className="relative hidden overflow-hidden lg:flex lg:w-[42%] xl:w-[40%] bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700"
         >
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-bold gradient-text mb-2">Join SkillSwap</h1>
-              <p className="text-gray-600">Start your skill exchange journey today</p>
+          <div className="absolute inset-0 opacity-25">
+            <div className="absolute top-8 left-8 h-64 w-64 rounded-full bg-white mix-blend-overlay blur-3xl animate-pulse" />
+            <div className="absolute bottom-12 right-8 h-72 w-72 rounded-full bg-yellow-300 mix-blend-overlay blur-3xl animate-pulse animation-delay-2000" />
+            <div className="absolute top-1/2 left-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 mix-blend-overlay blur-3xl animate-pulse animation-delay-4000" />
+          </div>
+          <div className="absolute inset-0 bg-grid-white/[0.06] bg-[size:48px_48px]" />
+
+          <div className="relative z-10 flex w-full flex-col items-center justify-center p-10 xl:p-12">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 120, delay: 0.1 }}
+              className="mb-6"
+            >
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-yellow-400/40 blur-2xl" />
+                <div className="relative h-28 w-28 overflow-hidden rounded-full border-4 border-white/35 bg-white/10 shadow-2xl backdrop-blur-sm xl:h-32 xl:w-32">
+                  <img src={skillswapLogo} alt="SkillSwap" className="h-full w-full object-cover" />
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="mb-6 w-full"
+            >
+              <SkillSwapVideoScene />
+            </motion.div>
+
+            <motion.h1
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="mb-3 text-4xl font-bold tracking-tight text-white xl:text-5xl"
+            >
+              Join <span className="text-yellow-300">SkillSwap</span>
+            </motion.h1>
+            <motion.p
+              initial={{ y: 16, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.35 }}
+              className="mb-8 max-w-sm text-center text-base text-white/85"
+            >
+              Connect with teachers worldwide and exchange skills through live video sessions
+            </motion.p>
+
+            <motion.ul
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.45 }}
+              className="w-full max-w-sm space-y-3"
+            >
+              {highlights.map(({ icon: Icon, text }, i) => (
+                <li key={i} className="flex items-start gap-3 rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <Icon className="h-4 w-4 text-yellow-200" />
+                  </div>
+                  <span className="text-sm leading-relaxed text-white/90">{text}</span>
+                </li>
+              ))}
+            </motion.ul>
+          </div>
+        </motion.div>
+
+        {/* Right — Registration form */}
+        <motion.div
+          initial={{ x: 80, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+          className="flex w-full flex-1 items-start justify-center overflow-y-auto p-4 sm:p-6 lg:p-8"
+        >
+          <div className="w-full max-w-2xl py-4 lg:py-6">
+            {/* Mobile header */}
+            <div className="mb-6 text-center lg:hidden">
+              <div className="mx-auto mb-3 h-16 w-16 overflow-hidden rounded-full ring-4 ring-emerald-100">
+                <img src={skillswapLogo} alt="SkillSwap" className="h-full w-full object-cover" />
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                Create Your Account
+              </h1>
+              <div className="mt-4 flex justify-center">
+                <SkillSwapVideoScene />
+              </div>
             </div>
 
-            <StepIndicator />
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-emerald-900/5 backdrop-blur-sm sm:p-8">
+              <div className="mb-2 hidden text-center lg:block">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Create Your Account
+                </h1>
+                <p className="mt-1 text-gray-500">Start swapping skills in just two quick steps</p>
+              </div>
+
+              <StepIndicator />
 
             {currentStep === 1 && (
               <div className="mb-6">
@@ -347,10 +449,11 @@ const Register = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4 max-h-[60vh] overflow-y-auto pr-2"
+                  className="space-y-4 max-h-[58vh] overflow-y-auto pr-1 scrollbar-thin"
                 >
+                  <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 p-4 ring-1 ring-emerald-100">
                   <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <FiUser className="text-blue-500" /> Personal Information
+                    <FiUser className="text-emerald-600" /> Personal Information
                   </h2>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -494,9 +597,11 @@ const Register = () => {
                       />
                     </div>
                   </div>
+                  </div>
 
-                  <h2 className="text-lg font-semibold text-gray-800 mt-4 mb-2 flex items-center gap-2">
-                    <FiAward className="text-blue-500" /> Education Details
+                  <div className="rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 p-4 ring-1 ring-cyan-100">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <FiAward className="text-teal-600" /> Education Details
                   </h2>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -565,6 +670,7 @@ const Register = () => {
                       max="2030"
                     />
                   </div>
+                  </div>
                 </motion.div>
               )}
 
@@ -574,10 +680,11 @@ const Register = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4 max-h-[60vh] overflow-y-auto pr-2"
+                  className="space-y-4 max-h-[58vh] overflow-y-auto pr-1"
                 >
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <FiCreditCard className="text-purple-500" /> Bank Details (Optional)
+                  <div className="rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 p-4 ring-1 ring-violet-100">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    <FiCreditCard className="text-violet-600" /> Bank Details (Optional)
                   </h2>
                   <p className="text-sm text-gray-500 mb-2">Add bank details to receive payments for teaching</p>
 
@@ -643,9 +750,11 @@ const Register = () => {
                     </div>
                     {errors.upiId && <p className="error-text">{errors.upiId}</p>}
                   </div>
+                  </div>
 
-                  <h2 className="text-lg font-semibold text-gray-800 mt-4 mb-2 flex items-center gap-2">
-                    <FiUserCheck className="text-green-500" /> Account Type
+                  <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 p-4 ring-1 ring-emerald-100">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <FiUserCheck className="text-emerald-600" /> Account Type
                   </h2>
 
                   <div>
@@ -654,10 +763,10 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => setStep2Data({...step2Data, userType: 'learner'})}
-                        className={`p-3 rounded-lg border-2 transition-all ${
+                        className={`p-3 rounded-xl border-2 transition-all ${
                           step2Data.userType === 'learner'
-                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-gray-200 hover:border-emerald-200 hover:bg-gray-50'
                         }`}
                       >
                         <FiBook className="w-6 h-6 mx-auto mb-1" />
@@ -666,10 +775,10 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => setStep2Data({...step2Data, userType: 'teacher'})}
-                        className={`p-3 rounded-lg border-2 transition-all ${
+                        className={`p-3 rounded-xl border-2 transition-all ${
                           step2Data.userType === 'teacher'
-                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-gray-200 hover:border-emerald-200 hover:bg-gray-50'
                         }`}
                       >
                         <FiBriefcase className="w-6 h-6 mx-auto mb-1" />
@@ -678,10 +787,10 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => setStep2Data({...step2Data, userType: 'both'})}
-                        className={`p-3 rounded-lg border-2 transition-all ${
+                        className={`p-3 rounded-xl border-2 transition-all ${
                           step2Data.userType === 'both'
-                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-gray-200 hover:border-emerald-200 hover:bg-gray-50'
                         }`}
                       >
                         <FiUsers className="w-6 h-6 mx-auto mb-1" />
@@ -689,8 +798,9 @@ const Register = () => {
                       </button>
                     </div>
                   </div>
+                  </div>
 
-                  <div className="border-t pt-4 mt-4">
+                  <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                       <FiShield className="text-orange-500" /> Terms & Conditions
                     </h2>
@@ -744,7 +854,7 @@ const Register = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleBack}
-                  className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                 >
                   <FiArrowLeft /> Back
                 </motion.button>
@@ -755,7 +865,7 @@ const Register = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleNext}
-                  className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25"
                 >
                   Next <FiArrowRight />
                 </motion.button>
@@ -765,7 +875,7 @@ const Register = () => {
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg hover:from-green-600 hover:to-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white rounded-xl hover:from-emerald-600 hover:to-cyan-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25"
                 >
                   {loading ? (
                     <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -781,10 +891,11 @@ const Register = () => {
             <div className="mt-6 text-center">
               <p className="text-gray-600">
                 Already have an account?{' '}
-                <Link to="/login" className="text-blue-500 hover:text-blue-600 font-semibold">
+                <Link to="/login" className="font-semibold text-emerald-600 hover:text-teal-600">
                   Sign In
                 </Link>
               </p>
+            </div>
             </div>
           </div>
         </motion.div>
@@ -822,7 +933,7 @@ const Register = () => {
             <button
               onClick={handleVerifyOTP}
               disabled={otpLoading}
-              className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50"
+              className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50"
             >
               {otpLoading ? (
                 <div className="flex items-center justify-center gap-2">

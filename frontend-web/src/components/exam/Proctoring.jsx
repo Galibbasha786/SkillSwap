@@ -3,8 +3,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
+import examProctoringService from '../../services/examProctoringService';
 
-const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => {
+const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = true, violations = 0 }) => {
   const [faceDetected, setFaceDetected] = useState(false);
   const [multipleFaces, setMultipleFaces] = useState(false);
   const [fullscreenActive, setFullscreenActive] = useState(() => {
@@ -21,6 +22,16 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
   const streamRef = useRef(null);
   const detectionIntervalRef = useRef(null);
   const canvasRef = useRef(null);
+  const teacherAudioRef = useRef(null);
+  const onViolationRef = useRef(onViolation);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    onViolationRef.current = onViolation;
+  }, [onViolation]);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [teacherSpeaking, setTeacherSpeaking] = useState(false);
+  const [streamConnected, setStreamConnected] = useState(false);
   const lastViolationTimeRef = useRef({
     face_missing: 0,
     multiple_faces: 0,
@@ -61,73 +72,96 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
     loadModels();
   }, []);
 
-  // Initialize camera
+  // Initialize camera + mic once — stable effect, no restart on parent re-renders
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !examId || !studentId) return;
 
-    const startCamera = async () => {
-      console.log('🎥 Attempting to start camera...');
-      
+    mountedRef.current = true;
+    let localStream = null;
+
+    const initProctoring = async () => {
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error('getUserMedia not supported in this browser');
         }
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
+
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
             width: { ideal: 640 },
             height: { ideal: 480 },
             facingMode: 'user'
           },
-          audio: false 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
-        
-        console.log('✅ Camera stream obtained');
-        streamRef.current = stream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current.play()
-              .then(() => {
-                setCameraActive(true);
-                setCameraError(false);
-                setVideoDimensions({
-                  width: videoRef.current.videoWidth,
-                  height: videoRef.current.videoHeight
-                });
-                console.log(`📹 Video dimensions: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
-              })
-              .catch(err => {
-                console.error('❌ Video play failed:', err);
-                setCameraError(true);
-              });
-          };
-          
-          videoRef.current.onerror = (err) => {
-            console.error('❌ Video error:', err);
-            setCameraError(true);
-          };
+
+        if (!mountedRef.current) {
+          localStream.getTracks().forEach((track) => track.stop());
+          return;
         }
+
+        streamRef.current = localStream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = localStream;
+          await videoRef.current.play();
+          setCameraActive(true);
+          setCameraError(false);
+          setVideoDimensions({
+            width: videoRef.current.videoWidth,
+            height: videoRef.current.videoHeight
+          });
+        }
+
+        examProctoringService.startStudentStream({
+          userId: String(studentId),
+          examId,
+          studentName: studentName || 'Student',
+          stream: localStream,
+          callbacks: {
+            onTeacherAudio: (remoteStream) => {
+              if (teacherAudioRef.current) {
+                teacherAudioRef.current.srcObject = remoteStream;
+                teacherAudioRef.current.play().catch(() => {});
+                setTeacherSpeaking(true);
+              }
+            },
+            onConnected: () => setStreamConnected(true)
+          }
+        });
       } catch (error) {
-        console.error('❌ Camera access error:', error);
+        console.error('❌ Camera/mic access error:', error);
+        if (!mountedRef.current) return;
         setCameraError(true);
         setCameraActive(false);
-        onViolation({ type: 'camera_denied', details: error.message });
-        toast.error('Camera access required for proctoring');
+        onViolationRef.current?.({ type: 'camera_denied', details: error.message });
+        toast.error('Camera and microphone access required for proctoring');
       }
     };
-    
-    startCamera();
+
+    initProctoring();
 
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+      mountedRef.current = false;
+      examProctoringService.stopStudentStream();
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+      streamRef.current = null;
+      if (teacherAudioRef.current) {
+        teacherAudioRef.current.srcObject = null;
       }
     };
-  }, [enabled, onViolation]);
+  }, [enabled, examId, studentId]);
+
+  const toggleMic = () => {
+    const next = !micEnabled;
+    setMicEnabled(next);
+    examProctoringService.setStudentMicEnabled(next);
+  };
 
   // Face detection loop with debounced violations
   useEffect(() => {
@@ -342,29 +376,42 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
   const retryCamera = async () => {
     setCameraError(false);
     setCameraActive(false);
+    examProctoringService.stopStudentStream();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    setTimeout(() => {
-      const startCamera = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 640, height: 480, facingMode: 'user' },
-            audio: false 
+    setTimeout(async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' },
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          setCameraActive(true);
+          setCameraError(false);
+          examProctoringService.startStudentStream({
+            userId: studentId,
+            examId,
+            studentName: studentName || 'Student',
+            stream,
+            callbacks: {
+              onTeacherAudio: (remoteStream) => {
+                if (teacherAudioRef.current) {
+                  teacherAudioRef.current.srcObject = remoteStream;
+                  teacherAudioRef.current.play().catch(() => {});
+                }
+              },
+              onConnected: () => setStreamConnected(true)
+            }
           });
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play();
-            setCameraActive(true);
-            setCameraError(false);
-          }
-        } catch (err) {
-          setCameraError(true);
         }
-      };
-      startCamera();
+      } catch (err) {
+        setCameraError(true);
+      }
     }, 100);
   };
 
@@ -380,6 +427,9 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
 
   return (
     <>
+      {/* Hidden audio element for teacher voice during live exam */}
+      <audio ref={teacherAudioRef} autoPlay playsInline className="hidden" />
+
       {/* Top Bar with Camera and Status */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-gray-900 to-gray-800 shadow-lg">
         <div className="container mx-auto px-4 py-2">
@@ -427,7 +477,24 @@ const Proctoring = ({ examId, onViolation, enabled = true, violations = 0 }) => 
                 {cameraActive && (
                   <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-medium shadow-lg flex items-center gap-1">
                     <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                    Live
+                    {streamConnected ? 'Live to teacher' : 'Connecting...'}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium shadow-lg ${
+                    micEnabled ? 'bg-blue-500 text-white' : 'bg-gray-500 text-white'
+                  }`}
+                  title={micEnabled ? 'Mute microphone' : 'Unmute microphone'}
+                >
+                  {micEnabled ? '🎤 Mic On' : '🔇 Mic Off'}
+                </button>
+
+                {teacherSpeaking && (
+                  <div className="bg-purple-500 text-white px-2 py-0.5 rounded-full text-xs font-medium shadow-lg animate-pulse">
+                    Teacher speaking
                   </div>
                 )}
                 

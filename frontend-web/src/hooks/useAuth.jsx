@@ -37,6 +37,15 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
   const login = async (email, password, captchaToken) => {
     try {
       const response = await authAPI.login({ email, password, captchaToken });
@@ -66,13 +75,18 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await authAPI.googleLogin({ credential });
       const { token, user: userData } = response.data;
+      const normalizedUser = {
+        ...userData,
+        id: userData.id || userData._id,
+        _id: userData._id || userData.id
+      };
       
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
       
       toast.success('Google login successful!');
-      return { success: true, user: userData };
+      return { success: true, user: normalizedUser };
     } catch (error) {
       console.error('Google login error:', error);
       toast.error(error.response?.data?.message || 'Google login failed');

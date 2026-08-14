@@ -20,6 +20,7 @@ import Messages from './pages/Messages';
 import ForgotPassword from './pages/ForgotPassword';
 import CreateExam from './pages/teacher/CreateExam';
 import TeacherExams from './pages/teacher/TeacherExams';
+import ExamMonitor from './pages/teacher/ExamMonitor';
 import StudentExams from './pages/student/StudentExams';
 import ExamTaking from './pages/ExamTaking';
 import Certificate from './components/exam/Certificate';
@@ -235,10 +236,22 @@ function AppContent() {
               <CreateExam />
             </ProtectedRoute>
           } />
+
+          <Route path="/teacher/exams/:examId/edit" element={
+            <ProtectedRoute>
+              <CreateExam />
+            </ProtectedRoute>
+          } />
           
           <Route path="/teacher/exams" element={
             <ProtectedRoute>
               <TeacherExams />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/exams/:examId/monitor" element={
+            <ProtectedRoute>
+              <ExamMonitor />
             </ProtectedRoute>
           } />
           

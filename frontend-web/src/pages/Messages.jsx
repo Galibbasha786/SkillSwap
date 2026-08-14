@@ -109,7 +109,7 @@ const Messages = () => {
 
   // Fetch chats
   useEffect(() => {
-    fetchChats();
+    fetchChats({ showLoader: true });
   }, []);
 
   useEffect(() => {
@@ -162,9 +162,11 @@ const Messages = () => {
     initChatFromTeacher();
   }, [location.state, chats, loading, user]);
 
-  const fetchChats = async () => {
+  const fetchChats = async ({ showLoader = false } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
       const response = await chatAPI.getConversations();
       console.log('Chats response:', response.data);
       
@@ -178,9 +180,13 @@ const Messages = () => {
     } catch (error) {
       console.error('Error fetching chats:', error);
       toast.error('Failed to load conversations');
-      setChats([]);
+      if (showLoader) {
+        setChats([]);
+      }
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
     }
   };
 
@@ -347,7 +353,7 @@ const Messages = () => {
                 chat={selectedChat}
                 onClose={() => setSelectedChat(null)}
                 onStartCall={handleStartCall}
-                onMessagesUpdate={fetchChats}
+                onMessagesUpdate={() => fetchChats({ showLoader: false })}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500">

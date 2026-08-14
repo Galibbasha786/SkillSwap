@@ -127,7 +127,32 @@ const ChatWindow = ({ chat, onClose, onStartCall, onMessagesUpdate }) => {
 
     const handleNewMessage = (message) => {
       console.log('New message received:', message);
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        const messageId = message._id || message.id;
+        if (messageId && prev.some(item => (item._id || item.id) === messageId)) {
+          return prev;
+        }
+
+        const optimisticIndex = prev.findIndex(item => {
+          const itemSenderId = item.senderId?._id || item.senderId;
+          const messageSenderId = message.senderId?._id || message.senderId;
+          const itemTime = new Date(item.timestamp || item.createdAt || 0).getTime();
+          const messageTime = new Date(message.timestamp || message.createdAt || Date.now()).getTime();
+
+          return item.status === 'sending' &&
+            item.content === message.content &&
+            String(itemSenderId) === String(messageSenderId) &&
+            Math.abs(messageTime - itemTime) < 10000;
+        });
+
+        if (optimisticIndex >= 0) {
+          const next = [...prev];
+          next[optimisticIndex] = message;
+          return next;
+        }
+
+        return [...prev, message];
+      });
       if (onMessagesUpdate) onMessagesUpdate();
     };
 
@@ -188,7 +213,6 @@ const ChatWindow = ({ chat, onClose, onStartCall, onMessagesUpdate }) => {
     sendMessage(chat._id, messageData);
     
     setNewMessage('');
-    if (onMessagesUpdate) onMessagesUpdate();
   };
 
   const handleTyping = (e) => {
@@ -356,7 +380,7 @@ const ChatWindow = ({ chat, onClose, onStartCall, onMessagesUpdate }) => {
             <textarea
               value={newMessage}
               onChange={handleTyping}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder="Type a message..."
               rows="1"
               className="w-full px-4 py-3 pr-20 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"

@@ -15,7 +15,10 @@ if (!GOOGLE_CLIENT_ID) {
   console.error('Add this to .env.production:');
   console.error('VITE_GOOGLE_CLIENT_ID=your-client-id-from-google-console');
 } else {
-  console.log('✅ Google Client ID loaded:', GOOGLE_CLIENT_ID.substring(0, 20) + '...');
+  console.log('✅ Google OAuth config:', {
+    origin: window.location.origin,
+    clientId: GOOGLE_CLIENT_ID
+  });
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

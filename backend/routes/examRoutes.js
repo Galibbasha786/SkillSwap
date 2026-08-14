@@ -12,6 +12,8 @@ const {
   finishExam,
   getExamById,
   recordViolation,
+  getLiveAttempts,
+  updateExam,
   cancelExam,  // ✅ Add this import
   deleteExam,
   verifyExamAccess,
@@ -23,8 +25,10 @@ const {
 router.use(auth);
 
 router.post('/', createExam);
+router.put('/:examId', updateExam);
 router.get('/teacher', getTeacherExams);
 router.get('/available', getAvailableExams);
+router.get('/:examId/live-attempts', getLiveAttempts);
 router.get('/:examId', getExamById);
 router.post('/:examId/start', startExam);
 router.post('/:examId/submit', submitAnswer);

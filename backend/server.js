@@ -48,16 +48,22 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS configuration
-const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-const clientUrl = rawClientUrl.replace(/\/+$/, ''); // strip trailing slash
+const normalizeOrigin = (origin) => origin && origin.replace(/\/+$/, '');
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URLS
+]
+  .flatMap(value => (value || '').split(','))
+  .map(value => normalizeOrigin(value.trim()))
+  .filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // non-browser requests
 
-    const allowedOrigins = [clientUrl];
-    // Add more allowed origins here if you host frontend in multiple envs
-    if (allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+    if (allowedOrigins.includes(normalizeOrigin(origin))) {
       return callback(null, true);
     }
 
@@ -67,7 +73,16 @@ app.use(cors({
 }));
 
 // Support preflight requests for all routes
-app.options('*', cors({ origin: clientUrl, credentials: true }));
+app.options('*', cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS not allowed for origin: ' + origin));
+  },
+  credentials: true
+}));
 
 // Middleware
 app.use(express.json());
@@ -151,7 +166,7 @@ connectDB().then(() => {
   const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🔗 http://localhost:${PORT}`);
-    console.log(`✅ CORS enabled for: http://localhost:5173`);
+    console.log(`✅ CORS enabled for: ${allowedOrigins.join(', ')}`);
   });
 
   // Initialize Socket.io

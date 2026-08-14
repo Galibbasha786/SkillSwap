@@ -3,8 +3,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiArrowRight, FiUsers, FiBook, FiAward, FiMessageCircle, FiTrendingUp, FiStar, FiCheck } from 'react-icons/fi';
+import { FiArrowRight, FiUsers, FiBook, FiAward, FiMessageCircle, FiTrendingUp, FiStar } from 'react-icons/fi';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
+import LearningScene from '../components/common/LearningScene';
 
 const Home = () => {
   const features = [
@@ -41,27 +42,27 @@ const Home = () => {
   ];
 
   const stats = [
-    { number: '1000+', label: 'Active Learners' },
-    { number: '500+', label: 'Expert Teachers' },
+    { number: '50+', label: 'Active Learners' },
+    { number: '50+', label: 'Expert Teachers' },
     { number: '50+', label: 'Skills Available' },
-    { number: '100%', label: 'Satisfaction Rate' }
+    { number: '99.9%', label: 'Satisfaction Rate' }
   ];
 
   const testimonials = [
     {
-      name: 'Priya Sharma',
+      name: 'Sai Kiran',
       role: 'Data Science Learner',
       text: 'SkillSwap helped me learn Python from an expert. The personalized sessions were incredibly helpful!'
     },
     {
-      name: 'Raj Patel',
+      name: 'Tej Deepak Chandra',
       role: 'Web Development Teacher',
       text: 'I love teaching on SkillSwap. The platform makes it easy to connect with eager learners.'
     },
     {
-      name: 'Ananya Singh',
-      role: 'UI/UX Designer',
-      text: 'I learned design thinking through SkillSwap and got certified. Best investment in my skills!'
+      name: 'Karthik',
+      role: 'AI/ML',
+      text: 'I learned ML through SkillSwap and got certified. Best investment in my skills!'
     }
   ];
 
@@ -151,30 +152,9 @@ const Home = () => {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
-              className="hidden lg:flex items-center justify-center"
+              className="hidden lg:block"
             >
-              <div className="relative w-full max-w-md h-96">
-                {/* Animated circles background */}
-                <div className="absolute inset-0">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                    className="absolute inset-0 border-4 border-blue-200 rounded-full"
-                  />
-                  <motion.div
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-                    className="absolute inset-8 border-4 border-purple-200 rounded-full"
-                  />
-                </div>
-
-                {/* Center Logo */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-40 h-40 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 overflow-hidden shadow-2xl">
-                    <img src={skillswapLogo} alt="SkillSwap" className="w-full h-full object-cover" />
-                  </div>
-                </div>
-              </div>
+              <LearningScene />
             </motion.div>
           </div>
         </div>
@@ -227,27 +207,37 @@ const Home = () => {
             How It Works
           </motion.h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-            {[
-              { step: '1', title: 'Sign Up', desc: 'Create your free account' },
-              { step: '2', title: 'Choose Skills', desc: 'Pick what you want to learn' },
-              { step: '3', title: 'Find Teacher', desc: 'Connect with an expert' },
-              { step: '4', title: 'Start Learning', desc: 'Begin your journey' }
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-2xl flex items-center justify-center mx-auto mb-4">
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                <p className="text-gray-600">{item.desc}</p>
-              </motion.div>
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-10 items-center mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                { step: '1', title: 'Sign Up', desc: 'Create your free account' },
+                { step: '2', title: 'Choose Skills', desc: 'Pick what you want to learn' },
+                { step: '3', title: 'Find Teacher', desc: 'Connect with an expert' },
+                { step: '4', title: 'Start Learning', desc: 'Begin your journey' }
+              ].map((item, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="rounded-lg border border-white/70 bg-white/80 p-6 shadow-sm"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-xl flex items-center justify-center mb-4">
+                    {item.step}
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+                  <p className="text-gray-600">{item.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7 }}
+              className="hidden lg:block"
+            >
+              <LearningScene compact />
+            </motion.div>
           </div>
         </div>
       </section>

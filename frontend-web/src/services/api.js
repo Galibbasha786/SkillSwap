@@ -65,7 +65,7 @@ api.interceptors.response.use(
       if (error.response.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       }
     } else if (error.request) {
       console.error('❌ Network Error - No Response:', {
@@ -196,10 +196,12 @@ export const walletAPI = {
 
 export const examAPI = {
   createExam: (examData) => api.post('/exams', examData),
+  updateExam: (examId, examData) => api.put(`/exams/${examId}`, examData),
   getTeacherExams: () => api.get('/exams/teacher'),
   getAvailableExams: () => api.get('/exams/available'),
+  getLiveAttempts: (examId) => api.get(`/exams/${examId}/live-attempts`),
   getExamById: (examId) => api.get(`/exams/${examId}`), // ✅ ADD THIS - Missing!
-  startExam: (examId) => api.post(`/exams/${examId}/start`),
+  startExam: (examId, data = {}) => api.post(`/exams/${examId}/start`, data),
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
   recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),

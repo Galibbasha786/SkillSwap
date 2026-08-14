@@ -67,15 +67,20 @@ const examAttemptSchema = new mongoose.Schema({
       enum: [
         'tab_switch',
         'face_missing',
+        'multiple_faces',
         'screenshot',
+        'screenshot_attempt',
         'window_resize',
         'mouse_leave',
         'right_click',
         'copy_attempt',
         'paste_attempt',
+        'copy_shortcut',
+        'paste_shortcut',
         'print_attempt',
         'fullscreen_exit',
-        'camera_denied'
+        'camera_denied',
+        'devtools_attempt'
       ],
       required: true
     },

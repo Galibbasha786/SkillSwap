@@ -11,6 +11,7 @@ import ReCAPTCHA from 'react-google-recaptcha';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
+import LearningScene from '../components/common/LearningScene';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -264,8 +265,10 @@ const Login = () => {
 
   const handleGoogleError = () => {
     console.error('Google login error');
-    toast.error('Google login failed. Please try again or use email login.');
-    setLoginError('Google login failed. Please try again or use email login.');
+    const origin = window.location.origin;
+    const message = `Google login failed. In Google Cloud Console, add ${origin} to Authorized JavaScript origins for the OAuth client used by this app.`;
+    toast.error('Google login failed. Check OAuth origin settings.');
+    setLoginError(message);
   };
 
   const handleForgotPassword = () => {
@@ -308,7 +311,7 @@ const Login = () => {
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
-              className="mb-12 relative"
+              className="mb-8 relative"
             >
               {/* Outer Glow Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full blur-2xl opacity-50 animate-pulse"></div>
@@ -324,6 +327,15 @@ const Login = () => {
                   />
                 </div>
               </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.7 }}
+              className="relative mb-8 w-full"
+            >
+              <LearningScene variant="login" />
             </motion.div>
 
             {/* Brand Name with Animation */}
@@ -443,9 +455,6 @@ const Login = () => {
                   width="100%"
                 />
               </div>
-              <p className="text-xs text-gray-500 text-center mt-2">
-                💡 Tip: If Google login fails, check your email and use password login
-              </p>
             </motion.div>
 
             {/* Divider */}

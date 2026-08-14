@@ -9,8 +9,69 @@ const QRCode = require('qrcode');
 const crypto = require('crypto');
 const Session = require('../models/Session');
 const { getLogoBase64 } = require('../utils/logoUtil');
+const { getIO } = require('../socket');
 const fs = require('fs');
 const { executeCode } = require('../services/codeExecutionService');
+
+const normalizeEmail = (email) => (email || '').trim().toLowerCase();
+
+const getTeacherId = (exam) => {
+  const teacher = exam.teacherId;
+  return (teacher?._id || teacher)?.toString();
+};
+
+const isEmailInAllowedList = (exam, email) => {
+  const normalized = normalizeEmail(email);
+  return (exam.accessControl?.allowedEmails || []).some(
+    (allowedEmail) => normalizeEmail(allowedEmail) === normalized
+  );
+};
+
+const hasSessionWithTeacher = async (teacherId, studentId) => {
+  const session = await Session.findOne({
+    teacherId,
+    learnerId: studentId,
+    status: { $in: ['completed', 'scheduled'] }
+  });
+  return !!session;
+};
+
+const canStudentAccessExam = async (exam, user) => {
+  const accessType = exam.accessControl?.type || 'all';
+
+  if (accessType === 'specific') {
+    return isEmailInAllowedList(exam, user.email);
+  }
+
+  const teacherId = getTeacherId(exam);
+  return hasSessionWithTeacher(teacherId, user.id || user._id);
+};
+
+const verifyExamAccessRules = async (exam, user, { passcode } = {}) => {
+  const accessType = exam.accessControl?.type || 'all';
+
+  if (accessType === 'specific') {
+    if (!isEmailInAllowedList(exam, user.email)) {
+      return { allowed: false, message: 'You are not authorized to take this exam' };
+    }
+    return { allowed: true };
+  }
+
+  const teacherId = getTeacherId(exam);
+  const hasSession = await hasSessionWithTeacher(teacherId, user.id || user._id);
+  if (!hasSession) {
+    return { allowed: false, message: 'You can only take exams from teachers you have sessions with' };
+  }
+
+  if (accessType === 'passcode') {
+    if (!passcode || exam.accessControl.passcode !== passcode) {
+      return { allowed: false, message: 'Invalid passcode' };
+    }
+  }
+
+  return { allowed: true };
+};
+
 // @desc    Create exam
 // @route   POST /api/exams
 // @access  Private (Teacher only)
@@ -54,6 +115,10 @@ exports.createExam = async (req, res) => {
         return cleanQuestion;
       });
     }
+
+    if (examData.accessControl?.allowedEmails) {
+      examData.accessControl.allowedEmails = examData.accessControl.allowedEmails.map(normalizeEmail);
+    }
     
     const exam = await Exam.create(examData);
     console.log('✅ Exam created successfully:', exam._id);
@@ -77,6 +142,43 @@ exports.getTeacherExams = async (req, res) => {
   }
 };
 
+// @desc    Get live in-progress attempts for teacher monitoring
+// @route   GET /api/exams/:examId/live-attempts
+// @access  Private (Exam owner only)
+exports.getLiveAttempts = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to view this exam' });
+    }
+
+    const attempts = await ExamAttempt.find({
+      examId: req.params.examId,
+      status: 'in_progress'
+    })
+      .populate('studentId', 'name email profileImage')
+      .select('studentId startedAt violations proctoringLogs status');
+
+    res.json({
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        skillName: exam.skillName,
+        duration: exam.duration,
+        proctoring: exam.proctoring
+      },
+      attempts
+    });
+  } catch (error) {
+    console.error('Error fetching live attempts:', error);
+    res.status(500).json({ message: 'Failed to fetch live attempts' });
+  }
+};
+
 // @desc    Get available exams for student
 // @route   GET /api/exams/available
 // @access  Private
@@ -85,6 +187,8 @@ exports.getTeacherExams = async (req, res) => {
 exports.getAvailableExams = async (req, res) => {
   try {
     const now = new Date();
+    const user = await User.findById(req.user.id).select('email');
+    const userEmail = normalizeEmail(user?.email);
     
     // Get all sessions where this student is the learner
     const sessions = await Session.find({ 
@@ -95,16 +199,37 @@ exports.getAvailableExams = async (req, res) => {
     // Get unique teacher IDs
     const teacherIds = [...new Set(sessions.map(s => s.teacherId.toString()))];
     
-    // Get active exams from those teachers that are within date range
-    const exams = await Exam.find({ 
-      teacherId: { $in: teacherIds },
+    const baseQuery = {
       status: 'active',
       isActive: true,
       availableFrom: { $lte: now },
       availableTo: { $gte: now }
-    })
-    .populate('teacherId', 'name profileImage')
-    .sort('-createdAt');
+    };
+
+    // Exams from teachers the student has sessions with
+    const sessionExams = teacherIds.length > 0
+      ? await Exam.find({
+          ...baseQuery,
+          teacherId: { $in: teacherIds }
+        }).populate('teacherId', 'name profileImage')
+      : [];
+
+    // Exams where this student's email is explicitly allowed
+    const specificExams = userEmail
+      ? await Exam.find({
+          ...baseQuery,
+          'accessControl.type': 'specific',
+          'accessControl.allowedEmails': userEmail
+        }).populate('teacherId', 'name profileImage')
+      : [];
+
+    const examMap = new Map();
+    [...sessionExams, ...specificExams].forEach((exam) => {
+      examMap.set(exam._id.toString(), exam);
+    });
+    const exams = [...examMap.values()].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
     
     // Auto-expire exams that have passed their availableTo date
     const expiredExams = await Exam.find({
@@ -161,20 +286,13 @@ exports.startExam = async (req, res) => {
         message: 'Exam has expired. It is no longer available.' 
       });
     }
-    
-    // Check if student has a session with this teacher
-    const session = await Session.findOne({
-      teacherId: exam.teacherId,
-      learnerId: req.user.id,
-      status: { $in: ['completed', 'scheduled'] }
-    });
-    
-    if (!session) {
-      return res.status(403).json({ 
-        message: 'You can only take exams from teachers you have sessions with' 
-      });
-    }
 
+    const user = await User.findById(req.user.id).select('email name');
+    const accessCheck = await verifyExamAccessRules(exam, user, req.body);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({ message: accessCheck.message });
+    }
+    
     // Check if already passed
     const passedAttempt = await ExamAttempt.findOne({
       examId: exam._id,
@@ -433,9 +551,10 @@ exports.recordViolation = async (req, res) => {
 
     // Validate violation type
     const validTypes = [
-      'tab_switch', 'face_missing', 'screenshot', 'window_resize', 
-      'mouse_leave', 'right_click', 'copy_attempt', 'paste_attempt', 
-      'print_attempt', 'fullscreen_exit', 'camera_denied'
+      'tab_switch', 'face_missing', 'multiple_faces', 'screenshot', 'screenshot_attempt',
+      'window_resize', 'mouse_leave', 'right_click', 'copy_attempt', 'paste_attempt',
+      'copy_shortcut', 'paste_shortcut', 'print_attempt', 'fullscreen_exit',
+      'camera_denied', 'devtools_attempt'
     ];
     
     if (!validTypes.includes(type)) {
@@ -456,6 +575,28 @@ exports.recordViolation = async (req, res) => {
       attempt.status = 'terminated';
       await attempt.save();
       console.log('❌ Exam terminated due to violations');
+
+      try {
+        const io = getIO();
+        const user = await User.findById(req.user.id).select('name email');
+        io.to(`exam-monitor:${req.params.examId}`).emit('exam-violation', {
+          examId: req.params.examId,
+          studentId: req.user.id,
+          studentName: user?.name || 'Student',
+          type,
+          details: details || '',
+          violations: attempt.violations,
+          terminated: true,
+          timestamp: new Date()
+        });
+        io.to(`exam-monitor:${req.params.examId}`).emit('student-proctoring-ended', {
+          examId: req.params.examId,
+          studentId: String(req.user.id)
+        });
+      } catch (socketError) {
+        console.warn('Could not emit termination to monitor room:', socketError.message);
+      }
+
       return res.json({ 
         terminated: true, 
         message: 'Exam terminated due to multiple violations',
@@ -465,6 +606,26 @@ exports.recordViolation = async (req, res) => {
 
     await attempt.save();
     console.log(`⚠️ Violation recorded: ${type} (${attempt.violations}/5)`);
+
+    // Notify teacher monitoring this exam in real time
+    try {
+      const exam = await Exam.findById(req.params.examId).select('teacherId title');
+      if (exam) {
+        const io = getIO();
+        const user = await User.findById(req.user.id).select('name email');
+        io.to(`exam-monitor:${req.params.examId}`).emit('exam-violation', {
+          examId: req.params.examId,
+          studentId: req.user.id,
+          studentName: user?.name || 'Student',
+          type,
+          details: details || '',
+          violations: attempt.violations,
+          timestamp: new Date()
+        });
+      }
+    } catch (socketError) {
+      console.warn('Could not emit violation to monitor room:', socketError.message);
+    }
     
     res.json({ 
       success: true, 
@@ -1126,7 +1287,7 @@ exports.deleteExam = async (req, res) => {
 exports.verifyExamAccess = async (req, res) => {
   try {
     const { examId } = req.params;
-    const { type, passcode, email } = req.body;
+    const { passcode } = req.body;
     
     const exam = await Exam.findById(examId);
     if (!exam) {
@@ -1141,22 +1302,15 @@ exports.verifyExamAccess = async (req, res) => {
         message: 'Exam is not available at this time' 
       });
     }
-    
-    // Verify based on access type
-    if (type === 'passcode') {
-      if (exam.accessControl.passcode !== passcode) {
-        return res.status(403).json({ 
-          allowed: false, 
-          message: 'Invalid passcode' 
-        });
-      }
-    } else if (type === 'specific') {
-      if (!exam.accessControl.allowedEmails.includes(email)) {
-        return res.status(403).json({ 
-          allowed: false, 
-          message: 'You are not authorized to take this exam' 
-        });
-      }
+
+    const user = await User.findById(req.user.id).select('email');
+    const accessCheck = await verifyExamAccessRules(exam, user, { passcode });
+
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        allowed: false,
+        message: accessCheck.message
+      });
     }
     
     res.json({ allowed: true });
@@ -1164,7 +1318,77 @@ exports.verifyExamAccess = async (req, res) => {
     console.error('Error verifying exam access:', error);
     res.status(500).json({ message: 'Failed to verify access' });
   }
-};// backend/controllers/examController.js
+};
+
+// @desc    Update exam (before start time only)
+// @route   PUT /api/exams/:examId
+// @access  Private (Exam owner only)
+exports.updateExam = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to edit this exam' });
+    }
+
+    if (exam.status === 'cancelled' || exam.status === 'expired') {
+      return res.status(400).json({ message: 'Cannot edit a cancelled or expired exam' });
+    }
+
+    const now = new Date();
+    if (now >= exam.availableFrom) {
+      return res.status(400).json({
+        message: 'Cannot edit exam after it has started. Editing is only allowed before the available from time.'
+      });
+    }
+
+    const { availableFrom, availableTo, ...otherData } = req.body;
+
+    if (availableFrom && availableTo) {
+      const fromDate = new Date(availableFrom);
+      const toDate = new Date(availableTo);
+
+      if (fromDate >= toDate) {
+        return res.status(400).json({
+          message: 'Available To date must be after Available From date'
+        });
+      }
+
+      if (toDate <= now) {
+        return res.status(400).json({
+          message: 'Available To date must be in the future'
+        });
+      }
+
+      exam.availableFrom = fromDate;
+      exam.availableTo = toDate;
+    }
+
+    const allowedFields = [
+      'skillName', 'title', 'description', 'duration', 'passingScore',
+      'questions', 'accessControl', 'proctoring'
+    ];
+
+    allowedFields.forEach((field) => {
+      if (otherData[field] !== undefined) {
+        exam[field] = otherData[field];
+      }
+    });
+
+    if (exam.accessControl?.allowedEmails) {
+      exam.accessControl.allowedEmails = exam.accessControl.allowedEmails.map(normalizeEmail);
+    }
+
+    await exam.save();
+    res.json(exam);
+  } catch (error) {
+    console.error('Error updating exam:', error);
+    res.status(500).json({ message: 'Failed to update exam', error: error.message });
+  }
+};
 // Add this function
 
 // @desc    Get exam by ID
@@ -1186,20 +1410,12 @@ exports.getExamById = async (req, res) => {
     
     // Check if user has access to view this exam
     const user = await User.findById(req.user.id);
-    const isTeacher = exam.teacherId._id.toString() === req.user.id;
+    const isTeacher = getTeacherId(exam) === req.user.id;
     const isAdmin = user.role === 'admin';
     
-    // For students, check if they have a session with this teacher
-    let hasAccess = false;
-    if (!isTeacher && !isAdmin) {
-      const session = await Session.findOne({
-        teacherId: exam.teacherId._id,
-        learnerId: req.user.id,
-        status: { $in: ['completed', 'scheduled'] }
-      });
-      hasAccess = !!session;
-    } else {
-      hasAccess = true;
+    let hasAccess = isTeacher || isAdmin;
+    if (!hasAccess) {
+      hasAccess = await canStudentAccessExam(exam, user);
     }
     
     if (!hasAccess) {

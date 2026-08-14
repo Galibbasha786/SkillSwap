@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { useAuth } from './useAuth';
-import toast from 'react-hot-toast';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 
+  (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '');
 
 export const useSocket = () => {
   const { user } = useAuth();
@@ -22,7 +22,8 @@ export const useSocket = () => {
         token: localStorage.getItem('token'),
         userId: user.id
       },
-      transports: ['websocket']
+      transports: ['websocket', 'polling'],
+      withCredentials: true
     });
 
     socketRef.current.on('connect', () => {
@@ -34,32 +35,6 @@ export const useSocket = () => {
     socketRef.current.on('disconnect', () => {
       console.log('Socket disconnected');
       setIsConnected(false);
-    });
-
-    socketRef.current.on('incoming-call', (data) => {
-      toast.custom((t) => (
-        <div className={`bg-white rounded-lg shadow-lg p-4 max-w-sm ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <h3 className="font-semibold text-gray-900">Incoming Call</h3>
-          <p className="text-gray-600">Someone is calling you...</p>
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                // Accept call logic
-              }}
-              className="flex-1 bg-green-500 text-white py-2 rounded-lg hover:bg-green-600"
-            >
-              Accept
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
-            >
-              Decline
-            </button>
-          </div>
-        </div>
-      ), { duration: 30000 });
     });
 
     return () => {
