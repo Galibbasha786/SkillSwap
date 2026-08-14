@@ -18,7 +18,8 @@ const getAllowedOrigins = () => {
     'http://localhost:5173',
     'http://localhost:5174',
     process.env.CLIENT_URL,
-    process.env.CLIENT_URLS
+    process.env.CLIENT_URLS,
+    process.env.ALLOWED_ORIGINS
   ]
     .flatMap(value => (value || '').split(','))
     .map(value => normalizeOrigin(value.trim()))

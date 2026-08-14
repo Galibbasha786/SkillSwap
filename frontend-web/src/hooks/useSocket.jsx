@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { useAuth } from './useAuth';
-
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 
-  (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '');
+import { getSocketUrl, getSocketOptions } from '../utils/socketConfig';
 
 export const useSocket = () => {
   const { user } = useAuth();
@@ -16,24 +14,23 @@ export const useSocket = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Initialize socket connection
-    socketRef.current = io(SOCKET_URL, {
-      auth: {
-        token: localStorage.getItem('token'),
-        userId: user.id
-      },
-      transports: ['websocket', 'polling'],
-      withCredentials: true
-    });
+    const socketUrl = getSocketUrl();
+    socketRef.current = io(socketUrl, getSocketOptions(user.id));
 
     socketRef.current.on('connect', () => {
       console.log('Socket connected');
+      socketRef.current.emit('register-user', String(user.id));
       setIsConnected(true);
       setSocket(socketRef.current);
     });
 
     socketRef.current.on('disconnect', () => {
       console.log('Socket disconnected');
+      setIsConnected(false);
+    });
+
+    socketRef.current.on('connect_error', (error) => {
+      console.error('Socket connection error:', error.message || error);
       setIsConnected(false);
     });
 

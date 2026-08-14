@@ -209,7 +209,14 @@ const Messages = () => {
       setShowVideoCall(true);
     } catch (error) {
       console.error('Error starting call:', error);
-      toast.error('Could not start call. Please check camera/microphone permissions.');
+      const message = error?.message || 'Could not start call';
+      if (message.toLowerCase().includes('connect')) {
+        toast.error('Realtime server not connected. Redeploy frontend with correct VITE_API_URL and set backend CLIENT_URL to your site URL.');
+      } else {
+        toast.error(message.includes('camera') || message.includes('microphone')
+          ? message
+          : 'Could not start call. Please check camera/microphone permissions.');
+      }
     }
   };
 

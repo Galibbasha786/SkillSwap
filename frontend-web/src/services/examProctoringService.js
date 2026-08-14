@@ -2,6 +2,7 @@
 
 import SimplePeer from 'simple-peer';
 import io from 'socket.io-client';
+import { getSocketUrl, getSocketOptions, waitForSocketConnection } from '../utils/socketConfig';
 
 class ExamProctoringService {
   constructor() {
@@ -39,38 +40,49 @@ class ExamProctoringService {
 
   connect(userId) {
     this.userId = String(userId);
-
-    if (this.socket?.connected) return;
+    const token = localStorage.getItem('token');
 
     if (this.socket) {
+      this.socket.auth = { token, userId: this.userId };
+      if (this.socket.connected) {
+        this.socket.emit('register-user', this.userId);
+        return;
+      }
       this.socket.connect();
       return;
     }
 
-    const socketUrl = import.meta.env.VITE_SOCKET_URL ||
-      (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '');
-    const token = localStorage.getItem('token');
+    const socketUrl = getSocketUrl();
+    console.log('🔌 Proctoring socket connecting to:', socketUrl);
 
-    this.socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      auth: { token, userId: this.userId },
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
-    });
+    this.socket = io(socketUrl, getSocketOptions(this.userId));
 
     this.socket.on('connect', () => {
+      console.log('✅ Proctoring socket connected:', this.socket.id);
+      this.socket.emit('register-user', this.userId);
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('Proctoring socket connection error:', error.message || error);
+    });
+
+    this.socket.on('reconnect', () => {
       this.socket.emit('register-user', this.userId);
     });
   }
 
   whenConnected(callback) {
-    if (this.socket?.connected) {
-      callback();
+    if (!this.socket) {
+      console.warn('Proctoring socket not initialized');
       return;
     }
-    this.socket?.once('connect', callback);
+
+    waitForSocketConnection(this.socket)
+      .then(() => callback())
+      .catch((error) => {
+        console.error('Proctoring socket failed to connect:', error.message || error);
+        this.callbacks.onError?.(error);
+      });
   }
 
   startStudentStream({ userId, examId, studentName, stream, callbacks = {} }) {

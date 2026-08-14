@@ -2,6 +2,7 @@
 
 import SimplePeer from 'simple-peer';
 import io from 'socket.io-client';
+import { getSocketUrl, getSocketOptions, waitForSocketConnection } from '../utils/socketConfig';
 
 class WebRTCService {
   constructor() {
@@ -41,40 +42,53 @@ class WebRTCService {
   }
 
   // Initialize socket connection
-  init(userId, callbacks) {
-    this.onIncomingCall = callbacks.onIncomingCall;
-    this.onCallAccepted = callbacks.onCallAccepted;
-    this.onRemoteStream = callbacks.onRemoteStream;
-    this.onCallEnd = callbacks.onCallEnd;
-    this.onCallReaction = callbacks.onCallReaction;
+  init(userId, callbacks = {}) {
+    if (callbacks.onIncomingCall) this.onIncomingCall = callbacks.onIncomingCall;
+    if (callbacks.onCallAccepted) this.onCallAccepted = callbacks.onCallAccepted;
+    if (callbacks.onRemoteStream) this.onRemoteStream = callbacks.onRemoteStream;
+    if (callbacks.onCallEnd) this.onCallEnd = callbacks.onCallEnd;
+    if (callbacks.onCallReaction) this.onCallReaction = callbacks.onCallReaction;
 
-    if (this.isInitialized) {
-      console.log('WebRTC already initialized');
+    const normalizedUserId = String(userId);
+
+    if (this.socket) {
+      this.socket.auth = {
+        token: localStorage.getItem('token'),
+        userId: normalizedUserId
+      };
+
+      if (this.socket.connected) {
+        this.socket.emit('register-user', normalizedUserId);
+        this.isInitialized = true;
+        return;
+      }
+
+      this.socket.connect();
       return;
     }
-    
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 
-      (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '');
-    const token = localStorage.getItem('token');
+
+    const socketUrl = getSocketUrl();
 
     console.log('🔌 Connecting to socket server:', socketUrl);
-    console.log('👤 User ID:', userId);
-    
-    this.socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      auth: { token, userId },
-      withCredentials: true
-    });
+    console.log('👤 User ID:', normalizedUserId);
+
+    this.socket = io(socketUrl, getSocketOptions(normalizedUserId));
 
     this.socket.on('connect', () => {
       console.log('✅ Socket connected:', this.socket.id);
-      this.socket.emit('register-user', userId);
+      this.socket.emit('register-user', normalizedUserId);
       this.isInitialized = true;
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('❌ Socket disconnected');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket disconnected:', reason);
       this.isInitialized = false;
+    });
+
+    this.socket.on('reconnect', () => {
+      console.log('🔁 Socket reconnected:', this.socket.id);
+      this.socket.emit('register-user', normalizedUserId);
+      this.isInitialized = true;
     });
 
     this.socket.on('incoming-call', ({ from, callerName, signal, isVideo }) => {
@@ -122,8 +136,18 @@ class WebRTCService {
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+      console.error('Socket connection error:', error.message || error);
+      this.isInitialized = false;
     });
+  }
+
+  async ensureConnected() {
+    if (!this.socket) {
+      throw new Error('Realtime service not initialized');
+    }
+
+    await waitForSocketConnection(this.socket);
+    return this.socket;
   }
 
   // Check if socket is connected
@@ -194,11 +218,9 @@ class WebRTCService {
   async startCall(targetUserId, callerName, isVideo = true) {
     try {
       console.log('📞 Starting call to:', targetUserId, 'Video:', isVideo);
+
+      await this.ensureConnected();
       console.log('Socket connected:', this.isSocketConnected());
-      
-      if (!this.isSocketConnected()) {
-        throw new Error('Not connected to server');
-      }
       
       const mediaStatus = await this.checkMediaDevices();
       if (!mediaStatus.available) {
@@ -244,6 +266,8 @@ class WebRTCService {
   async acceptCall(from, signal, isVideo = true) {
     try {
       console.log('✅ Accepting call from:', from, 'Video:', isVideo);
+
+      await this.ensureConnected();
       
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: isVideo,
