@@ -31,7 +31,7 @@ const VerifyCertificate = () => {
 
   const handleDownload = async () => {
     try {
-      const response = await certificateAPI.downloadCertificate(certificateId);
+      const response = await certificateAPI.downloadPublicCertificate(certificateId);
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

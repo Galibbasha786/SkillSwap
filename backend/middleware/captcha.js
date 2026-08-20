@@ -42,6 +42,11 @@ const verifyCaptcha = async (captchaToken) => {
  */
 const captchaMiddleware = async (req, res, next) => {
   try {
+    if (!process.env.RECAPTCHA_SECRET_KEY) {
+      console.warn('⚠️ RECAPTCHA_SECRET_KEY not set — skipping CAPTCHA verification');
+      return next();
+    }
+
     const { captchaToken } = req.body;
 
     if (!captchaToken) {

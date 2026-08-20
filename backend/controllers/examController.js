@@ -9,11 +9,33 @@ const QRCode = require('qrcode');
 const crypto = require('crypto');
 const Session = require('../models/Session');
 const { getLogoBase64 } = require('../utils/logoUtil');
-const { getIO } = require('../socket');
+const { getIO, forceEndStudentProctoring } = require('../socket');
 const fs = require('fs');
 const { executeCode } = require('../services/codeExecutionService');
 
 const normalizeEmail = (email) => (email || '').trim().toLowerCase();
+
+const TEACHER_REMOVAL_LOG = 'Removed from exam by teacher';
+const MAX_TEACHER_REMOVALS = 3;
+
+const countTeacherRemovals = async (examId, studentId) =>
+  ExamAttempt.countDocuments({
+    examId,
+    studentId,
+    proctoringLogs: { $elemMatch: { details: TEACHER_REMOVAL_LOG } }
+  });
+
+const finalizeAttemptScore = (attempt, exam) => {
+  const totalMarks = exam.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+  const percentage = totalMarks > 0 ? (attempt.obtainedMarks / totalMarks) * 100 : 0;
+  const passed = percentage >= exam.passingScore;
+  attempt.totalMarks = totalMarks;
+  attempt.percentage = percentage;
+  attempt.passed = passed;
+  attempt.status = passed ? 'passed' : 'failed';
+  attempt.endTime = new Date();
+  return { percentage, passed, totalMarks };
+};
 
 const getTeacherId = (exam) => {
   const teacher = exam.teacherId;
@@ -72,6 +94,55 @@ const verifyExamAccessRules = async (exam, user, { passcode } = {}) => {
   return { allowed: true };
 };
 
+const Notification = require('../models/Notification');
+
+const getEligibleStudentUsers = async (exam) => {
+  const studentMap = new Map();
+  const accessType = exam.accessControl?.type || 'all';
+  const teacherId = getTeacherId(exam);
+
+  if (accessType === 'specific') {
+    for (const email of exam.accessControl?.allowedEmails || []) {
+      const student = await User.findOne({ email: normalizeEmail(email) }).select('_id name email');
+      if (student) studentMap.set(student._id.toString(), student);
+    }
+    return Array.from(studentMap.values());
+  }
+
+  const sessions = await Session.find({
+    teacherId,
+    status: { $in: ['completed', 'scheduled'] }
+  }).populate('learnerId', 'name email');
+
+  sessions.forEach((session) => {
+    if (session.learnerId) {
+      studentMap.set(session.learnerId._id.toString(), session.learnerId);
+    }
+  });
+
+  return Array.from(studentMap.values());
+};
+
+const notifyEligibleStudents = async (exam, { type, title, message, data = {} }) => {
+  const students = await getEligibleStudentUsers(exam);
+  for (const student of students) {
+    const notification = await Notification.create({
+      userId: student._id,
+      type,
+      title,
+      message,
+      data: { examId: exam._id, examTitle: exam.title, skillName: exam.skillName, ...data }
+    });
+    try {
+      const io = getIO();
+      io?.to(`user:${student._id}`).emit('new-notification', notification);
+    } catch {
+      // ignore socket errors
+    }
+  }
+  return students.length;
+};
+
 // @desc    Create exam
 // @route   POST /api/exams
 // @access  Private (Teacher only)
@@ -122,6 +193,15 @@ exports.createExam = async (req, res) => {
     
     const exam = await Exam.create(examData);
     console.log('✅ Exam created successfully:', exam._id);
+
+    const fromLabel = fromDate.toLocaleString();
+    const toLabel = toDate.toLocaleString();
+    await notifyEligibleStudents(exam, {
+      type: 'exam_created',
+      title: `New Exam: ${exam.title}`,
+      message: `Your teacher scheduled "${exam.title}" for ${exam.skillName}. Exam window: ${fromLabel} to ${toLabel}.`,
+      data: { availableFrom: exam.availableFrom, availableTo: exam.availableTo }
+    });
     
     res.status(201).json(exam);
   } catch (error) {
@@ -161,7 +241,7 @@ exports.getLiveAttempts = async (req, res) => {
       status: 'in_progress'
     })
       .populate('studentId', 'name email profileImage')
-      .select('studentId startedAt violations proctoringLogs status');
+      .select('studentId startTime violations proctoringLogs status');
 
     res.json({
       exam: {
@@ -169,13 +249,179 @@ exports.getLiveAttempts = async (req, res) => {
         title: exam.title,
         skillName: exam.skillName,
         duration: exam.duration,
-        proctoring: exam.proctoring
+        proctoring: exam.proctoring,
+        availableFrom: exam.availableFrom,
+        availableTo: exam.availableTo
       },
       attempts
     });
   } catch (error) {
     console.error('Error fetching live attempts:', error);
     res.status(500).json({ message: 'Failed to fetch live attempts' });
+  }
+};
+
+// @desc    Get exam results for teacher (all finished attempts)
+// @route   GET /api/exams/:examId/results
+// @access  Private (Exam owner only)
+exports.getExamResults = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to view results' });
+    }
+
+    const attempts = await ExamAttempt.find({
+      examId: req.params.examId,
+      status: { $in: ['passed', 'failed', 'terminated', 'completed'] }
+    })
+      .populate('studentId', 'name email profileImage')
+      .sort({ endTime: -1, updatedAt: -1 });
+
+    const enriched = attempts.map((attempt) => {
+      const logs = attempt.proctoringLogs || [];
+      const tabSwitches = logs.filter((l) => l.type === 'tab_switch').length;
+      const faceMissing = logs.filter((l) => l.type === 'face_missing').length;
+      const multipleFaces = logs.filter((l) => l.type === 'multiple_faces').length;
+      const fullscreenExit = logs.filter((l) => l.type === 'fullscreen_exit').length;
+      const copyPaste = logs.filter((l) =>
+        ['copy_attempt', 'paste_attempt', 'copy_shortcut', 'paste_shortcut'].includes(l.type)
+      ).length;
+
+      return {
+        _id: attempt._id,
+        studentId: attempt.studentId?._id || attempt.studentId,
+        studentName: attempt.studentId?.name || 'Unknown',
+        studentEmail: attempt.studentId?.email || '',
+        profileImage: attempt.studentId?.profileImage,
+        status: attempt.status,
+        passed: attempt.passed,
+        percentage: attempt.percentage,
+        obtainedMarks: attempt.obtainedMarks,
+        totalMarks: attempt.totalMarks,
+        violations: attempt.violations || 0,
+        tabSwitches,
+        faceMissing,
+        multipleFaces,
+        fullscreenExit,
+        copyPaste,
+        proctoringLogs: logs,
+        startTime: attempt.startTime,
+        endTime: attempt.endTime,
+        certificateId: attempt.certificateId
+      };
+    });
+
+    res.json({
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        skillName: exam.skillName,
+        passingScore: exam.passingScore,
+        duration: exam.duration,
+        availableTo: exam.availableTo,
+        resultsPublished: exam.resultsPublished,
+        resultsPublishedAt: exam.resultsPublishedAt
+      },
+      attempts: enriched,
+      summary: {
+        total: enriched.length,
+        passed: enriched.filter((a) => a.passed).length,
+        failed: enriched.filter((a) => !a.passed && a.status !== 'terminated').length,
+        terminated: enriched.filter((a) => a.status === 'terminated').length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching exam results:', error);
+    res.status(500).json({ message: 'Failed to fetch exam results' });
+  }
+};
+
+// @desc    Publish exam results — notify each student with their own marks
+// @route   POST /api/exams/:examId/publish-results
+// @access  Private (Exam owner only)
+exports.publishExamResults = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to publish results' });
+    }
+
+    const attempts = await ExamAttempt.find({
+      examId: req.params.examId,
+      status: { $in: ['passed', 'failed', 'terminated', 'completed'] }
+    }).populate('studentId', 'name email');
+
+    if (attempts.length === 0) {
+      return res.status(400).json({ message: 'No completed attempts to publish' });
+    }
+
+    exam.resultsPublished = true;
+    exam.resultsPublishedAt = new Date();
+    await exam.save();
+
+    const Notification = require('../models/Notification');
+    const { getIO } = require('../socket');
+    let io;
+    try {
+      io = getIO();
+    } catch {
+      io = null;
+    }
+
+    const notifications = [];
+
+    for (const attempt of attempts) {
+      const student = attempt.studentId;
+      if (!student?._id) continue;
+
+      const scoreText = attempt.status === 'terminated'
+        ? 'Exam terminated due to proctoring violations'
+        : `Score: ${(attempt.percentage || 0).toFixed(1)}% — ${attempt.passed ? 'Passed' : 'Failed'}`;
+
+      const notification = await Notification.create({
+        userId: student._id,
+        type: 'exam_results_published',
+        title: `Results published: ${exam.title}`,
+        message: `${scoreText}. Violations: ${attempt.violations || 0}.`,
+        data: {
+          examId: exam._id,
+          examTitle: exam.title,
+          skillName: exam.skillName,
+          attemptId: attempt._id,
+          percentage: attempt.percentage,
+          passed: attempt.passed,
+          violations: attempt.violations,
+          status: attempt.status,
+          obtainedMarks: attempt.obtainedMarks,
+          totalMarks: attempt.totalMarks
+        }
+      });
+
+      notifications.push(notification);
+
+      if (io) {
+        io.to(`user:${student._id}`).emit('new-notification', notification);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Results published to ${notifications.length} student(s)`,
+      resultsPublished: true,
+      notifiedCount: notifications.length
+    });
+  } catch (error) {
+    console.error('Error publishing exam results:', error);
+    res.status(500).json({ message: 'Failed to publish results' });
   }
 };
 
@@ -230,6 +476,42 @@ exports.getAvailableExams = async (req, res) => {
     const exams = [...examMap.values()].sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
+
+    const examIds = exams.map((e) => e._id);
+    const attempts = await ExamAttempt.find({
+      examId: { $in: examIds },
+      studentId: req.user.id
+    }).sort('-createdAt');
+
+    const attemptByExam = new Map();
+    attempts.forEach((attempt) => {
+      const key = attempt.examId.toString();
+      if (!attemptByExam.has(key)) attemptByExam.set(key, attempt);
+    });
+
+    const enriched = exams.map((exam) => {
+      const attempt = attemptByExam.get(exam._id.toString());
+      const examAttempts = attempts.filter((a) => a.examId.toString() === exam._id.toString());
+      const totalAttempts = examAttempts.length;
+      const teacherRemovals = examAttempts.filter((a) =>
+        (a.proctoringLogs || []).some((log) => log.details === TEACHER_REMOVAL_LOG)
+      ).length;
+      const lockedByRemovals = teacherRemovals >= MAX_TEACHER_REMOVALS;
+      return {
+        ...exam.toObject(),
+        studentAttempt: attempt
+          ? {
+              status: attempt.status,
+              passed: attempt.passed,
+              percentage: attempt.percentage,
+              canRetake: !lockedByRemovals &&
+                !attempt.passed &&
+                attempt.status !== 'in_progress' &&
+                totalAttempts < (exam.proctoring?.allowedAttempts || 3)
+            }
+          : { status: null, canRetake: !lockedByRemovals }
+      };
+    });
     
     // Auto-expire exams that have passed their availableTo date
     const expiredExams = await Exam.find({
@@ -244,10 +526,130 @@ exports.getAvailableExams = async (req, res) => {
       console.log(`📅 Exam ${expiredExam.title} expired automatically`);
     }
     
-    res.json(exams);
+    res.json(enriched);
   } catch (error) {
     console.error('Error fetching available exams:', error);
     res.status(500).json({ message: 'Failed to fetch exams' });
+  }
+};
+
+// @desc    Reschedule exam (update window + notify students)
+// @route   POST /api/exams/:examId/reschedule
+exports.rescheduleExam = async (req, res) => {
+  try {
+    const { reason, availableFrom, availableTo } = req.body;
+
+    if (!reason?.trim()) {
+      return res.status(400).json({ message: 'Reschedule reason is required' });
+    }
+    if (!availableFrom || !availableTo) {
+      return res.status(400).json({ message: 'New exam dates are required' });
+    }
+
+    const fromDate = new Date(availableFrom);
+    const toDate = new Date(availableTo);
+
+    if (fromDate >= toDate) {
+      return res.status(400).json({ message: 'End time must be after start time' });
+    }
+
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    exam.availableFrom = fromDate;
+    exam.availableTo = toDate;
+    exam.status = 'active';
+    exam.isActive = true;
+    exam.cancellationReason = reason.trim();
+    await exam.save();
+
+    const fromLabel = fromDate.toLocaleString();
+    const toLabel = toDate.toLocaleString();
+    const count = await notifyEligibleStudents(exam, {
+      type: 'exam_rescheduled',
+      title: `Exam Rescheduled: ${exam.title}`,
+      message: `"${exam.title}" has been rescheduled. New window: ${fromLabel} to ${toLabel}. Reason: ${reason.trim()}`,
+      data: { availableFrom: fromDate, availableTo: toDate, reason: reason.trim() }
+    });
+
+    res.json({
+      success: true,
+      message: `Exam rescheduled. ${count} student(s) notified.`,
+      exam
+    });
+  } catch (error) {
+    console.error('Error rescheduling exam:', error);
+    res.status(500).json({ message: 'Failed to reschedule exam' });
+  }
+};
+
+// @desc    Remove student from live exam (0 marks)
+// @route   POST /api/exams/:examId/remove-student/:studentId
+exports.removeStudentFromExam = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const studentId = String(req.params.studentId);
+    const priorRemovals = await countTeacherRemovals(exam._id, studentId);
+    const removalNumber = priorRemovals + 1;
+    const isFinalRemoval = removalNumber >= MAX_TEACHER_REMOVALS;
+
+    const attempt = await ExamAttempt.findOne({
+      examId: exam._id,
+      studentId,
+      status: 'in_progress'
+    });
+
+    let finalScore = null;
+
+    if (attempt) {
+      attempt.proctoringLogs.push({
+        type: 'devtools_attempt',
+        details: TEACHER_REMOVAL_LOG,
+        timestamp: new Date()
+      });
+
+      if (isFinalRemoval) {
+        const { percentage, passed } = finalizeAttemptScore(attempt, exam);
+        finalScore = { percentage, passed, obtainedMarks: attempt.obtainedMarks };
+      } else {
+        attempt.obtainedMarks = 0;
+        attempt.percentage = 0;
+        attempt.passed = false;
+        attempt.status = 'terminated';
+        attempt.endTime = new Date();
+      }
+
+      await attempt.save();
+    }
+
+    const forceMessage = isFinalRemoval
+      ? (finalScore
+        ? `You were removed ${MAX_TEACHER_REMOVALS} times. Your final score is ${finalScore.percentage.toFixed(1)}%.`
+        : `You were removed ${MAX_TEACHER_REMOVALS} times. Your exam access is now locked.`)
+      : `You were removed from the exam by your teacher (${removalNumber}/${MAX_TEACHER_REMOVALS}).`;
+
+    forceEndStudentProctoring(exam._id, studentId, forceMessage);
+
+    res.json({
+      success: true,
+      removalNumber,
+      isFinalRemoval,
+      finalScore,
+      message: isFinalRemoval
+        ? `Student removed ${MAX_TEACHER_REMOVALS} times — last score recorded as final`
+        : `Student removed (${removalNumber}/${MAX_TEACHER_REMOVALS})`
+    });
+  } catch (error) {
+    console.error('Error removing student:', error);
+    res.status(500).json({ message: 'Failed to remove student' });
   }
 };
 
@@ -306,6 +708,19 @@ exports.startExam = async (req, res) => {
         passed: true,
         percentage: passedAttempt.percentage,
         certificateId: passedAttempt.certificateId
+      });
+    }
+
+    const teacherRemovals = await countTeacherRemovals(exam._id, req.user.id);
+    if (teacherRemovals >= MAX_TEACHER_REMOVALS) {
+      const lastAttempt = await ExamAttempt.findOne({
+        examId: exam._id,
+        studentId: req.user.id
+      }).sort('-updatedAt');
+      return res.status(403).json({
+        message: `You were removed ${MAX_TEACHER_REMOVALS} times. Your last score of ${(lastAttempt?.percentage || 0).toFixed(1)}% is final.`,
+        locked: true,
+        percentage: lastAttempt?.percentage || 0
       });
     }
     
@@ -511,6 +926,17 @@ exports.finishExam = async (req, res) => {
     }
 
     console.log(`✅ Exam finished: ${passed ? 'PASSED' : 'FAILED'} - ${percentage.toFixed(2)}%`);
+
+    try {
+      const { getIO } = require('../socket');
+      const io = getIO();
+      io.to(`exam-monitor:${req.params.examId}`).emit('student-proctoring-ended', {
+        examId: String(req.params.examId),
+        studentId: String(req.user.id)
+      });
+    } catch (socketError) {
+      console.warn('Could not emit proctoring end on finish:', socketError.message);
+    }
     
     res.json({ 
       passed, 
@@ -554,7 +980,7 @@ exports.recordViolation = async (req, res) => {
       'tab_switch', 'face_missing', 'multiple_faces', 'screenshot', 'screenshot_attempt',
       'window_resize', 'mouse_leave', 'right_click', 'copy_attempt', 'paste_attempt',
       'copy_shortcut', 'paste_shortcut', 'print_attempt', 'fullscreen_exit',
-      'camera_denied', 'devtools_attempt'
+      'camera_denied', 'screen_denied', 'devtools_attempt'
     ];
     
     if (!validTypes.includes(type)) {
@@ -648,16 +1074,7 @@ const generateCertificate = async (exam, attempt, user) => {
     
     // Generate QR Code
     const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify/${certificateId}`;
-    const qrData = JSON.stringify({
-      certificateId,
-      student: user.name,
-      skill: exam.skillName,
-      date: new Date().toISOString(),
-      score: attempt.percentage,
-      verifyUrl: verificationUrl
-    });
-    
-    const qrCode = await QRCode.toDataURL(qrData);
+    const qrCode = await QRCode.toDataURL(verificationUrl);
     
     // Create PDF
     const doc = new PDFDocument({
@@ -881,7 +1298,7 @@ const generateCertificate = async (exam, attempt, user) => {
       .text(`Issue Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, margin + 30, footerY + 30);
     
     // Right - QR Code
-    const qrImage = await QRCode.toBuffer(qrData);
+    const qrImage = await QRCode.toBuffer(verificationUrl);
     doc.image(qrImage, pageWidth - margin - 90, footerY - 10, { width: 70 });
     
     // Center - Signature
@@ -1122,53 +1539,15 @@ exports.cancelExam = async (req, res) => {
     exam.cancelledBy = req.user.id;
     exam.isActive = false;
     await exam.save();
-    
-    // Find all students who have sessions with this teacher (eligible for exam)
-    const sessions = await Session.find({
-      teacherId: req.user.id,
-      status: { $in: ['completed', 'scheduled'] }
-    }).populate('learnerId', 'name email');
-    
-    // Get unique students
-    const studentMap = new Map();
-    for (const session of sessions) {
-      if (session.learnerId && !studentMap.has(session.learnerId._id.toString())) {
-        studentMap.set(session.learnerId._id.toString(), session.learnerId);
-      }
-    }
-    const students = Array.from(studentMap.values());
-    
-    // Send notifications to all eligible students
-    const { getIO } = require('../socket');
-    const Notification = require('../models/Notification');
-    
-    for (const student of students) {
-      // Create notification in database
-      const notification = await Notification.create({
-        userId: student._id,
-        type: 'exam_cancelled',
-        title: `Exam Cancelled: ${exam.title}`,
-        message: `The exam "${exam.title}" for ${exam.skillName} has been cancelled. Reason: ${reason}`,
-        data: {
-          examId: exam._id,
-          examTitle: exam.title,
-          skillName: exam.skillName,
-          reason: reason
-        }
-      });
-      
-      // Send real-time notification via socket
-      try {
-        const io = getIO();
-        if (io) {
-          io.to(`user:${student._id}`).emit('new-notification', notification);
-        }
-      } catch (socketError) {
-        console.log('Socket not available for real-time notification');
-      }
-    }
-    
-    console.log(`✅ Exam ${exam._id} cancelled. Notifications sent to ${students.length} students`);
+
+    const count = await notifyEligibleStudents(exam, {
+      type: 'exam_cancelled',
+      title: `Exam Cancelled: ${exam.title}`,
+      message: `The exam "${exam.title}" for ${exam.skillName} has been cancelled. Reason: ${reason}`,
+      data: { reason }
+    });
+
+    console.log(`✅ Exam ${exam._id} cancelled. Notifications sent to ${count} students`);
     
     res.json({
       success: true,
@@ -1474,7 +1853,8 @@ exports.runCode = async (req, res) => {
     res.json({
       success: true,
       output,
-      testResults: results
+      testResults: results,
+      results
     });
   } catch (error) {
     console.error('Error running code:', error);
@@ -1586,5 +1966,140 @@ exports.submitCoding = async (req, res) => {
   } catch (error) {
     console.error('Error submitting coding solution:', error);
     res.status(500).json({ message: 'Failed to submit solution', error: error.message });
+  }
+};
+
+// @desc    Get exam for practice mode (no proctoring, no attempt)
+// @route   GET /api/exams/:examId/practice
+exports.getPracticeExam = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId).populate('teacherId', 'name profileImage');
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+
+    const user = await User.findById(req.user.id);
+    const isTeacher = getTeacherId(exam) === req.user.id;
+    const hasAccess = isTeacher || user.role === 'admin' || (await canStudentAccessExam(exam, user));
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'You do not have access to this exam' });
+    }
+
+    const examObj = exam.toObject();
+    examObj.questions = examObj.questions.map((q) => {
+      const base = {
+        _id: q._id,
+        type: q.type,
+        question: q.question,
+        marks: q.marks
+      };
+      if (q.type === 'mcq') {
+        base.options = q.options;
+      }
+      if (q.type === 'coding' && q.coding) {
+        base.coding = {
+          programmingLanguage: q.coding.programmingLanguage,
+          initialCode: q.coding.initialCode,
+          functionName: q.coding.functionName,
+          testCases: (q.coding.testCases || []).filter((t) => !t.isHidden),
+          timeLimit: q.coding.timeLimit,
+          memoryLimit: q.coding.memoryLimit
+        };
+      }
+      return base;
+    });
+
+    res.json({ success: true, exam: examObj, practiceMode: true });
+  } catch (error) {
+    console.error('Error loading practice exam:', error);
+    res.status(500).json({ message: 'Failed to load practice exam' });
+  }
+};
+
+// @desc    Grade practice attempt (does not create ExamAttempt)
+// @route   POST /api/exams/:examId/practice/submit
+exports.submitPractice = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+
+    const user = await User.findById(req.user.id);
+    const hasAccess = getTeacherId(exam) === req.user.id || user.role === 'admin' || (await canStudentAccessExam(exam, user));
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'You do not have access to this exam' });
+    }
+
+    const submitted = req.body.answers || [];
+    let obtainedMarks = 0;
+    const totalMarks = exam.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+    const breakdown = [];
+
+    for (const q of exam.questions) {
+      const entry = submitted.find((a) => String(a.questionId) === String(q._id));
+      const userAnswer = entry?.answer || '';
+      let isCorrect = false;
+      let marksObtained = 0;
+      let correctAnswer = null;
+      let feedback = '';
+
+      if (q.type === 'mcq') {
+        isCorrect = userAnswer === q.correctAnswer;
+        correctAnswer = q.correctAnswer;
+        marksObtained = isCorrect ? q.marks : 0;
+      } else if (q.type === 'theory' || q.type === 'viva') {
+        const keywords = q.keywords || [];
+        if (keywords.length) {
+          const answerLower = String(userAnswer).toLowerCase();
+          const matched = keywords.filter((k) => answerLower.includes(k.toLowerCase()));
+          isCorrect = matched.length >= Math.ceil(keywords.length * 0.6);
+          correctAnswer = keywords.join(', ');
+          feedback = isCorrect
+            ? 'Good keyword coverage'
+            : `Try mentioning: ${keywords.join(', ')}`;
+        } else {
+          isCorrect = String(userAnswer).trim().length >= 20;
+          feedback = isCorrect ? 'Detailed answer' : 'Try a longer, more detailed answer';
+        }
+        marksObtained = isCorrect ? q.marks : 0;
+      } else if (q.type === 'coding' && q.coding?.testCases?.length && userAnswer) {
+        const testResults = await executeCode(
+          userAnswer,
+          q.coding.programmingLanguage,
+          q.coding.testCases,
+          q.coding.functionName
+        );
+        const passed = testResults.filter((r) => r.passed).length;
+        const total = testResults.length;
+        isCorrect = passed === total && total > 0;
+        marksObtained = total ? (passed / total) * q.marks : 0;
+        feedback = `${passed}/${total} test cases passed`;
+      }
+
+      obtainedMarks += marksObtained;
+      breakdown.push({
+        questionId: q._id,
+        question: q.question,
+        type: q.type,
+        userAnswer: String(userAnswer).slice(0, 500),
+        correctAnswer,
+        isCorrect,
+        marksObtained,
+        feedback
+      });
+    }
+
+    const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+
+    res.json({
+      success: true,
+      obtainedMarks,
+      totalMarks,
+      percentage,
+      passingScore: exam.passingScore,
+      passed: percentage >= exam.passingScore,
+      breakdown
+    });
+  } catch (error) {
+    console.error('Error grading practice:', error);
+    res.status(500).json({ message: 'Failed to grade practice' });
   }
 };

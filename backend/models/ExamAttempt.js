@@ -80,6 +80,7 @@ const examAttemptSchema = new mongoose.Schema({
         'print_attempt',
         'fullscreen_exit',
         'camera_denied',
+        'screen_denied',
         'devtools_attempt'
       ],
       required: true

@@ -63,9 +63,13 @@ api.interceptors.response.use(
       toast.error(message);
       
       if (error.response.status === 401) {
+        const code = error.response.data?.code;
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: { code } }));
+        if (code === 'SESSION_REPLACED') {
+          toast.error('Logged out — your account was used on another device.');
+        }
       }
     } else if (error.request) {
       console.error('❌ Network Error - No Response:', {
@@ -200,16 +204,28 @@ export const examAPI = {
   getTeacherExams: () => api.get('/exams/teacher'),
   getAvailableExams: () => api.get('/exams/available'),
   getLiveAttempts: (examId) => api.get(`/exams/${examId}/live-attempts`),
+  getExamResults: (examId) => api.get(`/exams/${examId}/results`),
+  publishExamResults: (examId) => api.post(`/exams/${examId}/publish-results`),
   getExamById: (examId) => api.get(`/exams/${examId}`), // ✅ ADD THIS - Missing!
   startExam: (examId, data = {}) => api.post(`/exams/${examId}/start`, data),
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
   finishExam: (examId) => api.post(`/exams/${examId}/finish`),
   recordViolation: (examId, violation) => api.post(`/exams/${examId}/violation`, violation),
   cancelExam: (examId, data) => api.post(`/exams/${examId}/cancel`, data),
+  rescheduleExam: (examId, data) => api.post(`/exams/${examId}/reschedule`, data),
+  removeStudentFromExam: (examId, studentId) => api.post(`/exams/${examId}/remove-student/${studentId}`),
   deleteExam: (examId) => api.delete(`/exams/${examId}`),
   verifyExamAccess: (examId, data) => api.post(`/exams/${examId}/verify-access`, data), // ✅ ADD THIS for access control
-  runCode: (examId, data) => api.post(`/exams/${examId}/run-code`, data),
+  runCode: (examId, data) =>
+    api.post(`/exams/${examId}/run-code`, data, { timeout: 30000 }),
   submitCoding: (examId, data) => api.post(`/exams/${examId}/submit-coding`, data),
+  getPracticeExam: (examId) => api.get(`/exams/${examId}/practice`),
+  submitPractice: (examId, data) => api.post(`/exams/${examId}/practice/submit`, data),
+};
+
+export const compilerAPI = {
+  getLanguages: () => api.get('/compiler/languages'),
+  run: (data) => api.post('/compiler/run', data, { timeout: 30000 }),
 };
 
 // ==================== CERTIFICATE APIs ====================
@@ -219,6 +235,9 @@ export const certificateAPI = {
     responseType: 'blob'
   }),
   verifyCertificate: (certificateId) => api.get(`/certificates/verify/${certificateId}`),
+  downloadPublicCertificate: (certificateId) => api.get(`/certificates/verify/${certificateId}/download`, {
+    responseType: 'blob'
+  }),
 };
 
 // ==================== GOOGLE MEET APIs ====================

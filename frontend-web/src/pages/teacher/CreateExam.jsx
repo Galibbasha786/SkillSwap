@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers, FiCode } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiAward, FiLock, FiMail, FiUsers, FiCode, FiClipboard, FiList } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import BackButton from '../../components/common/BackButton';
+import { parseBulkQuestions, BULK_IMPORT_TEMPLATE } from '../../utils/examBulkImport';
 
 const CreateExam = () => {
   const { examId: editExamId } = useParams();
@@ -55,6 +56,11 @@ const CreateExam = () => {
   });
   const [loading, setLoading] = useState(false);
   const [newEmail, setNewEmail] = useState('');
+  const [questionMode, setQuestionMode] = useState('single');
+  const [bulkText, setBulkText] = useState(BULK_IMPORT_TEMPLATE);
+  const [bulkPreview, setBulkPreview] = useState([]);
+  const [bulkErrors, setBulkErrors] = useState([]);
+  const [showFormatHelp, setShowFormatHelp] = useState(false);
 
   const formatDateTimeLocal = (dateString) => {
     const date = new Date(dateString);
@@ -147,8 +153,10 @@ const CreateExam = () => {
     if (currentQuestion.type === 'mcq') {
       newQuestion.options = currentQuestion.options;
       newQuestion.correctAnswer = currentQuestion.correctAnswer;
-    } else if (currentQuestion.type === 'theory') {
-      newQuestion.keywords = currentQuestion.keywords;
+    } else if (currentQuestion.type === 'theory' || currentQuestion.type === 'viva') {
+      if (currentQuestion.type === 'theory') {
+        newQuestion.keywords = currentQuestion.keywords;
+      }
     } else if (currentQuestion.type === 'coding') {
       newQuestion.coding = currentQuestion.coding;
     }
@@ -249,6 +257,47 @@ const CreateExam = () => {
     });
   };
 
+  const handleBulkParse = () => {
+    const { questions, errors } = parseBulkQuestions(bulkText);
+    setBulkPreview(questions);
+    setBulkErrors(errors);
+    if (questions.length) {
+      toast.success(`Parsed ${questions.length} question(s)`);
+    } else if (errors.length) {
+      toast.error('Fix format errors before importing');
+    }
+  };
+
+  const importBulkQuestions = () => {
+    const { questions, errors } = parseBulkQuestions(bulkText);
+    if (errors.length && !questions.length) {
+      setBulkErrors(errors);
+      toast.error('No valid questions to import');
+      return;
+    }
+    if (!questions.length) {
+      toast.error('Nothing to import');
+      return;
+    }
+    setExam({ ...exam, questions: [...exam.questions, ...questions] });
+    setBulkPreview([]);
+    setBulkErrors(errors);
+    toast.success(`Added ${questions.length} question(s) to exam`);
+    if (errors.length) {
+      toast.error(`${errors.length} block(s) had errors and were skipped`);
+    }
+  };
+
+  const typeBadgeColor = (type) => {
+    const map = {
+      mcq: 'bg-blue-100 text-blue-700',
+      theory: 'bg-purple-100 text-purple-700',
+      coding: 'bg-orange-100 text-orange-700',
+      viva: 'bg-pink-100 text-pink-700'
+    };
+    return map[type] || 'bg-gray-100 text-gray-700';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -295,6 +344,7 @@ const CreateExam = () => {
         ...(q.type === 'theory' && {
           keywords: q.keywords
         }),
+        ...(q.type === 'viva' && {}),
         ...(q.type === 'coding' && {
           coding: q.coding
         })
@@ -638,21 +688,49 @@ const CreateExam = () => {
           
           {/* Questions Section */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Questions</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <h2 className="text-xl font-semibold">Questions</h2>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setQuestionMode('single')}
+                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${
+                    questionMode === 'single' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <FiList /> One by one
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuestionMode('bulk')}
+                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${
+                    questionMode === 'bulk' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <FiClipboard /> Bulk paste
+                </button>
+              </div>
+            </div>
             
             {exam.questions.length > 0 && (
-              <div className="mb-6 space-y-3">
-                <h3 className="font-medium">Added Questions ({exam.questions.length})</h3>
+              <div className="mb-6 space-y-2">
+                <h3 className="font-medium text-gray-700">Added Questions ({exam.questions.length})</h3>
                 {exam.questions.map((q, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">Q{idx + 1}:</span> {q.question}
-                      <span className="text-sm text-gray-500 ml-2">({q.type})</span>
+                  <div key={idx} className="p-4 bg-gray-50 rounded-lg flex justify-between items-start gap-3 border border-gray-100">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-800">Q{idx + 1}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full uppercase ${typeBadgeColor(q.type)}`}>
+                          {q.type}
+                        </span>
+                        <span className="text-xs text-gray-500">{q.marks} mark{q.marks !== 1 ? 's' : ''}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 line-clamp-2">{q.question}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => removeQuestion(idx)}
-                      className="text-red-500 hover:text-red-600"
+                      className="text-red-500 hover:text-red-600 shrink-0 p-1"
                     >
                       <FiTrash2 />
                     </button>
@@ -660,8 +738,90 @@ const CreateExam = () => {
                 ))}
               </div>
             )}
-            
-            {/* Add New Question */}
+
+            {questionMode === 'bulk' ? (
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-medium">Paste questions in bulk</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowFormatHelp(!showFormatHelp)}
+                    className="text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    {showFormatHelp ? 'Hide format guide' : 'Show format guide'}
+                  </button>
+                </div>
+
+                {showFormatHelp && (
+                  <pre className="text-xs bg-gray-900 text-green-100 p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                    {BULK_IMPORT_TEMPLATE}
+                  </pre>
+                )}
+
+                <p className="text-sm text-gray-600">
+                  Start each block with <code className="bg-gray-100 px-1 rounded">[MCQ]</code>,{' '}
+                  <code className="bg-gray-100 px-1 rounded">[THEORY]</code>,{' '}
+                  <code className="bg-gray-100 px-1 rounded">[CODING]</code>, or{' '}
+                  <code className="bg-gray-100 px-1 rounded">[VIVA]</code>. Separate blocks with a blank line.
+                </p>
+
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  rows={16}
+                  className="w-full font-mono text-sm p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Paste your questions here…"
+                />
+
+                {bulkErrors.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 space-y-1">
+                    {bulkErrors.map((err, i) => (
+                      <p key={i}>• {err}</p>
+                    ))}
+                  </div>
+                )}
+
+                {bulkPreview.length > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-emerald-800 mb-2">
+                      Preview — {bulkPreview.length} question(s) ready
+                    </p>
+                    <ul className="text-sm text-emerald-900 space-y-1">
+                      {bulkPreview.map((q, i) => (
+                        <li key={i}>
+                          {i + 1}. [{q.type}] {q.question.slice(0, 60)}
+                          {q.question.length > 60 ? '…' : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleBulkParse}
+                    className="px-4 py-2 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50"
+                  >
+                    Preview parse
+                  </button>
+                  <button
+                    type="button"
+                    onClick={importBulkQuestions}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                  >
+                    <FiPlus /> Add all to exam
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkText(BULK_IMPORT_TEMPLATE)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                  >
+                    Load sample template
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="border-t pt-6">
               <h3 className="font-medium mb-4">Add New Question</h3>
               <div className="space-y-4">
@@ -672,6 +832,7 @@ const CreateExam = () => {
                 >
                   <option value="mcq">Multiple Choice (MCQ)</option>
                   <option value="theory">Theory / Essay</option>
+                  <option value="viva">Viva / Oral</option>
                   <option value="coding">Coding Assessment</option>
                 </select>
                 
@@ -897,6 +1058,7 @@ const CreateExam = () => {
                 </button>
               </div>
             </div>
+            )}
           </div>
           
           {/* Submit Button */}

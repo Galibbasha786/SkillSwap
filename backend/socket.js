@@ -8,10 +8,41 @@ let io;
 const activeCalls = new Map();
 // examId -> Map(studentId -> { studentName, socketId, joinedAt })
 const activeProctoring = new Map();
-// examId:studentId -> { signal, studentName, timestamp }
+// examId:studentId -> { signals: [], studentName, timestamp }
 const pendingProctorSignals = new Map();
+const MAX_PENDING_SIGNALS = 40;
+
+const appendPendingSignal = (examId, studentId, signal, studentName) => {
+  const pendingKey = `${String(examId)}:${String(studentId)}`;
+  const existing = pendingProctorSignals.get(pendingKey) || {
+    signals: [],
+    studentName: studentName || 'Student',
+    timestamp: Date.now()
+  };
+
+  // New offer = fresh negotiation — discard stale ICE from prior attempts
+  if (signal.type === 'offer') {
+    existing.signals = [signal];
+  } else {
+    existing.signals.push(signal);
+  }
+
+  if (existing.signals.length > MAX_PENDING_SIGNALS) {
+    existing.signals.splice(0, existing.signals.length - MAX_PENDING_SIGNALS);
+  }
+  if (studentName) existing.studentName = studentName;
+  existing.timestamp = Date.now();
+  pendingProctorSignals.set(pendingKey, existing);
+};
 
 const normalizeOrigin = (origin) => origin && origin.replace(/\/+$/, '');
+
+const isLocalDevOrigin = (origin) => {
+  if (!origin) return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/i.test(
+    normalizeOrigin(origin)
+  );
+};
 
 const getAllowedOrigins = () => {
   return [
@@ -55,6 +86,48 @@ const addCallMessage = async ({ participants, senderId, content, call }) => {
   io.to(`chat:${chat._id}`).emit('new-message', chat.messages[chat.messages.length - 1]);
 };
 
+const removeProctoringStudent = (examId, studentId) => {
+  if (!io) return;
+
+  const key = String(examId);
+  const sid = String(studentId);
+  const examSessions = activeProctoring.get(key);
+  if (!examSessions) return;
+
+  examSessions.delete(sid);
+  if (examSessions.size === 0) {
+    activeProctoring.delete(key);
+  }
+
+  pendingProctorSignals.delete(`${key}:${sid}`);
+
+  io.to(`exam-monitor:${key}`).emit('student-proctoring-ended', {
+    examId: key,
+    studentId: sid
+  });
+};
+
+const forceEndStudentProctoring = (examId, studentId, reason) => {
+  if (!io) return;
+
+  const key = String(examId);
+  const sid = String(studentId);
+  const payload = {
+    examId: key,
+    studentId: sid,
+    reason: reason || 'You were removed from the exam by your teacher.'
+  };
+
+  removeProctoringStudent(key, sid);
+
+  io.to(`user:${sid}`).emit('exam-force-ended', payload);
+  for (const socket of io.sockets.sockets.values()) {
+    if (String(socket.userId) === sid) {
+      socket.emit('exam-force-ended', payload);
+    }
+  }
+};
+
 const initializeSocket = (server) => {
   io = socketIO(server, {
     cors: {
@@ -62,6 +135,10 @@ const initializeSocket = (server) => {
         if (!origin) return callback(null, true);
 
         if (getAllowedOrigins().includes(normalizeOrigin(origin))) {
+          return callback(null, true);
+        }
+
+        if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(origin)) {
           return callback(null, true);
         }
 
@@ -210,9 +287,9 @@ const initializeSocket = (server) => {
       });
       
       // Find the target user's socket
-      const targetSockets = [...io.sockets.sockets.values()].filter(
-        s => s.userId === to
-      );
+        const targetSockets = [...io.sockets.sockets.values()].filter(
+          s => String(s.userId) === String(to)
+        );
       
       if (targetSockets.length > 0) {
         targetSockets.forEach(targetSocket => {
@@ -249,9 +326,9 @@ const initializeSocket = (server) => {
     socket.on('accept-call', ({ to, signal, from }) => {
       console.log(`✅ Call accepted from ${socket.userId} to ${to}`);
       
-      const targetSockets = [...io.sockets.sockets.values()].filter(
-        s => s.userId === to
-      );
+        const targetSockets = [...io.sockets.sockets.values()].filter(
+          s => String(s.userId) === String(to)
+        );
       
       if (targetSockets.length > 0) {
         targetSockets.forEach(targetSocket => {
@@ -267,9 +344,9 @@ const initializeSocket = (server) => {
       const call = activeCalls.get(key);
       activeCalls.delete(key);
       
-      const targetSockets = [...io.sockets.sockets.values()].filter(
-        s => s.userId === to
-      );
+        const targetSockets = [...io.sockets.sockets.values()].filter(
+          s => String(s.userId) === String(to)
+        );
       
       if (targetSockets.length > 0) {
         targetSockets.forEach(targetSocket => {
@@ -317,9 +394,9 @@ const initializeSocket = (server) => {
       const call = activeCalls.get(key);
       activeCalls.delete(key);
       
-      const targetSockets = [...io.sockets.sockets.values()].filter(
-        s => s.userId === to
-      );
+        const targetSockets = [...io.sockets.sockets.values()].filter(
+          s => String(s.userId) === String(to)
+        );
       
       if (targetSockets.length > 0) {
         targetSockets.forEach(targetSocket => {
@@ -365,24 +442,6 @@ const initializeSocket = (server) => {
         studentName: data.studentName,
         joinedAt: data.joinedAt
       }));
-    };
-
-    const removeProctoringStudent = (examId, studentId) => {
-      const key = String(examId);
-      const examSessions = activeProctoring.get(key);
-      if (!examSessions) return;
-
-      examSessions.delete(String(studentId));
-      if (examSessions.size === 0) {
-        activeProctoring.delete(key);
-      }
-
-      pendingProctorSignals.delete(`${key}:${String(studentId)}`);
-
-      io.to(`exam-monitor:${key}`).emit('student-proctoring-ended', {
-        examId: key,
-        studentId: String(studentId)
-      });
     };
 
     // Student starts live proctoring stream during exam
@@ -441,23 +500,38 @@ const initializeSocket = (server) => {
           activeStudents: getProctoringStudents(key)
         });
 
-        // Replay any WebRTC offers sent before the teacher joined
+        // Replay only the latest offer negotiation (offer + its ICE candidates)
         const examSessions = activeProctoring.get(key);
         if (examSessions) {
           examSessions.forEach((_data, studentId) => {
             const pending = pendingProctorSignals.get(`${key}:${studentId}`);
-            if (pending) {
-              socket.emit('exam-proctor-signal', {
-                examId: key,
-                signal: pending.signal,
-                studentId,
-                studentName: pending.studentName
+            if (pending?.signals?.length) {
+              const offerIdx = pending.signals.findIndex((s) => s.type === 'offer');
+              let signalsToReplay;
+              if (offerIdx >= 0) {
+                // Use the latest offer + candidates after it
+                const lastOfferIdx = pending.signals.reduce(
+                  (acc, s, i) => (s.type === 'offer' ? i : acc),
+                  offerIdx
+                );
+                signalsToReplay = pending.signals.slice(lastOfferIdx);
+              } else {
+                signalsToReplay = pending.signals.slice(-5);
+              }
+
+              signalsToReplay.forEach((signal) => {
+                socket.emit('exam-proctor-signal', {
+                  examId: key,
+                  signal,
+                  studentId,
+                  studentName: pending.studentName
+                });
               });
             }
           });
         }
 
-        // Ask active students to resend WebRTC offers
+        // Always ask students to send a fresh offer for the current teacher session
         io.to(`exam-proctor:${key}`).emit('request-proctoring-stream', { examId: key });
       } catch (error) {
         console.error('Error joining exam monitor:', error);
@@ -499,17 +573,33 @@ const initializeSocket = (server) => {
         // Student -> teacher monitor room (buffer in case teacher hasn't joined yet)
         const sid = String(studentId || socket.userId);
         const studentName = activeProctoring.get(key)?.get(sid)?.studentName;
-        pendingProctorSignals.set(`${key}:${sid}`, {
-          signal,
-          studentName,
-          timestamp: Date.now()
-        });
+        appendPendingSignal(key, sid, signal, studentName);
 
         io.to(`exam-monitor:${key}`).emit('exam-proctor-signal', {
           examId: key,
           signal,
           studentId: sid,
           studentName
+        });
+      }
+    });
+
+    // Teacher mic control during proctoring
+    socket.on('proctor-mic-control', ({ examId, studentId, muted, allStudents }) => {
+      const key = String(examId);
+      if (!key) return;
+
+      if (allStudents) {
+        io.to(`exam-proctor:${key}`).emit('proctor-mic-control', { examId: key, muted, allStudents: true });
+        return;
+      }
+
+      if (studentId) {
+        const targetSockets = [...io.sockets.sockets.values()].filter(
+          (s) => String(s.userId) === String(studentId)
+        );
+        targetSockets.forEach((s) => {
+          s.emit('proctor-mic-control', { examId: key, studentId: String(studentId), muted });
         });
       }
     });
@@ -534,4 +624,4 @@ const getIO = () => {
   return io;
 };
 
-module.exports = { initializeSocket, getIO };
+module.exports = { initializeSocket, getIO, forceEndStudentProctoring };

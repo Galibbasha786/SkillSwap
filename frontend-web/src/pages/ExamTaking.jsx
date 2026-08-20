@@ -10,6 +10,8 @@ import {
 import { examAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Proctoring from '../components/exam/Proctoring';
+import ProctoringSetup from '../components/exam/ProctoringSetup';
+import examProctoringService from '../services/examProctoringService';
 import CodeEditor from '../components/exam/CodeEditor';
 import { useAuth } from '../hooks/useAuth';
 
@@ -37,6 +39,11 @@ const ExamTaking = () => {
   const [accessChecking, setAccessChecking] = useState(false);
   const [cameraInitialized, setCameraInitialized] = useState(false);
   const [isCodingSubmitted, setIsCodingSubmitted] = useState(false);
+  
+  const [showPermissionSetup, setShowPermissionSetup] = useState(false);
+  const [proctoringStreams, setProctoringStreams] = useState(null);
+  const proctoringStreamsRef = useRef(null);
+  const proctoringCleanupRef = useRef(null);
   
   const timerRef = useRef(null);
   const codeEditorRef = useRef(null);
@@ -70,6 +77,8 @@ const ExamTaking = () => {
     setAccessDenied(false);
     setAccessChecking(false);
     setShowInstructions(true);
+    setShowPermissionSetup(false);
+    setProctoringStreams(null);
     setExamStarted(false);
 
     let cancelled = false;
@@ -160,6 +169,51 @@ const ExamTaking = () => {
     }
   };
 
+  const stopProctoringMedia = useCallback(() => {
+    examProctoringService.stopStudentStream();
+    proctoringCleanupRef.current?.();
+    proctoringCleanupRef.current = null;
+    const streams = proctoringStreamsRef.current;
+    streams?.cameraStream?.getTracks().forEach((t) => t.stop());
+    streams?.screenStream?.getTracks().forEach((t) => t.stop());
+    proctoringStreamsRef.current = null;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
+
+  const handleForceEnded = useCallback((payload) => {
+    if (payload?.examId && String(payload.examId) !== String(examId)) return;
+
+    stopProctoringMedia();
+    setProctoringStreams(null);
+    setShowPermissionSetup(false);
+    setExamStarted(false);
+    setLoading(false);
+
+    toast.error(payload?.reason || 'You were removed from the exam by your teacher.');
+    navigate('/dashboard', { replace: true });
+  }, [examId, navigate, stopProctoringMedia]);
+
+  // Pre-connect proctoring socket when entering setup so teacher sees student faster
+  useEffect(() => {
+    if (!showPermissionSetup && !examStarted) return;
+    const studentId = user?.id || user?._id;
+    if (!studentId) return;
+    examProctoringService.connect(String(studentId));
+  }, [showPermissionSetup, examStarted, user?.id, user?._id]);
+
+  // Keep force-end handler wired during prep and during the exam
+  useEffect(() => {
+    if (!examId) return;
+    const studentId = String(user?.id || user?._id || '');
+    if (!studentId) return;
+
+    if (examProctoringService.isStudentActiveFor(examId, studentId)) {
+      examProctoringService.mergeStudentCallbacks({ onForceEnded: handleForceEnded });
+    }
+  }, [examId, user?.id, user?._id, handleForceEnded, showPermissionSetup, examStarted]);
+
   const startExam = async () => {
     try {
       setLoading(true);
@@ -209,7 +263,50 @@ const ExamTaking = () => {
   const acceptInstructions = () => {
     setInstructionsAccepted(true);
     setShowInstructions(false);
+    const proctoringEnabled = exam?.proctoring?.enabled !== false;
+    if (proctoringEnabled) {
+      setShowPermissionSetup(true);
+    } else {
+      startExam();
+    }
+  };
+
+  const handleProctoringLive = useCallback((streams) => {
+    proctoringStreamsRef.current = streams;
+    setProctoringStreams(streams);
+
+    const proctoringEnabled = exam?.proctoring?.enabled !== false;
+    const studentId = String(user?.id || user?._id || '');
+
+    if (proctoringEnabled && studentId && examId) {
+      examProctoringService.startStudentStream({
+        userId: studentId,
+        examId,
+        studentName: user?.name || 'Student',
+        stream: streams.combinedStream,
+        callbacks: { onForceEnded: handleForceEnded }
+      });
+    }
+  }, [exam?.proctoring?.enabled, examId, user?.id, user?._id, user?.name, handleForceEnded]);
+
+  const handleProctoringReady = (streams) => {
+    proctoringStreamsRef.current = streams;
+    setProctoringStreams(streams);
+    setShowPermissionSetup(false);
     startExam();
+  };
+
+  const handleProctoringSetupCancel = () => {
+    setShowPermissionSetup(false);
+    setShowInstructions(true);
+    setInstructionsAccepted(false);
+  };
+
+  const goToPrevious = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion((q) => q - 1);
+      setIsCodingSubmitted(false);
+    }
   };
 
   const handleFullscreenClick = async () => {
@@ -226,6 +323,7 @@ const ExamTaking = () => {
     if (submitting) return;
     setSubmitting(true);
     setAllAnswersSubmitted(true);
+    stopProctoringMedia();
     
     toast.loading('Submitting exam...', { id: 'submit-exam' });
     
@@ -306,6 +404,7 @@ const ExamTaking = () => {
       const response = await examAPI.recordViolation(examId, violation);
       setViolations(response.data.violations);
       if (response.data.terminated) {
+        stopProctoringMedia();
         toast.error('Exam terminated due to multiple violations');
         navigate('/exams');
       }
@@ -401,6 +500,17 @@ const ExamTaking = () => {
     );
   }
 
+  // Proctoring permission setup — before exam questions
+  if (showPermissionSetup && exam) {
+    return (
+      <ProctoringSetup
+        onReady={handleProctoringReady}
+        onProctoringLive={handleProctoringLive}
+        onCancel={handleProctoringSetupCancel}
+      />
+    );
+  }
+
   // Instructions Page
   if (showInstructions && exam) {
     return (
@@ -441,8 +551,9 @@ const ExamTaking = () => {
                     Proctoring Rules
                   </h3>
                   <ul className="space-y-2 text-sm text-gray-600">
-                    <li>• Camera must remain on throughout</li>
+                    <li>• Camera and screen sharing must remain on throughout</li>
                     <li>• Your face must be visible at all times</li>
+                    <li>• Share your full screen before questions appear</li>
                     <li>• No other people allowed in frame</li>
                     <li>• Do not switch tabs or windows</li>
                     <li>• Stay in fullscreen mode</li>
@@ -522,6 +633,11 @@ const ExamTaking = () => {
         onViolation={handleViolation} 
         enabled={exam?.proctoring?.enabled !== false}
         violations={violations}
+        initialCameraStream={proctoringStreamsRef.current?.cameraStream || proctoringStreams?.cameraStream}
+        initialScreenStream={proctoringStreamsRef.current?.screenStream || proctoringStreams?.screenStream}
+        initialCombinedStream={proctoringStreamsRef.current?.combinedStream || proctoringStreams?.combinedStream}
+        onRegisterCleanup={(fn) => { proctoringCleanupRef.current = fn; }}
+        onForceEnded={handleForceEnded}
       />
       
       <div className="pt-20 max-w-6xl mx-auto px-4 py-8">
@@ -622,7 +738,15 @@ const ExamTaking = () => {
             />
           )}
 
-          <div className="mt-8 flex justify-end">
+          <div className="mt-8 flex justify-between gap-3">
+            <button
+              type="button"
+              onClick={goToPrevious}
+              disabled={currentQuestion === 0 || submitting}
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              Previous
+            </button>
             <button
               onClick={submitAnswer}
               disabled={submitting || (question?.type === 'coding' && !isCodingSubmitted)}

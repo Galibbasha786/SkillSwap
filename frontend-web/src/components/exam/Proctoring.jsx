@@ -1,11 +1,23 @@
 // frontend-web/src/components/exam/Proctoring.jsx
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import toast from 'react-hot-toast';
 import examProctoringService from '../../services/examProctoringService';
 
-const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = true, violations = 0 }) => {
+const Proctoring = ({
+  examId,
+  studentId,
+  studentName,
+  onViolation,
+  enabled = true,
+  violations = 0,
+  initialCameraStream = null,
+  initialScreenStream = null,
+  initialCombinedStream = null,
+  onRegisterCleanup,
+  onForceEnded
+}) => {
   const [faceDetected, setFaceDetected] = useState(false);
   const [multipleFaces, setMultipleFaces] = useState(false);
   const [fullscreenActive, setFullscreenActive] = useState(() => {
@@ -20,6 +32,8 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const screenStreamRef = useRef(null);
+  const combinedStreamRef = useRef(null);
   const detectionIntervalRef = useRef(null);
   const canvasRef = useRef(null);
   const teacherAudioRef = useRef(null);
@@ -32,6 +46,74 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
   const [micEnabled, setMicEnabled] = useState(true);
   const [teacherSpeaking, setTeacherSpeaking] = useState(false);
   const [streamConnected, setStreamConnected] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(!!initialScreenStream);
+
+  const stopAllMedia = useCallback(() => {
+    examProctoringService.stopStudentStream();
+    combinedStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    screenStreamRef.current = null;
+    combinedStreamRef.current = null;
+    if (teacherAudioRef.current) {
+      teacherAudioRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+    setScreenSharing(false);
+    setStreamConnected(false);
+  }, []);
+
+  const attachPreview = useCallback(async () => {
+    const cam = streamRef.current || initialCameraStream;
+    if (!cam || !videoRef.current) return false;
+
+    if (videoRef.current.srcObject !== cam) {
+      videoRef.current.srcObject = cam;
+    }
+
+    try {
+      await videoRef.current.play();
+      setCameraActive(true);
+      setCameraError(false);
+      setScreenSharing(!!(screenStreamRef.current || initialScreenStream));
+      if (videoRef.current.videoWidth > 0) {
+        setVideoDimensions({
+          width: videoRef.current.videoWidth,
+          height: videoRef.current.videoHeight
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn('Preview play failed:', err);
+      return false;
+    }
+  }, [initialCameraStream, initialScreenStream]);
+
+  const mergeProctoringCallbacks = useCallback(() => ({
+    onTeacherAudio: (remoteStream) => {
+      if (teacherAudioRef.current) {
+        teacherAudioRef.current.srcObject = remoteStream;
+        teacherAudioRef.current.play().catch(() => {});
+        setTeacherSpeaking(true);
+      }
+    },
+    onConnected: () => setStreamConnected(true),
+    onMicControl: ({ muted }) => {
+      setMicEnabled(!muted);
+      if (muted) toast('Your microphone was muted by the teacher', { icon: '🔇' });
+    },
+    onForceEnded: (payload) => {
+      stopAllMedia();
+      onForceEnded?.(payload);
+    }
+  }), [onForceEnded, stopAllMedia]);
+
+  useEffect(() => {
+    onRegisterCleanup?.(stopAllMedia);
+    return () => onRegisterCleanup?.(null);
+  }, [onRegisterCleanup, stopAllMedia]);
+
   const lastViolationTimeRef = useRef({
     face_missing: 0,
     multiple_faces: 0,
@@ -40,98 +122,110 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
     mouse_leave: 0
   });
 
-  // Load face-api.js models
+  // Load only tiny face detector first — faster startup; landmarks load in background
   useEffect(() => {
     const loadModels = async () => {
       try {
         setLoadingModels(true);
-        
         const CDN_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-        console.log('📥 Loading face detection models from CDN...');
-        
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(CDN_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(CDN_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(CDN_URL)
-        ]);
-        
-        console.log('✅ Face detection models loaded successfully');
+
+        await faceapi.nets.tinyFaceDetector.loadFromUri(CDN_URL);
         setModelsLoaded(true);
         setModelLoadError(false);
         setLoadingModels(false);
-        
+
+        Promise.all([
+          faceapi.nets.faceLandmark68Net.loadFromUri(CDN_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(CDN_URL)
+        ]).catch(() => {});
       } catch (cdnError) {
         console.error('❌ Model loading failed:', cdnError);
         setModelLoadError(true);
         setModelsLoaded(false);
         setLoadingModels(false);
-        toast.error('Face detection unavailable', { duration: 3000 });
       }
     };
-    
+
     loadModels();
   }, []);
 
-  // Initialize camera + mic once — stable effect, no restart on parent re-renders
+  // Initialize camera + mic (+ screen if not pre-acquired) once
   useEffect(() => {
     if (!enabled || !examId || !studentId) return;
 
     mountedRef.current = true;
-    let localStream = null;
+    let cameraStream = initialCameraStream;
+    let screenStream = initialScreenStream;
 
-    const initProctoring = async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('getUserMedia not supported in this browser');
+    const buildCombinedStream = (cam, scr) => {
+      const combined = new MediaStream();
+      cam.getVideoTracks().forEach((t) => combined.addTrack(t));
+      if (scr) {
+        scr.getVideoTracks().forEach((t) => combined.addTrack(t));
+      }
+      cam.getAudioTracks().forEach((t) => combined.addTrack(t));
+      return combined;
+    };
+
+    const attachScreenEndedHandler = (scr) => {
+      const track = scr?.getVideoTracks()[0];
+      if (!track) return;
+      track.onended = () => {
+        if (!mountedRef.current) return;
+        setScreenSharing(false);
+        screenStreamRef.current = null;
+        if (streamRef.current) {
+          const combined = buildCombinedStream(streamRef.current, null);
+          combinedStreamRef.current = combined;
+          examProctoringService.updateStudentStream(combined);
+          toast.warning('Screen sharing stopped — please share again', { duration: 4000 });
+          onViolationRef.current?.({ type: 'screen_denied', details: 'Screen share stopped during exam' });
         }
+      };
+    };
 
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user'
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
+    const startWithStreams = async (cam, scr, combined, { skipWebRtcRestart = false } = {}) => {
+      streamRef.current = cam;
+      screenStreamRef.current = scr;
+      combinedStreamRef.current = combined;
 
-        if (!mountedRef.current) {
-          localStream.getTracks().forEach((track) => track.stop());
+      await attachPreview();
+
+      if (scr) attachScreenEndedHandler(scr);
+
+      if (skipWebRtcRestart) {
+        examProctoringService.mergeStudentCallbacks(mergeProctoringCallbacks());
+        if (examProctoringService.isStudentActiveFor(examId, studentId)) {
+          setStreamConnected(true);
+        }
+        return;
+      }
+
+      examProctoringService.startStudentStream({
+        userId: String(studentId),
+        examId,
+        studentName: studentName || 'Student',
+        stream: combined,
+        callbacks: mergeProctoringCallbacks()
+      });
+    };
+
+      const initProctoring = async () => {
+      try {
+        if (initialCombinedStream && initialCameraStream) {
+          const alreadyLive = examProctoringService.isStudentActiveFor(examId, studentId);
+          await startWithStreams(
+            initialCameraStream,
+            initialScreenStream,
+            initialCombinedStream,
+            { skipWebRtcRestart: alreadyLive }
+          );
           return;
         }
 
-        streamRef.current = localStream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = localStream;
-          await videoRef.current.play();
-          setCameraActive(true);
-          setCameraError(false);
-          setVideoDimensions({
-            width: videoRef.current.videoWidth,
-            height: videoRef.current.videoHeight
-          });
-        }
-
-        examProctoringService.startStudentStream({
-          userId: String(studentId),
-          examId,
-          studentName: studentName || 'Student',
-          stream: localStream,
-          callbacks: {
-            onTeacherAudio: (remoteStream) => {
-              if (teacherAudioRef.current) {
-                teacherAudioRef.current.srcObject = remoteStream;
-                teacherAudioRef.current.play().catch(() => {});
-                setTeacherSpeaking(true);
-              }
-            },
-            onConnected: () => setStreamConnected(true)
-          }
-        });
+        console.warn('Proctoring streams missing — waiting for setup');
+        setCameraError(true);
+        toast.error('Camera/screen setup incomplete. Please refresh and try again.');
       } catch (error) {
         console.error('❌ Camera/mic access error:', error);
         if (!mountedRef.current) return;
@@ -146,16 +240,20 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
 
     return () => {
       mountedRef.current = false;
-      examProctoringService.stopStudentStream();
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-      streamRef.current = null;
       if (teacherAudioRef.current) {
         teacherAudioRef.current.srcObject = null;
       }
     };
-  }, [enabled, examId, studentId]);
+  }, [enabled, examId, studentId, initialCameraStream, initialScreenStream, initialCombinedStream, studentName, attachPreview, mergeProctoringCallbacks]);
+
+  // Re-attach preview when video element mounts (face models load must not block camera)
+  useEffect(() => {
+    if (!enabled || !initialCameraStream) return;
+    streamRef.current = initialCameraStream;
+    screenStreamRef.current = initialScreenStream;
+    combinedStreamRef.current = initialCombinedStream;
+    attachPreview();
+  }, [enabled, initialCameraStream, initialScreenStream, initialCombinedStream, attachPreview, loadingModels]);
 
   const toggleMic = () => {
     const next = !micEnabled;
@@ -376,54 +474,59 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
   const retryCamera = async () => {
     setCameraError(false);
     setCameraActive(false);
-    examProctoringService.stopStudentStream();
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setTimeout(async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: 'user' },
-          audio: { echoCancellation: true, noiseSuppression: true }
-        });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setCameraActive(true);
-          setCameraError(false);
-          examProctoringService.startStudentStream({
-            userId: studentId,
-            examId,
-            studentName: studentName || 'Student',
-            stream,
-            callbacks: {
-              onTeacherAudio: (remoteStream) => {
-                if (teacherAudioRef.current) {
-                  teacherAudioRef.current.srcObject = remoteStream;
-                  teacherAudioRef.current.play().catch(() => {});
-                }
-              },
-              onConnected: () => setStreamConnected(true)
-            }
-          });
-        }
-      } catch (err) {
-        setCameraError(true);
-      }
-    }, 100);
-  };
+    stopAllMedia();
 
-  if (loadingModels && enabled) {
-    return (
-      <div className="fixed top-4 right-4 z-50">
-        <div className="bg-gray-500 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg animate-pulse">
-          Loading proctoring...
-        </div>
-      </div>
-    );
-  }
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+        audio: { echoCancellation: true, noiseSuppression: true }
+      });
+      let scr = null;
+      try {
+        scr = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 10, max: 15 } },
+          audio: false
+        });
+        setScreenSharing(true);
+      } catch {
+        setScreenSharing(false);
+        toast.error('Screen sharing is required. Please allow screen share.');
+      }
+
+      streamRef.current = cam;
+      screenStreamRef.current = scr;
+      const combined = new MediaStream();
+      cam.getVideoTracks().forEach((t) => combined.addTrack(t));
+      scr?.getVideoTracks().forEach((t) => combined.addTrack(t));
+      cam.getAudioTracks().forEach((t) => combined.addTrack(t));
+      combinedStreamRef.current = combined;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = cam;
+        await videoRef.current.play();
+        setCameraActive(true);
+        setCameraError(false);
+      }
+
+      examProctoringService.startStudentStream({
+        userId: String(studentId),
+        examId,
+        studentName: studentName || 'Student',
+        stream: combined,
+        callbacks: {
+          onTeacherAudio: (remoteStream) => {
+            if (teacherAudioRef.current) {
+              teacherAudioRef.current.srcObject = remoteStream;
+              teacherAudioRef.current.play().catch(() => {});
+            }
+          },
+          onConnected: () => setStreamConnected(true)
+        }
+      });
+    } catch (err) {
+      setCameraError(true);
+    }
+  };
 
   return (
     <>
@@ -440,8 +543,13 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
                 {/* Camera Feed Box */}
                 <div className="bg-black rounded-lg overflow-hidden shadow-lg border-2 border-blue-500" style={{ width: '160px', height: '120px' }}>
                   <div className="absolute top-1 left-1 z-10 text-white text-[10px] bg-black/60 px-1.5 py-0.5 rounded">
-                    {cameraActive ? '📷 Proctoring' : cameraError ? '❌ Camera Error' : '⏳ Starting...'}
+                    {cameraActive ? '📷 Live' : cameraError ? '❌ Camera Error' : '⏳ Starting...'}
                   </div>
+                  {loadingModels && (
+                    <div className="absolute top-1 right-1 z-10 text-white text-[9px] bg-blue-600/80 px-1 py-0.5 rounded">
+                      AI loading
+                    </div>
+                  )}
                   {!cameraActive && !cameraError && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -463,7 +571,6 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
                     muted
                     playsInline
                     className="w-full h-full object-cover transform scale-x-[-1]"
-                    style={{ display: cameraActive ? 'block' : 'none' }}
                   />
                   <canvas
                     ref={canvasRef}
@@ -478,6 +585,12 @@ const Proctoring = ({ examId, studentId, studentName, onViolation, enabled = tru
                   <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-medium shadow-lg flex items-center gap-1">
                     <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
                     {streamConnected ? 'Live to teacher' : 'Connecting...'}
+                  </div>
+                )}
+
+                {screenSharing && (
+                  <div className="bg-indigo-500 text-white px-2 py-0.5 rounded-full text-xs font-medium shadow-lg">
+                    🖥 Screen shared
                   </div>
                 )}
 

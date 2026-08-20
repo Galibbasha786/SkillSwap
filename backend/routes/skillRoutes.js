@@ -3,6 +3,24 @@ const router = express.Router();
 const { auth } = require('../middleware/auth');
 const User = require('../models/User');
 
+// @desc    Get skill categories for marketplace filters
+// @route   GET /api/skills/categories
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await User.aggregate([
+      { $unwind: '$skillsTeach' },
+      { $match: { 'skillsTeach.category': { $nin: [null, ''] } } },
+      { $group: { _id: '$skillsTeach.category' } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json(categories.map((item) => item._id).filter(Boolean));
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ message: 'Failed to fetch categories' });
+  }
+});
+
 // @desc    Search teachers by skill
 // @route   GET /api/skills/teachers
 // @access  Public

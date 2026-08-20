@@ -31,6 +31,12 @@ const TeacherExams = () => {
   const [examToDelete, setExamToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleFrom, setRescheduleFrom] = useState('');
+  const [rescheduleTo, setRescheduleTo] = useState('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+
   useEffect(() => {
     fetchExams();
   }, []);
@@ -78,6 +84,29 @@ const TeacherExams = () => {
       toast.error(error.response?.data?.message || 'Failed to cancel exam');
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const handleRescheduleExam = async () => {
+    if (!rescheduleReason.trim() || !rescheduleFrom || !rescheduleTo) {
+      toast.error('Please fill reason and new exam dates');
+      return;
+    }
+    setRescheduleLoading(true);
+    try {
+      await examAPI.rescheduleExam(selectedExam._id, {
+        reason: rescheduleReason,
+        availableFrom: new Date(rescheduleFrom).toISOString(),
+        availableTo: new Date(rescheduleTo).toISOString()
+      });
+      toast.success('Exam rescheduled and students notified');
+      setShowRescheduleModal(false);
+      setRescheduleReason('');
+      fetchExams();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reschedule exam');
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -303,6 +332,21 @@ const TeacherExams = () => {
                         <button
                           onClick={() => {
                             setSelectedExam(exam);
+                            const from = exam.availableFrom ? new Date(exam.availableFrom) : new Date();
+                            const to = exam.availableTo ? new Date(exam.availableTo) : new Date(Date.now() + 3600000);
+                            setRescheduleFrom(from.toISOString().slice(0, 16));
+                            setRescheduleTo(to.toISOString().slice(0, 16));
+                            setRescheduleReason('');
+                            setShowRescheduleModal(true);
+                          }}
+                          className="px-3 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm flex items-center justify-center gap-1"
+                        >
+                          <FiCalendar className="w-4 h-4" />
+                          Reschedule
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedExam(exam);
                             setShowCancelModal(true);
                           }}
                           className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm flex items-center justify-center gap-1"
@@ -331,6 +375,97 @@ const TeacherExams = () => {
           </div>
         )}
       </div>
+
+      {/* Reschedule Exam Modal */}
+      <AnimatePresence>
+        {showRescheduleModal && selectedExam && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-2">
+                  <FiCalendar className="w-6 h-6 text-amber-500" />
+                  <h3 className="text-xl font-bold text-gray-900">Reschedule Exam</h3>
+                </div>
+                <button
+                  onClick={() => setShowRescheduleModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-gray-600 mb-4">
+                Update the exam window for <span className="font-semibold">"{selectedExam?.title}"</span>.
+                Eligible students will be notified of the new dates.
+              </p>
+
+              <div className="space-y-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New start</label>
+                  <input
+                    type="datetime-local"
+                    value={rescheduleFrom}
+                    onChange={(e) => setRescheduleFrom(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New end</label>
+                  <input
+                    type="datetime-local"
+                    value={rescheduleTo}
+                    onChange={(e) => setRescheduleTo(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rescheduleReason}
+                    onChange={(e) => setRescheduleReason(e.target.value)}
+                    placeholder="Why is this exam being rescheduled?"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowRescheduleModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Keep Dates
+                </button>
+                <button
+                  onClick={handleRescheduleExam}
+                  disabled={rescheduleLoading}
+                  className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {rescheduleLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FiCalendar className="w-4 h-4" />
+                      Reschedule
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Cancel Exam Modal */}
       <AnimatePresence>

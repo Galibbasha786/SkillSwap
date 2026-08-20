@@ -2,398 +2,436 @@
 
 const { exec } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const util = require('util');
+
 const execPromise = util.promisify(exec);
 
-// Create temp directory for code execution
-const TEMP_DIR = path.join(__dirname, '../temp');
+const TEMP_DIR = path.join(os.tmpdir(), 'skillswap-code-exec');
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
-// ==================== JAVASCRIPT ====================
-// backend/services/codeExecutionService.js
+const createRunDir = () => {
+  const runDir = path.join(TEMP_DIR, `run_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  fs.mkdirSync(runDir, { recursive: true });
+  return runDir;
+};
 
-// ==================== JAVASCRIPT ====================
+const cleanupRunDir = (runDir) => {
+  try {
+    fs.rmSync(runDir, { recursive: true, force: true });
+  } catch (_) {
+    // ignore cleanup errors
+  }
+};
+
+const parseTestInput = (rawInput) => {
+  const trimmed = String(rawInput ?? '').trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (_) {
+    // fall through
+  }
+
+  if (/^-?\d+(\.\d+)?(\s*,\s*-?\d+(\.\d+)?)*$/.test(trimmed)) {
+    return trimmed.split(',').map((part) => {
+      const value = part.trim();
+      if (/^-?\d+$/.test(value)) return parseInt(value, 10);
+      return parseFloat(value);
+    });
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return [/-?\d+$/.test(trimmed) ? parseInt(trimmed, 10) : parseFloat(trimmed)];
+  }
+
+  if (trimmed === 'true') return [true];
+  if (trimmed === 'false') return [false];
+  if (trimmed === 'null') return [null];
+
+  return [trimmed];
+};
+
+const normalizeOutput = (value) => {
+  if (value === null || value === undefined) return 'null';
+  const text = String(value).trim();
+  if (text === 'undefined') return 'null';
+  return text;
+};
+
+const outputsMatch = (actual, expected) => {
+  const actualNorm = normalizeOutput(actual);
+  const expectedNorm = normalizeOutput(expected);
+
+  if (actualNorm === expectedNorm) return true;
+
+  const actualNum = Number(actualNorm);
+  const expectedNum = Number(expectedNorm);
+  if (!Number.isNaN(actualNum) && !Number.isNaN(expectedNum)) {
+    return actualNum === expectedNum;
+  }
+
+  return false;
+};
+
+const formatJsArgs = (args) => args.map((arg) => JSON.stringify(arg)).join(', ');
+
+const formatPythonArgs = (args) => args.map((arg) => JSON.stringify(arg)).join(', ');
+
+const formatJavaArgs = (args) =>
+  args
+    .map((arg) => {
+      if (typeof arg === 'number') {
+        return Number.isInteger(arg) ? `(int) ${arg}` : `(double) ${arg}`;
+      }
+      if (typeof arg === 'boolean') return arg ? 'true' : 'false';
+      if (arg === null) return 'null';
+      return `"${String(arg).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    })
+    .join(', ');
+
+const formatCppArgs = (args) =>
+  args
+    .map((arg) => {
+      if (typeof arg === 'number') return Number.isInteger(arg) ? String(arg) : String(arg);
+      if (typeof arg === 'boolean') return arg ? 'true' : 'false';
+      if (arg === null) return '0';
+      return `"${String(arg).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    })
+    .join(', ');
+
+const runProcess = async (command, options = {}) =>
+  execPromise(command, { timeout: options.timeout || 8000, maxBuffer: 1024 * 1024, ...options });
+
+const checkCommand = async (command) => {
+  try {
+    await runProcess(`command -v ${command}`, { timeout: 3000 });
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
 const executeJavaScript = async (code, testCases, functionName = 'solve') => {
   const results = [];
-  
+
   for (const testCase of testCases) {
+    const runDir = createRunDir();
+    const filePath = path.join(runDir, 'solution.js');
+
     try {
-      // Check if the code already defines the function
-      let wrappedCode;
-      
-      // If the code already starts with 'function' or 'const', use it directly
-      if (code.trim().startsWith('function') || code.trim().startsWith('const') || code.trim().startsWith('let')) {
-        wrappedCode = `
-          ${code}
-          
-          const input = ${testCase.input};
-          const result = ${functionName}(input);
-          console.log(result);
-        `;
-      } else {
-        // If only the function body is provided, wrap it
-        wrappedCode = `
-          const ${functionName} = ${code};
-          
-          const input = ${testCase.input};
-          const result = ${functionName}(input);
-          console.log(result);
-        `;
-      }
-      
-      const fileName = `temp_${Date.now()}_${Math.random()}.js`;
-      const filePath = path.join(TEMP_DIR, fileName);
+      const args = parseTestInput(testCase.input);
+      const callArgs = formatJsArgs(args);
+      const trimmedCode = code.trim();
+      const wrappedCode =
+        trimmedCode.startsWith('function') ||
+        trimmedCode.startsWith('const') ||
+        trimmedCode.startsWith('let') ||
+        trimmedCode.startsWith('class')
+          ? `
+${code}
+
+const __result = ${functionName}(${callArgs});
+if (typeof __result === 'object' && __result !== null) {
+  console.log(JSON.stringify(__result));
+} else {
+  console.log(__result);
+}
+`
+          : `
+const ${functionName} = ${code};
+
+const __result = ${functionName}(${callArgs});
+if (typeof __result === 'object' && __result !== null) {
+  console.log(JSON.stringify(__result));
+} else {
+  console.log(__result);
+}
+`;
+
       fs.writeFileSync(filePath, wrappedCode);
-      
-      console.log('📝 Executing JavaScript code:', wrappedCode);
-      
-      const { stdout, stderr } = await execPromise(`node ${filePath}`, { timeout: 5000 });
-      
-      fs.unlinkSync(filePath);
-      
-      let actualOutput = stdout.trim();
-      
-      // Handle special cases
-      if (actualOutput === 'undefined') {
-        actualOutput = 'null';
-      }
-      
-      const passed = actualOutput === testCase.expectedOutput;
-      
-      console.log(`Test: ${testCase.input} → Expected: ${testCase.expectedOutput}, Got: ${actualOutput}, Passed: ${passed}`);
-      
+      const { stdout } = await runProcess(`node "${filePath}"`);
+      const actualOutput = normalizeOutput(stdout);
+
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
         actualOutput: actualOutput || '(no output)',
-        passed
+        passed: outputsMatch(actualOutput, testCase.expectedOutput)
       });
     } catch (error) {
-      console.error('JavaScript execution error:', error);
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
-        actualOutput: error.message,
+        actualOutput: error.stderr?.trim() || error.message,
         passed: false
       });
+    } finally {
+      cleanupRunDir(runDir);
     }
   }
-  
+
   return results;
 };
-// ==================== PYTHON ====================
+
 const executePython = async (code, testCases, functionName = 'solve') => {
+  const hasPython = await checkCommand('python3');
+  if (!hasPython) {
+    return testCases.map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      actualOutput: 'python3 is not installed on the server',
+      passed: false
+    }));
+  }
+
   const results = [];
-  
+
   for (const testCase of testCases) {
+    const runDir = createRunDir();
+    const filePath = path.join(runDir, 'solution.py');
+
     try {
+      const args = parseTestInput(testCase.input);
+      const callArgs = formatPythonArgs(args);
       const wrappedCode = `
 import json
 
 ${code}
 
-input_data = ${JSON.stringify(testCase.input)}
-result = ${functionName}(input_data)
-print(json.dumps(result))
-      `;
-      
-      const fileName = `temp_${Date.now()}_${Math.random()}.py`;
-      const filePath = path.join(TEMP_DIR, fileName);
+__result = ${functionName}(${callArgs})
+print(json.dumps(__result) if isinstance(__result, (dict, list, tuple, bool)) or __result is None else __result)
+`;
+
       fs.writeFileSync(filePath, wrappedCode);
-      
-      const { stdout, stderr } = await execPromise(`python3 ${filePath}`, { timeout: 5000 });
-      
-      fs.unlinkSync(filePath);
-      
-      const actualOutput = stdout.trim();
-      const passed = actualOutput === testCase.expectedOutput;
-      
+      const { stdout } = await runProcess(`python3 "${filePath}"`);
+      const actualOutput = normalizeOutput(stdout);
+
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
         actualOutput,
-        passed
+        passed: outputsMatch(actualOutput, testCase.expectedOutput)
       });
     } catch (error) {
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
-        actualOutput: error.message,
+        actualOutput: error.stderr?.trim() || error.message,
         passed: false
       });
+    } finally {
+      cleanupRunDir(runDir);
     }
   }
-  
+
   return results;
 };
 
-// ==================== JAVA ====================
 const executeJava = async (code, testCases, functionName = 'solve') => {
+  const hasJava = await checkCommand('javac');
+  if (!hasJava) {
+    return testCases.map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      actualOutput: 'Java compiler (javac) is not installed on the server',
+      passed: false
+    }));
+  }
+
   const results = [];
   const className = 'Main';
-  
-  // Wrap code in a class for Java without external dependencies
-  const wrappedJavaCode = `
-import java.util.*;
 
+  for (const testCase of testCases) {
+    const runDir = createRunDir();
+    const filePath = path.join(runDir, `${className}.java`);
+
+    try {
+      const args = parseTestInput(testCase.input);
+      const callArgs = formatJavaArgs(args);
+      const wrappedJavaCode = `
 public class ${className} {
     ${code}
-    
-    public static void main(String[] args) throws Exception {
-        Scanner scanner = new Scanner(System.in);
-        String input = scanner.nextLine().trim();
-        
-        // Simple JSON parsing for basic types
-        Object inputData = parseSimpleJson(input);
-        Object result = ${functionName}(inputData);
+
+    public static void main(String[] args) {
+        Object result = ${functionName}(${callArgs});
         System.out.println(convertToString(result));
     }
-    
-    // Simple JSON parser helper
-    static Object parseSimpleJson(String str) {
-        if (str.isEmpty()) return null;
-        if (str.equals("true")) return true;
-        if (str.equals("false")) return false;
-        if (str.equals("null")) return null;
-        if (str.startsWith("\\"") && str.endsWith("\\"")) {
-            return str.substring(1, str.length() - 1);
-        }
-        if (str.startsWith("[") || str.startsWith("{")) {
-            return str; // Return as string for complex types
-        }
-        try {
-            if (str.contains(".")) return Double.parseDouble(str);
-            return Integer.parseInt(str);
-        } catch (Exception e) {
-            return str;
-        }
-    }
-    
-    // Convert result to string
+
     static String convertToString(Object obj) {
         if (obj == null) return "null";
-        if (obj instanceof String) return "\\"" + obj + "\\"";
-        if (obj instanceof Boolean) return obj.toString();
+        if (obj instanceof String) return (String) obj;
         if (obj instanceof Double) {
             double d = (Double) obj;
             if (d == (long) d) return String.valueOf((long) d);
             return String.valueOf(d);
         }
-        return obj.toString();
+        return String.valueOf(obj);
     }
 }
-  `;
-  
-  for (const testCase of testCases) {
-    try {
-      const fileName = `temp_${Date.now()}_${Math.random()}.java`;
-      const filePath = path.join(TEMP_DIR, fileName);
+`;
+
       fs.writeFileSync(filePath, wrappedJavaCode);
-      
-      // Compile Java code
-      try {
-        await execPromise(`javac ${filePath}`, { timeout: 10000 });
-      } catch (compileError) {
-        fs.unlinkSync(filePath);
-        throw new Error(`Compilation error: ${compileError.stderr || compileError.message}`);
-      }
-      
-      // Run Java code with input
-      const classFilePath = path.join(TEMP_DIR, `${className}.class`);
-      const runResult = await execPromise(
-        `echo ${JSON.stringify(testCase.input)} | java -cp ${TEMP_DIR} ${className}`,
-        { timeout: 5000 }
-      );
-      
-      // Clean up files
-      fs.unlinkSync(filePath);
-      if (fs.existsSync(classFilePath)) {
-        fs.unlinkSync(classFilePath);
-      }
-      
-      const actualOutput = runResult.stdout.trim();
-      const passed = actualOutput === testCase.expectedOutput;
-      
+      await runProcess(`javac "${filePath}"`, { timeout: 12000 });
+      const { stdout } = await runProcess(`java -cp "${runDir}" ${className}`, { timeout: 8000 });
+      const actualOutput = normalizeOutput(stdout);
+
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
         actualOutput,
-        passed
+        passed: outputsMatch(actualOutput, testCase.expectedOutput)
       });
     } catch (error) {
-      // Clean up in case of error
-      const fileName = `temp_${Date.now()}_${Math.random()}.java`;
-      const filePath = path.join(TEMP_DIR, fileName);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
-        actualOutput: error.message,
+        actualOutput: error.stderr?.trim() || error.message,
         passed: false
       });
+    } finally {
+      cleanupRunDir(runDir);
     }
   }
-  
+
   return results;
 };
 
-// ==================== C++ ====================
 const executeCpp = async (code, testCases, functionName = 'solve') => {
+  const hasGpp = await checkCommand('g++');
+  if (!hasGpp) {
+    return testCases.map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      actualOutput: 'C++ compiler (g++) is not installed on the server',
+      passed: false
+    }));
+  }
+
   const results = [];
-  const fileName = `temp_${Date.now()}_${Math.random()}`;
-  const sourceFile = path.join(TEMP_DIR, `${fileName}.cpp`);
-  const executableFile = path.join(TEMP_DIR, fileName);
-  
-  // Wrap code with main function for C++
-  const wrappedCppCode = `
+
+  for (const testCase of testCases) {
+    const runDir = createRunDir();
+    const sourceFile = path.join(runDir, 'solution.cpp');
+    const executableFile = path.join(runDir, 'solution');
+
+    try {
+      const args = parseTestInput(testCase.input);
+      const callArgs = formatCppArgs(args);
+      const wrappedCppCode = `
 #include <iostream>
 #include <string>
-#include <sstream>
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
 
 ${code}
 
 int main() {
-    std::string input;
-    std::getline(std::cin, input);
-    json inputJson = json::parse(input);
-    json result = ${functionName}(inputJson);
-    std::cout << result.dump() << std::endl;
+    auto result = ${functionName}(${callArgs});
+    std::cout << result << std::endl;
     return 0;
 }
-  `;
-  
-  for (const testCase of testCases) {
-    try {
+`;
+
       fs.writeFileSync(sourceFile, wrappedCppCode);
-      
-      // Compile C++ code
-      const compileResult = await execPromise(`g++ ${sourceFile} -o ${executableFile} -std=c++17`, { timeout: 10000 });
-      
-      if (compileResult.stderr) {
-        throw new Error(compileResult.stderr);
-      }
-      
-      // Run C++ code with input
-      const runResult = await execPromise(
-        `echo ${JSON.stringify(testCase.input)} | ${executableFile}`,
-        { timeout: 5000 }
-      );
-      
-      // Clean up files
-      fs.unlinkSync(sourceFile);
-      if (fs.existsSync(executableFile)) {
-        fs.unlinkSync(executableFile);
-      }
-      
-      const actualOutput = runResult.stdout.trim();
-      const passed = actualOutput === testCase.expectedOutput;
-      
+      await runProcess(`g++ "${sourceFile}" -o "${executableFile}" -std=c++17`, { timeout: 12000 });
+      const { stdout } = await runProcess(`"${executableFile}"`, { timeout: 8000 });
+      const actualOutput = normalizeOutput(stdout);
+
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
         actualOutput,
-        passed
+        passed: outputsMatch(actualOutput, testCase.expectedOutput)
       });
     } catch (error) {
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
-        actualOutput: error.message,
+        actualOutput: error.stderr?.trim() || error.message,
         passed: false
       });
+    } finally {
+      cleanupRunDir(runDir);
     }
   }
-  
+
   return results;
 };
 
-// ==================== C ====================
 const executeC = async (code, testCases, functionName = 'solve') => {
+  const hasGcc = await checkCommand('gcc');
+  if (!hasGcc) {
+    return testCases.map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      actualOutput: 'C compiler (gcc) is not installed on the server',
+      passed: false
+    }));
+  }
+
   const results = [];
-  const fileName = `temp_${Date.now()}_${Math.random()}`;
-  const sourceFile = path.join(TEMP_DIR, `${fileName}.c`);
-  const executableFile = path.join(TEMP_DIR, fileName);
-  
-  // Wrap code with main function for C
-  const wrappedCCode = `
+
+  for (const testCase of testCases) {
+    const runDir = createRunDir();
+    const sourceFile = path.join(runDir, 'solution.c');
+    const executableFile = path.join(runDir, 'solution');
+
+    try {
+      const args = parseTestInput(testCase.input);
+      if (args.length !== 1) {
+        throw new Error('C runner supports one argument per test case. Use comma-separated values only for multi-arg languages.');
+      }
+
+      const arg = args[0];
+      const cArg =
+        typeof arg === 'number'
+          ? String(arg)
+          : `"${String(arg).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+      const wrappedCCode = `
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <json-c/json.h>
 
 ${code}
 
 int main() {
-    char input[1024];
-    fgets(input, sizeof(input), stdin);
-    // Remove newline
-    input[strcspn(input, "\\n")] = 0;
-    
-    struct json_object *inputJson = json_tokener_parse(input);
-    struct json_object *result = ${functionName}(inputJson);
-    
-    printf("%s\\n", json_object_to_json_string(result));
-    json_object_put(inputJson);
-    json_object_put(result);
+    int result = ${functionName}(${cArg});
+    printf("%d\\n", result);
     return 0;
 }
-  `;
-  
-  for (const testCase of testCases) {
-    try {
+`;
+
       fs.writeFileSync(sourceFile, wrappedCCode);
-      
-      // Compile C code
-      const compileResult = await execPromise(`gcc ${sourceFile} -o ${executableFile} -ljson-c`, { timeout: 10000 });
-      
-      if (compileResult.stderr) {
-        throw new Error(compileResult.stderr);
-      }
-      
-      // Run C code with input
-      const runResult = await execPromise(
-        `echo ${JSON.stringify(testCase.input)} | ${executableFile}`,
-        { timeout: 5000 }
-      );
-      
-      // Clean up files
-      fs.unlinkSync(sourceFile);
-      if (fs.existsSync(executableFile)) {
-        fs.unlinkSync(executableFile);
-      }
-      
-      const actualOutput = runResult.stdout.trim();
-      const passed = actualOutput === testCase.expectedOutput;
-      
+      await runProcess(`gcc "${sourceFile}" -o "${executableFile}"`, { timeout: 12000 });
+      const { stdout } = await runProcess(`"${executableFile}"`, { timeout: 8000 });
+      const actualOutput = normalizeOutput(stdout);
+
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
         actualOutput,
-        passed
+        passed: outputsMatch(actualOutput, testCase.expectedOutput)
       });
     } catch (error) {
       results.push({
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
-        actualOutput: error.message,
+        actualOutput: error.stderr?.trim() || error.message,
         passed: false
       });
+    } finally {
+      cleanupRunDir(runDir);
     }
   }
-  
+
   return results;
 };
 
-// ==================== MAIN EXECUTION FUNCTION ====================
 const executeCode = async (code, language, testCases, functionName = 'solve') => {
   try {
-    // Validate inputs
     if (!code || !language || !testCases || testCases.length === 0) {
       throw new Error('Invalid input: code, language, and testCases are required');
     }
@@ -417,17 +455,16 @@ const executeCode = async (code, language, testCases, functionName = 'solve') =>
       case 'c':
         return await executeC(code, testCases, functionName);
       default:
-        console.error(`❌ Unsupported language: ${language}`);
-        return [{
-          input: testCases[0]?.input || 'N/A',
-          expectedOutput: testCases[0]?.expectedOutput || 'N/A',
-          actualOutput: `Language '${language}' is not supported. Supported languages: javascript, python, java, cpp, c`,
+        return testCases.map((testCase) => ({
+          input: testCase.input,
+          expectedOutput: testCase.expectedOutput,
+          actualOutput: `Language '${language}' is not supported. Supported: javascript, python, java, cpp, c`,
           passed: false
-        }];
+        }));
     }
   } catch (error) {
-    console.error('❌ Code execution error:', error);
-    return testCases.map(testCase => ({
+    console.error('Code execution error:', error);
+    return testCases.map((testCase) => ({
       input: testCase.input,
       expectedOutput: testCase.expectedOutput,
       actualOutput: error.message,
@@ -436,4 +473,4 @@ const executeCode = async (code, language, testCases, functionName = 'solve') =>
   }
 };
 
-module.exports = { executeCode };
+module.exports = { executeCode, parseTestInput, outputsMatch };

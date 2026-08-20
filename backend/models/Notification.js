@@ -15,6 +15,8 @@ const notificationSchema = new mongoose.Schema({
       'exam_cancelled',
       'exam_created',
       'exam_updated',
+      'exam_rescheduled',
+      'exam_results_published',
       'session_reminder',
       'certificate_issued',
       'message_received',

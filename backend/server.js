@@ -38,6 +38,7 @@ const ratingRoutes = require('./routes/ratingRoutes');
 const swapRoutes = require('./routes/swapRoutes');
 const rewardsRoutes = require('./routes/rewardsRoutes');
 const timeSlotRoutes = require('./routes/timeSlotRoutes');
+const compilerRoutes = require('./routes/compilerRoutes');
 // Initialize express
 const app = express();
 
@@ -49,6 +50,14 @@ app.use(helmet());
 
 // CORS configuration
 const normalizeOrigin = (origin) => origin && origin.replace(/\/+$/, '');
+
+const isLocalDevOrigin = (origin) => {
+  if (!origin) return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/i.test(
+    normalizeOrigin(origin)
+  );
+};
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -68,6 +77,10 @@ app.use(cors({
       return callback(null, true);
     }
 
+    if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(origin)) {
+      return callback(null, true);
+    }
+
     return callback(new Error('CORS not allowed for origin: ' + origin));
   },
   credentials: true
@@ -77,6 +90,10 @@ app.use(cors({
 app.options('*', cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
+      return callback(null, true);
+    }
+
+    if (process.env.NODE_ENV !== 'production' && isLocalDevOrigin(origin)) {
       return callback(null, true);
     }
 
@@ -128,6 +145,7 @@ app.use('/api/ratings', ratingRoutes);
 app.use('/api/swaps', swapRoutes);
 app.use('/api/rewards', rewardsRoutes);
 app.use('/api/timeslots', timeSlotRoutes);
+app.use('/api/compiler', compilerRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

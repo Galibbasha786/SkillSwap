@@ -13,6 +13,10 @@ import { authAPI } from '../services/api';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
 import LearningScene from '../components/common/LearningScene';
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+const CAPTCHA_ENABLED = Boolean(RECAPTCHA_SITE_KEY);
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,7 +98,7 @@ const Login = () => {
       return;
     }
 
-    if (!captchaToken) {
+    if (CAPTCHA_ENABLED && !captchaToken) {
       setLoginError('Please verify the CAPTCHA');
       toast.error('Please verify the CAPTCHA');
       return;
@@ -436,41 +440,43 @@ const Login = () => {
               </motion.div>
             )}
 
-            {/* Google Sign In Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="mb-6"
-            >
-              <div className="flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  useOneTap={false}
-                  theme="outline"
-                  size="large"
-                  shape="rectangular"
-                  text="continue_with"
-                  width="100%"
-                />
-              </div>
-            </motion.div>
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="mb-6"
+                >
+                  <div className="flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      useOneTap={false}
+                      theme="outline"
+                      size="large"
+                      shape="rectangular"
+                      text="continue_with"
+                      width={380}
+                    />
+                  </div>
+                </motion.div>
 
-            {/* Divider */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="relative my-6"
-            >
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or continue with email</span>
-              </div>
-            </motion.div>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="relative my-6"
+                >
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-gray-500">Or continue with email</span>
+                  </div>
+                </motion.div>
+              </>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -555,24 +561,26 @@ const Login = () => {
                 </button>
               </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.65 }}
-                className="flex justify-center"
-              >
-                <ReCAPTCHA
-                  ref={captchaRef}
-                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
-                  onChange={(token) => {
-                    setCaptchaToken(token);
-                    if (token) {
-                      setLoginError('');
-                    }
-                  }}
-                  theme="light"
-                />
-              </motion.div>
+              {CAPTCHA_ENABLED && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.65 }}
+                  className="flex justify-center"
+                >
+                  <ReCAPTCHA
+                    ref={captchaRef}
+                    sitekey={RECAPTCHA_SITE_KEY}
+                    onChange={(token) => {
+                      setCaptchaToken(token);
+                      if (token) {
+                        setLoginError('');
+                      }
+                    }}
+                    theme="light"
+                  />
+                </motion.div>
+              )}
 
               <motion.button
                 initial={{ opacity: 0, y: 20 }}

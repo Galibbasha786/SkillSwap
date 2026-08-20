@@ -69,7 +69,7 @@ class WebRTCService {
 
     const socketUrl = getSocketUrl();
 
-    console.log('🔌 Connecting to socket server:', socketUrl);
+    console.log('🔌 Connecting to socket server:', socketUrl, '(namespace: /)');
     console.log('👤 User ID:', normalizedUserId);
 
     this.socket = io(socketUrl, getSocketOptions(normalizedUserId));

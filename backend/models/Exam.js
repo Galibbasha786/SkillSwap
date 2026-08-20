@@ -148,7 +148,12 @@ const examSchema = new mongoose.Schema({
   deletedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }
+  },
+  resultsPublished: {
+    type: Boolean,
+    default: false
+  },
+  resultsPublishedAt: Date
 }, {
   timestamps: true
 });

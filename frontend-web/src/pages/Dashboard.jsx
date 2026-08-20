@@ -3,70 +3,41 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { Link, useNavigate } from 'react-router-dom';
-import ImageUpload from '../components/profile/ImageUpload';
-import NotificationBell from '../components/common/NotificationBell';
-import ThemeToggle from '../components/common/ThemeToggle';
+import { Link } from 'react-router-dom';
 import WalletBalance from '../components/wallet/WalletBalance';
 import RatingModal from '../components/ratings/RatingModal';
 import RewardsCard from '../components/rewards/RewardsCard';
-import { 
-  FiLogOut, 
-  FiUser, 
-  FiBook, 
-  FiMessageSquare, 
+import {
+  FiUser,
+  FiBook,
+  FiMessageSquare,
   FiCalendar,
   FiSearch,
   FiUsers,
-  FiDollarSign,
   FiStar,
   FiClock,
   FiAward,
   FiVideo,
   FiCheckCircle,
-  FiHome,
-  FiSettings,
-  FiMenu,
-  FiX,
-  FiHeart,
-  FiChevronLeft,
-  FiChevronRight
+  FiCode
 } from 'react-icons/fi';
+import AppLayout from '../components/layout/AppLayout';
 import AddTeachingSkill from '../components/skills/AddTeachingSkill';
 import AddLearningSkill from '../components/skills/AddLearningSkill';
 import { userAPI, sessionAPI, ratingAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
-  const { user, logout, getUserId } = useAuth();
-  const navigate = useNavigate();
+  const { user, getUserId } = useAuth();
   const [userData, setUserData] = useState(null);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [completedSessions, setCompletedSessions] = useState([]);
   const [refresh, setRefresh] = useState(false);
-  const [profileImage, setProfileImage] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
   
   // Rating Modal State
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [ratingRole, setRatingRole] = useState(null);
-
-  // Check if mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-      if (window.innerWidth < 1024) {
-        setSidebarOpen(false);
-      } else {
-        setSidebarOpen(true);
-      }
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,7 +79,6 @@ const Dashboard = () => {
       const response = await userAPI.getProfile(userId);
       console.log('Profile data:', response.data);
       setUserData(response.data);
-      setProfileImage(response.data.profileImage);
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast.error('Failed to load user data');
@@ -167,34 +137,6 @@ const Dashboard = () => {
     };
   };
 
-  const handleImageUpdate = (newImage) => {
-    console.log('🖼️ Image updated:', newImage);
-    setProfileImage(newImage);
-    setUserData(prev => ({ ...prev, profileImage: newImage }));
-    
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      parsedUser.profileImage = newImage;
-      localStorage.setItem('user', JSON.stringify(parsedUser));
-    }
-    
-    toast.success('Profile image updated!');
-  };
-
-  const handleImageRemove = () => {
-    const defaultImage = 'https://via.placeholder.com/150';
-    setProfileImage(defaultImage);
-    setUserData(prev => ({ ...prev, profileImage: defaultImage }));
-    
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      parsedUser.profileImage = defaultImage;
-      localStorage.setItem('user', JSON.stringify(parsedUser));
-    }
-  };
-
   const handleJoinMeet = (meetLink) => {
     window.open(meetLink, '_blank');
   };
@@ -221,10 +163,6 @@ const Dashboard = () => {
   const handleRatingSubmitted = () => {
     fetchSessions();
     toast.success('Thank you for your feedback!');
-  };
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
   };
 
   const stats = [
@@ -259,179 +197,7 @@ const Dashboard = () => {
   const teacherId = getTeacherProfileId();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar Toggle Button - Always visible on mobile, on desktop it's at the edge */}
-      <button
-        onClick={toggleSidebar}
-        className={`fixed top-4 z-50 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors ${
-          isMobile ? 'left-4' : (sidebarOpen ? 'left-72' : 'left-4')
-        }`}
-      >
-        {sidebarOpen ? <FiChevronLeft className="w-5 h-5" /> : <FiChevronRight className="w-5 h-5" />}
-      </button>
-
-      {/* Sidebar Overlay for mobile */}
-      {sidebarOpen && isMobile && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar Navigation */}
-      <aside
-        className={`fixed top-0 left-0 h-full bg-white shadow-xl z-40 transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } w-72`}
-      >
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
-            SkillSwap
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">Learn. Share. Grow.</p>
-        </div>
-
-        <div className="p-4">
-          {/* User Info - Clickable to go to profile */}
-          <div 
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <img
-              src={profileImage || userData?.profileImage || 'https://via.placeholder.com/40'}
-              alt={userData?.name}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-            <div className="flex-1">
-              <p className="font-semibold text-gray-900 text-sm truncate">{userData?.name || user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{userData?.email || user?.email}</p>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1">
-            <Link
-              to="/dashboard"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-blue-600 bg-blue-50"
-            >
-              <FiHome className="w-5 h-5" />
-              <span className="text-sm font-medium">Dashboard</span>
-            </Link>
-            <Link
-              to="/marketplace"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiSearch className="w-5 h-5" />
-              <span className="text-sm font-medium">Marketplace</span>
-            </Link>
-            <Link
-              to="/matches"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiUsers className="w-5 h-5" />
-              <span className="text-sm font-medium">Your Matches</span>
-            </Link>
-            <Link
-              to="/mutual-matches"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiHeart className="w-5 h-5" />
-              <span className="text-sm font-medium">Free Skill Swaps</span>
-            </Link>
-            <Link
-              to="/sessions"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiCalendar className="w-5 h-5" />
-              <span className="text-sm font-medium">My Sessions</span>
-            </Link>
-            <Link
-              to="/messages"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiMessageSquare className="w-5 h-5" />
-              <span className="text-sm font-medium">Messages</span>
-            </Link>
-            <Link
-              to="/exams"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiBook className="w-5 h-5" />
-              <span className="text-sm font-medium">Exams</span>
-            </Link>
-            <Link
-              to="/teacher/exams"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiCheckCircle className="w-5 h-5" />
-              <span className="text-sm font-medium">My Exams</span>
-            </Link>
-            <Link
-              to="/profile"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiUser className="w-5 h-5" />
-              <span className="text-sm font-medium">My Profile</span>
-            </Link>
-            <Link
-              to="/settings"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FiSettings className="w-5 h-5" />
-              <span className="text-sm font-medium">Settings</span>
-            </Link>
-          </nav>
-        </div>
-
-        {/* Logout Button */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 px-4 py-2.5 w-full rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <FiLogOut className="w-5 h-5" />
-            <span className="text-sm font-medium">Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
-        {/* Header */}
-        <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex justify-end items-center gap-4">
-              <NotificationBell />
-              <ThemeToggle />
-              <ImageUpload
-  currentImage={profileImage}
-  onImageUpdate={handleImageUpdate}
-  onImageRemove={handleImageRemove}
-  size="small"
-/>
-              <button
-                onClick={() => navigate('/profile')}
-                className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                <span className="hidden sm:inline font-medium text-sm">
-                  {userData?.name || user?.name}
-                </span>
-                <FiUser className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </nav>
-
+    <AppLayout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Message */}
           <motion.div
@@ -744,13 +510,6 @@ const Dashboard = () => {
                 <span className="text-sm">Certifications</span>
               </button>
             </Link>
-            
-            <Link to="/matches">
-              <button className="w-full p-4 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2">
-                <FiUsers className="w-6 h-6" />
-                <span className="text-sm">Your Matches</span>
-              </button>
-            </Link>
 
             <Link to="/sessions">
               <button className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2">
@@ -763,6 +522,13 @@ const Dashboard = () => {
               <button className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2">
                 <FiMessageSquare className="w-6 h-6" />
                 <span className="text-sm">Messages</span>
+              </button>
+            </Link>
+
+            <Link to="/compiler">
+              <button className="w-full p-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2">
+                <FiCode className="w-6 h-6" />
+                <span className="text-sm">Online Compiler</span>
               </button>
             </Link>
           </motion.div>
@@ -794,7 +560,6 @@ const Dashboard = () => {
             </motion.div>
           )}
         </div>
-      </main>
 
       {/* Rating Modal */}
       {showRatingModal && selectedSession && (
@@ -806,7 +571,7 @@ const Dashboard = () => {
           onRatingSubmitted={handleRatingSubmitted}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 

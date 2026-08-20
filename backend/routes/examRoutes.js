@@ -13,12 +13,18 @@ const {
   getExamById,
   recordViolation,
   getLiveAttempts,
+  getExamResults,
+  publishExamResults,
   updateExam,
-  cancelExam,  // ✅ Add this import
+  cancelExam,
   deleteExam,
   verifyExamAccess,
   runCode,
-  submitCoding
+  submitCoding,
+  rescheduleExam,
+  removeStudentFromExam,
+  getPracticeExam,
+  submitPractice
 } = require('../controllers/examController');
 
 // All routes require authentication
@@ -28,13 +34,19 @@ router.post('/', createExam);
 router.put('/:examId', updateExam);
 router.get('/teacher', getTeacherExams);
 router.get('/available', getAvailableExams);
+router.get('/:examId/practice', getPracticeExam);
+router.post('/:examId/practice/submit', submitPractice);
 router.get('/:examId/live-attempts', getLiveAttempts);
+router.get('/:examId/results', getExamResults);
+router.post('/:examId/publish-results', publishExamResults);
 router.get('/:examId', getExamById);
 router.post('/:examId/start', startExam);
 router.post('/:examId/submit', submitAnswer);
 router.post('/:examId/finish', finishExam);
 router.post('/:examId/violation', recordViolation);
-router.post('/:examId/cancel', cancelExam);  // ✅ Add cancel route
+router.post('/:examId/cancel', cancelExam);
+router.post('/:examId/reschedule', rescheduleExam);
+router.post('/:examId/remove-student/:studentId', removeStudentFromExam);
 router.delete('/:examId', deleteExam);
 router.post('/:examId/verify-access', verifyExamAccess);
 router.post('/:examId/run-code', auth, runCode);

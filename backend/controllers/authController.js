@@ -3,10 +3,27 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const { sendOTPEmail, generateOTP } = require('../utils/emailService');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const issueAuthToken = async (user) => {
+  // TODO: re-enable one device / one login after testing
+  // const sessionId = crypto.randomUUID();
+  // user.activeSessionId = sessionId;
+  user.lastLogin = Date.now();
+  await user.save({ validateBeforeSave: false });
+
+  const token = jwt.sign(
+    { id: user._id, role: user.role /* , sid: sessionId */ },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  return token;
+};
 
 // @desc    Register user
 exports.register = async (req, res) => {
@@ -40,11 +57,7 @@ exports.register = async (req, res) => {
     // });
 
     // ✅ Generate token for immediate login
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = await issueAuthToken(user);
 
     res.status(201).json({
       success: true,
@@ -163,13 +176,7 @@ exports.login = async (req, res) => {
     }
 
     user.lastLogin = Date.now();
-    await user.save();
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = await issueAuthToken(user);
 
     res.json({
       success: true,
@@ -240,11 +247,7 @@ exports.googleLogin = async (req, res) => {
       }
     }
     
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = await issueAuthToken(user);
     
     console.log(`✅ Google login successful for: ${email}`);
 

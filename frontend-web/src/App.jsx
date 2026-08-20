@@ -12,8 +12,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import SkillMarketplace from './pages/SkillMarketplace';
-import Matches from './pages/Matches';
-import MutualMatches from './pages/MutualMatches';  // ✅ Add this
+import MutualMatches from './pages/MutualMatches';
 import TeacherProfile from './pages/TeacherProfile';
 import Sessions from './pages/Sessions';
 import Messages from './pages/Messages';
@@ -21,8 +20,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import CreateExam from './pages/teacher/CreateExam';
 import TeacherExams from './pages/teacher/TeacherExams';
 import ExamMonitor from './pages/teacher/ExamMonitor';
+import ExamResults from './pages/teacher/ExamResults';
 import StudentExams from './pages/student/StudentExams';
 import ExamTaking from './pages/ExamTaking';
+import ExamPractice from './pages/ExamPractice';
+import OnlineCompiler from './pages/OnlineCompiler';
 import Certificate from './components/exam/Certificate';
 import VerifyCertificate from './components/exam/VerifyCertificate';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -199,13 +201,6 @@ function AppContent() {
             </ProtectedRoute>
           } />
           
-          <Route path="/matches" element={
-            <ProtectedRoute>
-              <Matches />
-            </ProtectedRoute>
-          } />
-          
-          {/* ✅ Add Mutual Matches route */}
           <Route path="/mutual-matches" element={
             <ProtectedRoute>
               <MutualMatches />
@@ -227,6 +222,12 @@ function AppContent() {
           <Route path="/messages" element={
             <ProtectedRoute>
               <Messages />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/compiler" element={
+            <ProtectedRoute>
+              <OnlineCompiler />
             </ProtectedRoute>
           } />
           
@@ -254,6 +255,12 @@ function AppContent() {
               <ExamMonitor />
             </ProtectedRoute>
           } />
+
+          <Route path="/teacher/exams/:examId/results" element={
+            <ProtectedRoute>
+              <ExamResults />
+            </ProtectedRoute>
+          } />
           
           <Route path="/exams" element={
             <ProtectedRoute>
@@ -261,6 +268,12 @@ function AppContent() {
             </ProtectedRoute>
           } />
           
+          <Route path="/exams/:examId/practice" element={
+            <ProtectedRoute>
+              <ExamPractice />
+            </ProtectedRoute>
+          } />
+
           <Route path="/exams/:examId/take" element={
             <ProtectedRoute>
               <ExamTaking />

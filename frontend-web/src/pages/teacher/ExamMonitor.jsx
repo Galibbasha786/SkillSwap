@@ -13,38 +13,81 @@ import toast from 'react-hot-toast';
 
 const StudentFeed = memo(({
   studentName,
-  stream,
+  cameraStream,
+  screenStream,
   violations,
   isLive,
   isConnected,
   lastViolation,
   listenEnabled,
   onToggleListen,
-  studentId
+  studentId,
+  onToggleMicMute,
+  onRemoveStudent
 }) => {
-  const videoRef = useRef(null);
+  const cameraRef = useRef(null);
+  const screenRef = useRef(null);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !stream) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
+    const video = cameraRef.current;
+    if (!video) return;
+    if (!cameraStream) {
+      video.srcObject = null;
+      return;
+    }
+    if (video.srcObject !== cameraStream) {
+      video.srcObject = cameraStream;
     }
     video.play().catch(() => {});
-  }, [stream]);
+  }, [cameraStream]);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = !listenEnabled;
+    const video = screenRef.current;
+    if (!video) return;
+    if (!screenStream) {
+      video.srcObject = null;
+      return;
     }
-  }, [listenEnabled, stream]);
+    if (video.srcObject !== screenStream) {
+      video.srcObject = screenStream;
+    }
+    video.play().catch(() => {});
+  }, [screenStream]);
+
+  useEffect(() => {
+    if (cameraRef.current) {
+      cameraRef.current.muted = !listenEnabled;
+    }
+  }, [listenEnabled, cameraStream]);
+
+  const hasScreen = !!screenStream;
 
   return (
     <div className="bg-gray-900 rounded-xl overflow-hidden shadow-lg border border-gray-700">
-      <div className="relative aspect-video bg-black">
-        {stream ? (
+      <div className={`relative bg-black ${hasScreen ? 'aspect-video' : 'aspect-video'}`}>
+        {hasScreen ? (
+          <>
+            <video
+              ref={screenRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain bg-black"
+            />
+            {cameraStream && (
+              <div className="absolute bottom-2 left-2 w-24 h-20 rounded-lg overflow-hidden border-2 border-white/80 shadow-lg bg-black">
+                <video
+                  ref={cameraRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+          </>
+        ) : cameraStream ? (
           <video
-            ref={videoRef}
+            ref={cameraRef}
             autoPlay
             playsInline
             className="w-full h-full object-cover"
@@ -52,17 +95,26 @@ const StudentFeed = memo(({
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <FiVideo className="w-10 h-10 mb-2 animate-pulse" />
-            <p className="text-sm">{isLive ? 'Connecting camera...' : 'Waiting for student...'}</p>
+            <p className="text-sm">{isLive ? 'Connecting camera...' : 'Student left exam'}</p>
           </div>
         )}
 
         <div className="absolute top-2 left-2 flex flex-wrap gap-2">
-          {isLive && (
-            <span className={`text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
-              isConnected ? 'bg-green-600' : 'bg-yellow-600'
-            }`}>
-              <span className={`w-1.5 h-1.5 bg-white rounded-full ${isConnected ? '' : 'animate-pulse'}`} />
-              {isConnected ? 'LIVE' : 'CONNECTING'}
+          {isLive && isConnected && (
+            <span className="text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 bg-green-600">
+              <span className="w-1.5 h-1.5 bg-white rounded-full" />
+              LIVE
+            </span>
+          )}
+          {isLive && !isConnected && (
+            <span className="text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 bg-yellow-600">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              CONNECTING
+            </span>
+          )}
+          {hasScreen && (
+            <span className="text-white text-xs px-2 py-0.5 rounded-full bg-indigo-600">
+              Screen
             </span>
           )}
           {violations > 0 && (
@@ -74,15 +126,41 @@ const StudentFeed = memo(({
           )}
         </div>
 
-        {stream && (
-          <button
-            type="button"
-            onClick={() => onToggleListen(studentId)}
-            className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full"
-            title={listenEnabled ? 'Mute student audio' : 'Listen to student'}
-          >
-            {listenEnabled ? <FiVolume2 className="w-4 h-4" /> : <FiMicOff className="w-4 h-4" />}
-          </button>
+        {cameraStream && (
+          <div className="absolute bottom-2 right-2 flex gap-1">
+            <button
+              type="button"
+              onClick={() => onToggleMicMute?.(studentId, true)}
+              className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full text-[10px]"
+              title="Mute student mic"
+            >
+              🔇
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleMicMute?.(studentId, false)}
+              className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full text-[10px]"
+              title="Unmute student mic"
+            >
+              🎤
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleListen(studentId)}
+              className="bg-black/60 hover:bg-black/80 text-white p-2 rounded-full"
+              title={listenEnabled ? 'Mute student audio' : 'Listen to student'}
+            >
+              {listenEnabled ? <FiVolume2 className="w-4 h-4" /> : <FiMicOff className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRemoveStudent?.(studentId)}
+              className="bg-red-700/80 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]"
+              title="Remove from exam (0 marks)"
+            >
+              Remove
+            </button>
+          </div>
         )}
       </div>
 
@@ -117,7 +195,8 @@ const ExamMonitor = () => {
 
   const teacherAudioStreamRef = useRef(null);
   const streamsRef = useRef({});
-  const initStartedRef = useRef(false);
+  const studentsRef = useRef({});
+  const cleanupTimerRef = useRef(null);
 
   const upsertStudent = useCallback((studentId, updates) => {
     const sid = String(studentId);
@@ -137,8 +216,14 @@ const ExamMonitor = () => {
 
   const removeStudent = useCallback((studentId) => {
     const sid = String(studentId);
+    examProctoringService.destroyTeacherPeer(sid);
     delete streamsRef.current[sid];
     setStudents(prev => {
+      const next = { ...prev };
+      delete next[sid];
+      return next;
+    });
+    setViolations(prev => {
       const next = { ...prev };
       delete next[sid];
       return next;
@@ -154,11 +239,32 @@ const ExamMonitor = () => {
   const removeStudentRef = useRef(removeStudent);
   upsertStudentRef.current = upsertStudent;
   removeStudentRef.current = removeStudent;
+  studentsRef.current = students;
 
   const toggleListen = useCallback((studentId) => {
     const sid = String(studentId);
     setListenMap(prev => ({ ...prev, [sid]: !prev[sid] }));
   }, []);
+
+  const handleToggleMicMute = useCallback((studentId, muted) => {
+    examProctoringService.setStudentMicMutedByTeacher(muted, studentId);
+    toast(muted ? 'Student microphone muted' : 'Student microphone unmuted', { duration: 1500 });
+  }, []);
+
+  const handleRemoveStudent = useCallback(async (studentId) => {
+    if (!window.confirm('Remove this student from the exam with 0 marks?')) return;
+    try {
+      const response = await examAPI.removeStudentFromExam(examId, studentId);
+      removeStudentRef.current(studentId);
+      if (response?.data?.isFinalRemoval) {
+        toast.success(`Student removed 3 times — final score ${response.data.finalScore?.percentage?.toFixed(1) ?? 0}% recorded`);
+      } else {
+        toast.success(`Student removed (${response?.data?.removalNumber || ''}/3)`);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to remove student');
+    }
+  }, [examId]);
 
   const toggleTeacherMic = () => {
     if (!teacherAudioStreamRef.current) {
@@ -174,18 +280,93 @@ const ExamMonitor = () => {
     });
   };
 
-  // Stable init — runs once per examId + userId
+  // Stable init — re-sync callbacks on remount (React Strict Mode safe)
   useEffect(() => {
     if (!userId || !examId) return;
-    if (initStartedRef.current) return;
-    initStartedRef.current = true;
+
+    if (cleanupTimerRef.current) {
+      clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
 
     let cancelled = false;
 
-    const init = async () => {
+    const monitorCallbacks = {
+      onMonitorJoined: (data) => {
+        setConnected(true);
+        setExam(prev => prev || { title: data.examTitle });
+        data.activeStudents?.forEach((s) => {
+          const sid = String(s.studentId);
+          upsertStudentRef.current(sid, { studentName: s.studentName, isLive: true });
+          setListenMap(prev => ({ ...prev, [sid]: true }));
+        });
+        setLoading(false);
+      },
+      onError: (message) => {
+        toast.error(typeof message === 'string' ? message : message?.message || 'Monitor connection failed');
+        setLoading(false);
+      },
+      onStudentJoined: ({ studentId, studentName }) => {
+        const sid = String(studentId);
+        upsertStudentRef.current(sid, { studentName, isLive: true });
+        setListenMap(prev => ({ ...prev, [sid]: true }));
+        setLoading(false);
+      },
+      onStudentLeft: ({ studentId }) => {
+        removeStudentRef.current(studentId);
+      },
+      onRemoteStream: ({ studentId, studentName, stream: remoteStream }) => {
+        const sid = String(studentId);
+        streamsRef.current[sid] = remoteStream;
+        const { cameraStream, screenStream } = examProctoringService.parseRemoteStreams(remoteStream);
+        upsertStudentRef.current(sid, {
+          studentName,
+          cameraStream,
+          screenStream,
+          isLive: true,
+          isConnected: true
+        });
+        setLoading(false);
+      },
+      onStudentConnected: ({ studentId, studentName }) => {
+        upsertStudentRef.current(String(studentId), { studentName, isConnected: true });
+      },
+      onViolation: (data) => {
+        const sid = String(data.studentId);
+        setViolations(prev => ({ ...prev, [sid]: data.violations }));
+        upsertStudentRef.current(sid, {
+          studentName: data.studentName,
+          violations: data.violations,
+          lastViolation: data
+        });
+        setViolationLog(prev => [data, ...prev].slice(0, 50));
+      },
+      onExamEnded: () => {
+        toast('Exam session ended for a student', { icon: 'ℹ️' });
+      }
+    };
+
+    examProctoringService.startTeacherMonitor({
+      userId,
+      examId,
+      teacherAudioStream: teacherAudioStreamRef.current,
+      callbacks: monitorCallbacks
+    });
+
+    const loadMonitorData = async () => {
       try {
-        const response = await examAPI.getLiveAttempts(examId);
-        if (cancelled) return;
+        const [response, micStream] = await Promise.all([
+          examAPI.getLiveAttempts(examId),
+          navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false
+          }).catch(() => null)
+        ]);
+
+        if (cancelled) {
+          micStream?.getTracks().forEach(t => t.stop());
+          return;
+        }
 
         setExam(response.data.exam);
 
@@ -200,103 +381,86 @@ const ExamMonitor = () => {
             isLive: true,
             isConnected: false,
             violations: attempt.violations || 0,
-            startedAt: attempt.startedAt
+            startedAt: attempt.startTime
           };
           initialViolations[sid] = attempt.violations || 0;
           initialListen[sid] = true;
         });
-        setStudents(initialStudents);
-        setViolations(initialViolations);
-        setListenMap(initialListen);
+        setStudents(prev => ({ ...prev, ...initialStudents }));
+        setViolations(prev => ({ ...prev, ...initialViolations }));
+        setListenMap(prev => ({ ...prev, ...initialListen }));
+
+        if (micStream) {
+          teacherAudioStreamRef.current = micStream;
+          micStream.getAudioTracks().forEach(t => { t.enabled = false; });
+          examProctoringService.updateTeacherAudioStream(micStream);
+        } else {
+          toast.error('Allow microphone access to speak with students during the exam', { duration: 4000 });
+        }
       } catch (error) {
         if (cancelled) return;
         toast.error(error.response?.data?.message || 'Failed to load exam monitor');
         navigate('/teacher/exams');
-        return;
       } finally {
         if (!cancelled) setLoading(false);
       }
-
-      if (cancelled) return;
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          video: false
-        });
-        if (cancelled) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
-        teacherAudioStreamRef.current = stream;
-        stream.getAudioTracks().forEach(t => { t.enabled = false; });
-      } catch {
-        toast.error('Allow microphone access to speak with students during the exam', { duration: 4000 });
-      }
-
-      if (cancelled) return;
-
-      examProctoringService.startTeacherMonitor({
-        userId,
-        examId,
-        teacherAudioStream: teacherAudioStreamRef.current,
-        callbacks: {
-          onMonitorJoined: (data) => {
-            setConnected(true);
-            setExam(prev => prev || { title: data.examTitle });
-            data.activeStudents?.forEach((s) => {
-              const sid = String(s.studentId);
-              upsertStudentRef.current(sid, { studentName: s.studentName, isLive: true });
-              setListenMap(prev => ({ ...prev, [sid]: true }));
-            });
-          },
-          onError: (message) => {
-            toast.error(message);
-          },
-          onStudentJoined: ({ studentId, studentName }) => {
-            const sid = String(studentId);
-            upsertStudentRef.current(sid, { studentName, isLive: true });
-            setListenMap(prev => ({ ...prev, [sid]: true }));
-          },
-          onStudentLeft: ({ studentId }) => {
-            removeStudentRef.current(studentId);
-          },
-          onRemoteStream: ({ studentId, studentName, stream: remoteStream }) => {
-            const sid = String(studentId);
-            streamsRef.current[sid] = remoteStream;
-            upsertStudentRef.current(sid, { studentName, stream: remoteStream, isLive: true, isConnected: true });
-          },
-          onStudentConnected: ({ studentId, studentName }) => {
-            upsertStudentRef.current(String(studentId), { studentName, isConnected: true });
-          },
-          onViolation: (data) => {
-            const sid = String(data.studentId);
-            setViolations(prev => ({ ...prev, [sid]: data.violations }));
-            upsertStudentRef.current(sid, {
-              studentName: data.studentName,
-              violations: data.violations,
-              lastViolation: data
-            });
-            setViolationLog(prev => [data, ...prev].slice(0, 50));
-          }
-        }
-      });
     };
 
-    init();
+    loadMonitorData();
 
     return () => {
       cancelled = true;
-      initStartedRef.current = false;
-      examProctoringService.stopTeacherMonitor();
-      teacherAudioStreamRef.current?.getTracks().forEach(t => t.stop());
-      teacherAudioStreamRef.current = null;
-      streamsRef.current = {};
+      cleanupTimerRef.current = setTimeout(() => {
+        examProctoringService.stopTeacherMonitor();
+        teacherAudioStreamRef.current?.getTracks().forEach(t => t.stop());
+        teacherAudioStreamRef.current = null;
+        streamsRef.current = {};
+        cleanupTimerRef.current = null;
+      }, 500);
     };
   }, [userId, examId, navigate]);
 
+  // Close monitor when exam window ends; refresh active student list
+  useEffect(() => {
+    if (!exam?.availableTo || !examId) return;
+
+    const checkExamWindow = async () => {
+      const now = Date.now();
+      const endTime = new Date(exam.availableTo).getTime();
+
+      if (now >= endTime) {
+        toast.success('Exam time has ended. Live monitoring closed.');
+        navigate('/teacher/exams');
+        return;
+      }
+
+      try {
+        const response = await examAPI.getLiveAttempts(examId);
+        const activeIds = new Set(
+          (response.data.attempts || []).map((a) => String(a.studentId?._id || a.studentId))
+        );
+
+        Object.keys(studentsRef.current).forEach((id) => {
+          if (activeIds.has(id)) return;
+          const student = studentsRef.current[id];
+          // Keep students visible during prep (socket/WebRTC) even before in_progress attempt exists
+          if (student?.isLive || student?.isConnected || student?.cameraStream || student?.screenStream) {
+            return;
+          }
+          removeStudentRef.current(id);
+        });
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    checkExamWindow();
+    const interval = setInterval(checkExamWindow, 15000);
+    return () => clearInterval(interval);
+  }, [exam?.availableTo, examId, navigate]);
+
   const studentList = Object.values(students);
-  const liveCount = studentList.filter(s => s.isConnected && s.stream).length;
+  const liveCount = studentList.filter(s => s.isConnected && (s.cameraStream || s.screenStream)).length;
 
   if (!userId) {
     return (
@@ -339,6 +503,20 @@ const ExamMonitor = () => {
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 type="button"
+                onClick={() => examProctoringService.setStudentMicMutedByTeacher(true)}
+                className="px-3 py-2 rounded-lg text-sm bg-red-900/50 hover:bg-red-800 text-red-200"
+              >
+                Mute all
+              </button>
+              <button
+                type="button"
+                onClick={() => examProctoringService.setStudentMicMutedByTeacher(false)}
+                className="px-3 py-2 rounded-lg text-sm bg-green-900/50 hover:bg-green-800 text-green-200"
+              >
+                Unmute all
+              </button>
+              <button
+                type="button"
                 onClick={toggleTeacherMic}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   teacherMicOn
@@ -369,9 +547,9 @@ const ExamMonitor = () => {
             {studentList.length === 0 ? (
               <div className="text-center py-20 bg-gray-800/50 rounded-2xl border border-gray-700">
                 <FiVideo className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-300">No students taking the exam yet</h3>
+                <h3 className="text-lg font-medium text-gray-300">No students in proctoring yet</h3>
                 <p className="text-gray-500 mt-2 text-sm">
-                  Student camera feeds will appear here when they start the exam.
+                  Feeds appear when a student grants camera, mic, and screen share — including during the 4-minute prep wait.
                 </p>
               </div>
             ) : (
@@ -381,13 +559,16 @@ const ExamMonitor = () => {
                     key={student.studentId}
                     studentId={student.studentId}
                     studentName={student.studentName}
-                    stream={student.stream}
+                    cameraStream={student.cameraStream}
+                    screenStream={student.screenStream}
                     violations={violations[student.studentId] || student.violations || 0}
                     isLive={student.isLive}
                     isConnected={student.isConnected}
                     lastViolation={student.lastViolation}
                     listenEnabled={listenMap[student.studentId] !== false}
                     onToggleListen={toggleListen}
+                    onToggleMicMute={handleToggleMicMute}
+                    onRemoveStudent={handleRemoveStudent}
                   />
                 ))}
               </div>
@@ -400,7 +581,9 @@ const ExamMonitor = () => {
               <ul className="text-xs text-gray-400 space-y-1">
                 <li>• Click <strong className="text-gray-300">Talk to students</strong> to enable your mic</li>
                 <li>• Click the speaker icon on a feed to hear that student</li>
-                <li>• Students can mute/unmute their mic during the exam</li>
+                <li>• Students share <strong className="text-gray-300">camera + screen</strong> during proctored exams</li>
+                <li>• Screen is main view; face appears in the corner</li>
+                <li>• Feeds disappear when the student submits or leaves</li>
               </ul>
             </div>
 
