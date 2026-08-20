@@ -65,3 +65,4 @@ GoogleService-Info.plist
 # MongoDB
 data/
 dump/backend/config/google-service-account.json
+backend/temp/
