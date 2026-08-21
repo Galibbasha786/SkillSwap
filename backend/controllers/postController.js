@@ -1,10 +1,14 @@
 const Post = require('../models/Post');
 const { POST_CATEGORIES } = require('../models/Post');
-const { cloudinary } = require('../config/cloudinary');
+const { cloudinary, upload, isCloudinaryConfigured } = require('../config/cloudinary');
 
 const uploadPostImage = async (file) => {
   if (!file) {
     return { imageUrl: '', imagePublicId: '' };
+  }
+
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Image upload is not configured on the server');
   }
 
   const result = await new Promise((resolve, reject) => {
@@ -75,9 +79,19 @@ exports.createPost = async (req, res) => {
     let imagePublicId = req.body.imagePublicId?.trim() || '';
 
     if (req.file) {
-      const uploaded = await uploadPostImage(req.file);
-      imageUrl = uploaded.imageUrl;
-      imagePublicId = uploaded.imagePublicId;
+      try {
+        const uploaded = await uploadPostImage(req.file);
+        imageUrl = uploaded.imageUrl;
+        imagePublicId = uploaded.imagePublicId;
+      } catch (uploadError) {
+        console.error('Post image upload error:', uploadError);
+        return res.status(503).json({
+          message:
+            uploadError.message?.includes('not configured')
+              ? 'Image upload is not available right now. Post without an image or try again later.'
+              : 'Failed to upload image. Try posting without an image.'
+        });
+      }
     }
 
     const post = await Post.create({
@@ -99,7 +113,11 @@ exports.createPost = async (req, res) => {
     });
   } catch (error) {
     console.error('Create post error:', error);
-    res.status(500).json({ message: 'Failed to create post' });
+    res.status(500).json({
+      message: error.name === 'ValidationError'
+        ? 'Invalid post data'
+        : 'Failed to create post'
+    });
   }
 };
 

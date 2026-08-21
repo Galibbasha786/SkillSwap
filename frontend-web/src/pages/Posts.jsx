@@ -116,17 +116,22 @@ const Posts = () => {
     try {
       setSubmitting(true);
 
-      const payload = new FormData();
-      payload.append('category', form.category);
-      payload.append('title', form.title.trim());
-      payload.append('content', form.content.trim());
-      payload.append('tags', form.tags);
-      payload.append('link', form.link.trim());
-      if (imageFile) {
-        payload.append('image', imageFile);
-      }
+      const postData = {
+        category: form.category,
+        title: form.title.trim(),
+        content: form.content.trim(),
+        tags: form.tags,
+        link: form.link.trim()
+      };
 
-      await postAPI.create(payload);
+      if (imageFile) {
+        const payload = new FormData();
+        Object.entries(postData).forEach(([key, value]) => payload.append(key, value));
+        payload.append('image', imageFile);
+        await postAPI.create(payload);
+      } else {
+        await postAPI.create(postData);
+      }
 
       toast.success('Post shared!');
       setForm({ category: form.category, title: '', content: '', tags: '', link: '' });

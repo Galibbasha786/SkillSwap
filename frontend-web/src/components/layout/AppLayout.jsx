@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../common/NotificationBell';
 import ThemeToggle from '../common/ThemeToggle';
+import WelcomeReminderModal from '../common/WelcomeReminderModal';
 import { userAPI } from '../../services/api';
 import skillswapLogo from '../../assets/skillswaplogo.jpg';
 
@@ -227,6 +228,8 @@ const AppLayout = ({ children }) => {
 
         {children}
       </main>
+
+      <WelcomeReminderModal />
     </div>
   );
 };

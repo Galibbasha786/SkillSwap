@@ -14,7 +14,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 90000,
 });
 
 // Request interceptor
@@ -24,14 +24,20 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('🚀 Request:', {
-      method: config.method.toUpperCase(),
-      url: config.url,
-      baseURL: config.baseURL,
-      fullURL: `${config.baseURL}${config.url}`,
-      data: config.data,
-      token: token ? 'Present' : 'Missing'
-    });
+
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
+    if (import.meta.env.DEV) {
+      console.log('🚀 Request:', {
+        method: config.method.toUpperCase(),
+        url: config.url,
+        baseURL: config.baseURL,
+        fullURL: `${config.baseURL}${config.url}`,
+        token: token ? 'Present' : 'Missing'
+      });
+    }
     return config;
   },
   (error) => {
@@ -53,7 +59,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.code === 'ECONNABORTED') {
       console.error('❌ Timeout Error');
-      toast.error('Request timeout. Please try again.');
+      toast.error('Request timed out. The server may be waking up — please try again.');
     } else if (error.response) {
       console.error('❌ Server Error:', {
         status: error.response.status,
@@ -81,7 +87,7 @@ api.interceptors.response.use(
       const now = Date.now();
       if (now - lastBackendDownToastAt > 12000) {
         lastBackendDownToastAt = now;
-        toast.error('Cannot connect to backend. Run: cd backend && npm run dev');
+        toast.error('Cannot reach the server. It may be waking up — please wait and try again.');
       }
     } else {
       console.error('❌ Error:', error.message);
@@ -129,9 +135,7 @@ export const userAPI = {
   },
   removeTeachingSkill: (skillName) => api.delete(`/users/skills/teach/${encodeURIComponent(skillName)}`),
   removeLearningSkill: (skillName) => api.delete(`/users/skills/learn/${encodeURIComponent(skillName)}`),
-  uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData),
   removeProfileImage: () => api.delete('/users/profile-image'),
   getMatches: () => api.get('/users/matches'),
   getMutualMatches: () => api.get('/users/mutual-matches'),
@@ -237,10 +241,7 @@ export const compilerAPI = {
 export const postAPI = {
   getAll: (params) => api.get('/posts', { params }),
   getById: (id) => api.get(`/posts/${id}`),
-  create: (data) =>
-    data instanceof FormData
-      ? api.post('/posts', data, { headers: { 'Content-Type': 'multipart/form-data' } })
-      : api.post('/posts', data),
+  create: (data) => api.post('/posts', data),
   delete: (id) => api.delete(`/posts/${id}`),
   toggleLike: (id) => api.post(`/posts/${id}/like`),
   getCategories: () => api.get('/posts/meta/categories'),
