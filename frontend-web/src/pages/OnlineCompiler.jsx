@@ -13,15 +13,6 @@ function add(a, b) {
 }
 
 console.log(add(2, 3));`,
-  java: `import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        int a = sc.nextInt();
-        System.out.println("The number is " + a);
-    }
-}`,
   python: `# Python — use input() and put your answer in the Input box
 name = input("Enter your name: ")
 print("Hello,", name)`,
@@ -37,19 +28,16 @@ int main() {
 const LANGUAGE_STDIN_PLACEHOLDERS = {
   javascript: 'Optional input for your program...',
   python: 'Example: Alice',
-  java: 'Example: 42',
   cpp: 'Example: 10'
 };
 
 const LANGUAGE_STDIN_DEFAULTS = {
-  java: '42',
   python: 'Alice'
 };
 
 const LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
   { id: 'python', label: 'Python' },
-  { id: 'java', label: 'Java' },
   { id: 'cpp', label: 'C++' }
 ];
 
@@ -108,7 +96,7 @@ const OnlineCompiler = () => {
 
   const handleClear = () => {
     setCode(LANGUAGE_TEMPLATES[language]);
-    setStdin('');
+    setStdin(LANGUAGE_STDIN_DEFAULTS[language] || '');
     setStdout('');
     setStderr('');
     setExitCode(null);
@@ -129,7 +117,7 @@ const OnlineCompiler = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Online Compiler</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Practice JavaScript, Python, Java, and C++ — write your own code and run it instantly.
+            Practice JavaScript, Python, and C++ — write your own code and run it instantly.
           </p>
         </div>
 
@@ -221,9 +209,9 @@ const OnlineCompiler = () => {
         <div className="mt-6 rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm text-blue-900">
           <p className="font-medium mb-1">Tips</p>
           <ul className="list-disc list-inside space-y-1 text-blue-800">
-            <li>Standard library imports work (e.g. <code className="bg-blue-100 px-1 rounded">java.util.*</code>). External JARs are not supported.</li>
-            <li>Java programs must include <code className="bg-blue-100 px-1 rounded">public class Main</code> with <code className="bg-blue-100 px-1 rounded">main</code>.</li>
-            <li>If you use <code className="bg-blue-100 px-1 rounded">Scanner</code> or <code className="bg-blue-100 px-1 rounded">input()</code>, put values in the <strong>Input (stdin)</strong> box (e.g. <code className="bg-blue-100 px-1 rounded">42</code> for <code className="bg-blue-100 px-1 rounded">nextInt()</code>).</li>
+            <li>JavaScript runs everywhere on the server (best for deployed/production use).</li>
+            <li>Python and C++ need <code className="bg-blue-100 px-1 rounded">python3</code> / <code className="bg-blue-100 px-1 rounded">g++</code> on the server — may not work on all hosts.</li>
+            <li>If you use <code className="bg-blue-100 px-1 rounded">input()</code> or <code className="bg-blue-100 px-1 rounded">cin</code>, put values in the <strong>Input (stdin)</strong> box.</li>
             <li>C++ programs should include <code className="bg-blue-100 px-1 rounded">int main()</code>.</li>
             <li>Execution timeout is 15 seconds per run.</li>
           </ul>

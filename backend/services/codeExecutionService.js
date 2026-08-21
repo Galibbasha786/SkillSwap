@@ -83,18 +83,6 @@ const formatJsArgs = (args) => args.map((arg) => JSON.stringify(arg)).join(', ')
 
 const formatPythonArgs = (args) => args.map((arg) => JSON.stringify(arg)).join(', ');
 
-const formatJavaArgs = (args) =>
-  args
-    .map((arg) => {
-      if (typeof arg === 'number') {
-        return Number.isInteger(arg) ? `(int) ${arg}` : `(double) ${arg}`;
-      }
-      if (typeof arg === 'boolean') return arg ? 'true' : 'false';
-      if (arg === null) return 'null';
-      return `"${String(arg).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-    })
-    .join(', ');
-
 const formatCppArgs = (args) =>
   args
     .map((arg) => {
@@ -210,75 +198,6 @@ print(json.dumps(__result) if isinstance(__result, (dict, list, tuple, bool)) or
 
       fs.writeFileSync(filePath, wrappedCode);
       const { stdout } = await runProcess(`python3 "${filePath}"`);
-      const actualOutput = normalizeOutput(stdout);
-
-      results.push({
-        input: testCase.input,
-        expectedOutput: testCase.expectedOutput,
-        actualOutput,
-        passed: outputsMatch(actualOutput, testCase.expectedOutput)
-      });
-    } catch (error) {
-      results.push({
-        input: testCase.input,
-        expectedOutput: testCase.expectedOutput,
-        actualOutput: error.stderr?.trim() || error.message,
-        passed: false
-      });
-    } finally {
-      cleanupRunDir(runDir);
-    }
-  }
-
-  return results;
-};
-
-const executeJava = async (code, testCases, functionName = 'solve') => {
-  const hasJava = await checkCommand('javac');
-  if (!hasJava) {
-    return testCases.map((testCase) => ({
-      input: testCase.input,
-      expectedOutput: testCase.expectedOutput,
-      actualOutput: 'Java compiler (javac) is not installed on the server',
-      passed: false
-    }));
-  }
-
-  const results = [];
-  const className = 'Main';
-
-  for (const testCase of testCases) {
-    const runDir = createRunDir();
-    const filePath = path.join(runDir, `${className}.java`);
-
-    try {
-      const args = parseTestInput(testCase.input);
-      const callArgs = formatJavaArgs(args);
-      const wrappedJavaCode = `
-public class ${className} {
-    ${code}
-
-    public static void main(String[] args) {
-        Object result = ${functionName}(${callArgs});
-        System.out.println(convertToString(result));
-    }
-
-    static String convertToString(Object obj) {
-        if (obj == null) return "null";
-        if (obj instanceof String) return (String) obj;
-        if (obj instanceof Double) {
-            double d = (Double) obj;
-            if (d == (long) d) return String.valueOf((long) d);
-            return String.valueOf(d);
-        }
-        return String.valueOf(obj);
-    }
-}
-`;
-
-      fs.writeFileSync(filePath, wrappedJavaCode);
-      await runProcess(`javac "${filePath}"`, { timeout: 12000 });
-      const { stdout } = await runProcess(`java -cp "${runDir}" ${className}`, { timeout: 8000 });
       const actualOutput = normalizeOutput(stdout);
 
       results.push({
@@ -448,7 +367,12 @@ const executeCode = async (code, language, testCases, functionName = 'solve') =>
       case 'python':
         return await executePython(code, testCases, functionName);
       case 'java':
-        return await executeJava(code, testCases, functionName);
+        return testCases.map((testCase) => ({
+          input: testCase.input,
+          expectedOutput: testCase.expectedOutput,
+          actualOutput: 'Java is not supported. Use JavaScript, Python, C++, or C.',
+          passed: false
+        }));
       case 'cpp':
       case 'c++':
         return await executeCpp(code, testCases, functionName);
@@ -458,7 +382,7 @@ const executeCode = async (code, language, testCases, functionName = 'solve') =>
         return testCases.map((testCase) => ({
           input: testCase.input,
           expectedOutput: testCase.expectedOutput,
-          actualOutput: `Language '${language}' is not supported. Supported: javascript, python, java, cpp, c`,
+          actualOutput: `Language '${language}' is not supported. Supported: javascript, python, cpp, c`,
           passed: false
         }));
     }

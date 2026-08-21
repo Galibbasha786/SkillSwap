@@ -1,4 +1,8 @@
-const { runStandaloneCode, SUPPORTED_LANGUAGES, LANGUAGE_LABELS } = require('../services/standaloneCompilerService');
+const {
+  runStandaloneCode,
+  SUPPORTED_LANGUAGES,
+  LANGUAGE_LABELS
+} = require('../services/standaloneCompilerService');
 
 exports.runCode = async (req, res) => {
   try {
@@ -27,7 +31,8 @@ exports.getLanguages = async (_req, res) => {
     success: true,
     languages: SUPPORTED_LANGUAGES.map((id) => ({
       id,
-      label: LANGUAGE_LABELS[id]
+      label: LANGUAGE_LABELS[id],
+      available: true
     }))
   });
 };

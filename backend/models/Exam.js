@@ -55,7 +55,7 @@ const examSchema = new mongoose.Schema({
     coding: {
       programmingLanguage: {
         type: String,
-        enum: ['javascript', 'python', 'java', 'cpp', 'c'],
+        enum: ['javascript', 'python', 'cpp', 'c'],
         default: 'javascript'
       },
       initialCode: {

@@ -1,9 +1,8 @@
-const { spawn } = require('child_process');
+const { exec, spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const util = require('util');
-const { exec } = require('child_process');
 
 const execPromise = util.promisify(exec);
 
@@ -12,12 +11,11 @@ if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
-const SUPPORTED_LANGUAGES = ['javascript', 'python', 'java', 'cpp'];
+const SUPPORTED_LANGUAGES = ['javascript', 'python', 'cpp'];
 
 const LANGUAGE_LABELS = {
   javascript: 'JavaScript',
   python: 'Python',
-  java: 'Java',
   cpp: 'C++'
 };
 
@@ -44,8 +42,6 @@ const normalizeStdin = (stdin) => {
 const needsStdin = (code, language) => {
   const source = String(code || '');
   switch (language) {
-    case 'java':
-      return /Scanner\s*\(|System\.in|BufferedReader|readLine\s*\(/i.test(source);
     case 'python':
       return /\binput\s*\(/.test(source);
     case 'cpp':
@@ -120,21 +116,6 @@ const checkCommand = async (command) => {
   }
 };
 
-const extractJavaClassName = (code) => {
-  const match = code.match(/public\s+class\s+(\w+)/);
-  return match ? match[1] : 'Main';
-};
-
-const ensureJavaClass = (code) => {
-  if (/public\s+class\s+\w+/.test(code)) {
-    return code;
-  }
-
-  return `public class Main {
-${code}
-}`;
-};
-
 const ensureCppMain = (code) => {
   if (/\bint\s+main\s*\(/.test(code)) {
     return code;
@@ -180,26 +161,6 @@ const runPython = async (code, stdin) => {
   }
 };
 
-const runJava = async (code, stdin) => {
-  const hasJava = await checkCommand('javac');
-  if (!hasJava) {
-    throw new Error('Java compiler (javac) is not installed on the server');
-  }
-
-  const runDir = createRunDir();
-  const wrappedCode = ensureJavaClass(code);
-  const className = extractJavaClassName(wrappedCode);
-  const filePath = path.join(runDir, `${className}.java`);
-
-  try {
-    fs.writeFileSync(filePath, wrappedCode);
-    await execPromise(`javac "${filePath}"`, { cwd: runDir, timeout: 12000 });
-    return await runProcessWithStdin('java', ['-cp', runDir, className], runDir, stdin);
-  } finally {
-    cleanupRunDir(runDir);
-  }
-};
-
 const runCpp = async (code, stdin) => {
   const hasGpp = await checkCommand('g++');
   if (!hasGpp) {
@@ -240,7 +201,7 @@ const runStandaloneCode = async (code, language, stdin = '') => {
       stdout: '',
       stderr:
         'This program reads input from stdin. Enter values in the "Input (stdin)" box below the editor.\n' +
-        'Example for Scanner.nextInt(): type a number like 42 in the input box, then run again.',
+        'Example: type a number or text in the input box, then run again.',
       exitCode: 1,
       success: false
     };
@@ -254,9 +215,6 @@ const runStandaloneCode = async (code, language, stdin = '') => {
       break;
     case 'python':
       result = await runPython(code, stdin);
-      break;
-    case 'java':
-      result = await runJava(code, stdin);
       break;
     case 'cpp':
       result = await runCpp(code, stdin);
