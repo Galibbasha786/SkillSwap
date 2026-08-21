@@ -7,6 +7,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 console.log('🔌 API URL:', API_URL);
 
+let lastBackendDownToastAt = 0;
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -76,7 +78,11 @@ api.interceptors.response.use(
         url: error.config?.url,
         baseURL: error.config?.baseURL
       });
-      toast.error('Cannot connect to server. Make sure backend is running on port 5001');
+      const now = Date.now();
+      if (now - lastBackendDownToastAt > 12000) {
+        lastBackendDownToastAt = now;
+        toast.error('Cannot connect to backend. Run: cd backend && npm run dev');
+      }
     } else {
       console.error('❌ Error:', error.message);
       toast.error('An error occurred');

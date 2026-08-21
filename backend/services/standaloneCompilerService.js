@@ -35,9 +35,31 @@ const cleanupRunDir = (runDir) => {
   }
 };
 
+const normalizeStdin = (stdin) => {
+  const text = String(stdin ?? '');
+  if (!text) return '';
+  return text.endsWith('\n') ? text : `${text}\n`;
+};
+
+const needsStdin = (code, language) => {
+  const source = String(code || '');
+  switch (language) {
+    case 'java':
+      return /Scanner\s*\(|System\.in|BufferedReader|readLine\s*\(/i.test(source);
+    case 'python':
+      return /\binput\s*\(/.test(source);
+    case 'cpp':
+      return /\bcin\s*>>|getline\s*\(/i.test(source);
+    case 'javascript':
+      return /readline|process\.stdin/i.test(source);
+    default:
+      return false;
+  }
+};
+
 const runProcessWithStdin = (command, args, cwd, stdin = '', timeoutMs = 15000) =>
   new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, shell: false });
+    const child = spawn(command, args, { cwd, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -66,13 +88,27 @@ const runProcessWithStdin = (command, args, cwd, stdin = '', timeoutMs = 15000) 
         reject(new Error('Execution timed out (15s limit)'));
         return;
       }
-      resolve({ stdout, stderr, exitCode });
+      resolve({ stdout, stderr, exitCode: exitCode ?? 1 });
     });
 
-    if (stdin) {
-      child.stdin.write(stdin);
+    const pipeStdin = () => {
+      const payload = normalizeStdin(stdin);
+      if (payload && child.stdin.writable) {
+        child.stdin.write(payload, 'utf8', () => {
+          child.stdin.end();
+        });
+      } else {
+        child.stdin.end();
+      }
+    };
+
+    if (child.stdin) {
+      if (child.pid) {
+        pipeStdin();
+      } else {
+        child.on('spawn', pipeStdin);
+      }
     }
-    child.stdin.end();
   });
 
 const checkCommand = async (command) => {
@@ -197,6 +233,19 @@ const runStandaloneCode = async (code, language, stdin = '') => {
     throw new Error(`Unsupported language. Choose one of: ${SUPPORTED_LANGUAGES.join(', ')}`);
   }
 
+  if (needsStdin(code, normalizedLanguage) && !String(stdin).trim()) {
+    return {
+      language: normalizedLanguage,
+      languageLabel: LANGUAGE_LABELS[normalizedLanguage],
+      stdout: '',
+      stderr:
+        'This program reads input from stdin. Enter values in the "Input (stdin)" box below the editor.\n' +
+        'Example for Scanner.nextInt(): type a number like 42 in the input box, then run again.',
+      exitCode: 1,
+      success: false
+    };
+  }
+
   let result;
 
   switch (normalizedLanguage) {
@@ -222,7 +271,7 @@ const runStandaloneCode = async (code, language, stdin = '') => {
     stdout: result.stdout || '',
     stderr: result.stderr || '',
     exitCode: result.exitCode,
-    success: result.exitCode === 0 && !result.stderr
+    success: result.exitCode === 0
   };
 };
 

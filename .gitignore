@@ -62,7 +62,8 @@ GoogleService-Info.plist
 *.key
 *.crt
 
-# MongoDB
-data/
+# MongoDB (repo root + backend only — do not use bare "data/" or frontend src/data is ignored)
+/data/
+backend/data/
 dump/backend/config/google-service-account.json
 backend/temp/

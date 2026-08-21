@@ -107,25 +107,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Connect to MongoDB
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/SkillSwap');
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
-    // Create admin if not exists
-    try {
-      const seedAdmin = require('./config/adminSeed');
-      await seedAdmin();
-    } catch (seedError) {
-      console.log('Admin seed skipped:', seedError.message);
-    }
-    
-    return conn;
-  } catch (error) {
-    console.error(`❌ MongoDB Error: ${error.message}`);
-    process.exit(1);
-  }
-};
+const { connectDB } = require('./config/database');
 
 // Routes
 app.use('/api/auth', authRoutes);

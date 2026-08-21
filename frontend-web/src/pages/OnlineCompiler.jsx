@@ -13,16 +13,18 @@ function add(a, b) {
 }
 
 console.log(add(2, 3));`,
-  python: `# Python
-def add(a, b):
-    return a + b
+  java: `import java.util.*;
 
-print(add(2, 3))`,
-  java: `public class Main {
+public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello from Java");
+        Scanner sc = new Scanner(System.in);
+        int a = sc.nextInt();
+        System.out.println("The number is " + a);
     }
 }`,
+  python: `# Python — use input() and put your answer in the Input box
+name = input("Enter your name: ")
+print("Hello,", name)`,
   cpp: `#include <iostream>
 using namespace std;
 
@@ -30,6 +32,18 @@ int main() {
     cout << "Hello from C++" << endl;
     return 0;
 }`
+};
+
+const LANGUAGE_STDIN_PLACEHOLDERS = {
+  javascript: 'Optional input for your program...',
+  python: 'Example: Alice',
+  java: 'Example: 42',
+  cpp: 'Example: 10'
+};
+
+const LANGUAGE_STDIN_DEFAULTS = {
+  java: '42',
+  python: 'Alice'
 };
 
 const LANGUAGES = [
@@ -59,6 +73,7 @@ const OnlineCompiler = () => {
   const handleLanguageChange = (nextLanguage) => {
     setLanguage(nextLanguage);
     setCode(LANGUAGE_TEMPLATES[nextLanguage]);
+    setStdin(LANGUAGE_STDIN_DEFAULTS[nextLanguage] || '');
     setStdout('');
     setStderr('');
     setExitCode(null);
@@ -160,7 +175,7 @@ const OnlineCompiler = () => {
                 onChange={(e) => setStdin(e.target.value)}
                 spellCheck={false}
                 className="w-full h-28 p-4 font-mono text-sm text-gray-800 resize-none focus:outline-none"
-                placeholder="Optional input for your program..."
+                placeholder={LANGUAGE_STDIN_PLACEHOLDERS[language] || 'Optional input for your program...'}
               />
             </div>
 
@@ -206,9 +221,10 @@ const OnlineCompiler = () => {
         <div className="mt-6 rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm text-blue-900">
           <p className="font-medium mb-1">Tips</p>
           <ul className="list-disc list-inside space-y-1 text-blue-800">
-            <li>Java programs must include a <code className="bg-blue-100 px-1 rounded">public class</code> with <code className="bg-blue-100 px-1 rounded">main</code>.</li>
+            <li>Standard library imports work (e.g. <code className="bg-blue-100 px-1 rounded">java.util.*</code>). External JARs are not supported.</li>
+            <li>Java programs must include <code className="bg-blue-100 px-1 rounded">public class Main</code> with <code className="bg-blue-100 px-1 rounded">main</code>.</li>
+            <li>If you use <code className="bg-blue-100 px-1 rounded">Scanner</code> or <code className="bg-blue-100 px-1 rounded">input()</code>, put values in the <strong>Input (stdin)</strong> box (e.g. <code className="bg-blue-100 px-1 rounded">42</code> for <code className="bg-blue-100 px-1 rounded">nextInt()</code>).</li>
             <li>C++ programs should include <code className="bg-blue-100 px-1 rounded">int main()</code>.</li>
-            <li>Use the Input box when your code reads from stdin (e.g. <code className="bg-blue-100 px-1 rounded">input()</code> in Python).</li>
             <li>Execution timeout is 15 seconds per run.</li>
           </ul>
         </div>

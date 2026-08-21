@@ -86,7 +86,9 @@ class ExamProctoringService {
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Proctoring socket connection error:', error.message || error);
+      if (import.meta.env.DEV) {
+        console.warn('Proctoring socket offline:', error.message || error);
+      }
     });
 
     this.socket.on('reconnect', () => {

@@ -30,7 +30,9 @@ export const useSocket = () => {
     });
 
     socketRef.current.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message || error);
+      if (import.meta.env.DEV) {
+        console.warn('Socket offline (backend may be starting):', error.message || error);
+      }
       setIsConnected(false);
     });
 

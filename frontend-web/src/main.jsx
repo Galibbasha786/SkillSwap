@@ -28,7 +28,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <GoogleOAuthProvider
           clientId={GOOGLE_CLIENT_ID}
           onScriptLoad={() => console.log('✅ Google OAuth script loaded')}
-          onScriptLoadError={() => console.error('❌ Failed to load Google OAuth script')}
+          onScriptLoadError={() => {
+            console.warn('Google sign-in script unavailable. Email/password login still works.');
+          }}
         >
           <App />
         </GoogleOAuthProvider>

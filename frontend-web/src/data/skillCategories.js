@@ -25,7 +25,7 @@ export const skillCategories = [
     skills: [
       'iOS Development', 'Android Development', 'React Native',
       'Flutter', 'SwiftUI', 'Jetpack Compose', 'Mobile UI/UX'
-    ]//heloo
+    ]
   },
   {
     name: 'Data Science',
@@ -109,12 +109,10 @@ export const skillCategories = [
   }
 ];
 
-// Flatten all skills for search
 export const allSkills = skillCategories.reduce((acc, category) => {
   return [...acc, ...category.skills];
 }, []);
 
-// Get category for a specific skill
 export const getSkillCategory = (skillName) => {
   for (const category of skillCategories) {
     if (category.skills.includes(skillName)) {

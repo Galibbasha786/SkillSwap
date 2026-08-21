@@ -17,7 +17,8 @@ const certificateSchema = new mongoose.Schema({
   teacherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true
   },
   attemptId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -46,10 +47,5 @@ const certificateSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Indexes
-certificateSchema.index({ studentId: 1 });
-certificateSchema.index({ teacherId: 1 });
-certificateSchema.index({ certificateId: 1 });
 
 module.exports = mongoose.model('Certificate', certificateSchema);
