@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { FiArrowRight, FiUsers, FiBook, FiAward, FiMessageCircle, FiTrendingUp, FiStar } from 'react-icons/fi';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
 import LearningScene from '../components/common/LearningScene';
+import BrandMarquee from '../components/common/BrandMarquee';
 
 const Home = () => {
   const features = [
@@ -70,16 +71,19 @@ const Home = () => {
     <div className="w-full">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center gap-3">
+          <Link to="/" className="flex items-center gap-3 shrink-0">
             <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 overflow-hidden">
               <img src={skillswapLogo} alt="SkillSwap" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hidden sm:block">
               SkillSwap
             </h1>
-          </div>
-          <div className="flex gap-4">
+          </Link>
+
+          <BrandMarquee className="hidden md:flex mx-2 min-w-0" />
+
+          <div className="flex gap-2 sm:gap-4 shrink-0">
             <Link
               to="/login"
               className="px-6 py-2 text-gray-700 hover:text-blue-600 font-medium transition"
@@ -94,10 +98,12 @@ const Home = () => {
             </Link>
           </div>
         </div>
+
+        <BrandMarquee className="md:hidden border-t border-indigo-100/80 bg-gradient-to-r from-blue-50/80 via-white/80 to-purple-50/80 py-2" />
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 min-h-screen flex items-center">
+      <section className="pt-40 md:pt-32 pb-20 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 min-h-screen flex items-center">
         <div className="max-w-7xl mx-auto w-full">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}

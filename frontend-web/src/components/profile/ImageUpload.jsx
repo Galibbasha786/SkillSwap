@@ -1,6 +1,7 @@
 // frontend-web/src/components/profile/ImageUpload.jsx
 
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiUpload, FiX, FiUser, FiCamera, FiMaximize2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -15,7 +16,6 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
 
   const displayImage = previewImage || currentImage;
 
-  // Determine size classes
   const getSizeClasses = () => {
     switch (size) {
       case 'large':
@@ -25,7 +25,6 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
           buttonSize: 'p-1.5',
           iconSize: 'w-4 h-4',
           loadingSpinner: 'w-8 h-8',
-          uploadOverlay: 'w-6 h-6'
         };
       case 'medium':
         return {
@@ -34,16 +33,14 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
           buttonSize: 'p-1',
           iconSize: 'w-3 h-3',
           loadingSpinner: 'w-6 h-6',
-          uploadOverlay: 'w-4 h-4'
         };
-      default: // small
+      default:
         return {
           container: 'w-10 h-10',
           buttonPosition: 'bottom-0 right-0',
           buttonSize: 'p-1',
           iconSize: 'w-3 h-3',
           loadingSpinner: 'w-5 h-5',
-          uploadOverlay: 'w-4 h-4'
         };
     }
   };
@@ -54,36 +51,27 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
       return;
     }
 
-    // Validate file size (5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image must be less than 5MB');
       return;
     }
 
-    // Show preview immediately
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewImage(reader.result);
-    };
+    reader.onloadend = () => setPreviewImage(reader.result);
     reader.readAsDataURL(file);
 
-    // Upload to server
     setUploading(true);
     const formData = new FormData();
     formData.append('image', file);
 
     try {
       const response = await userAPI.uploadProfileImage(formData);
-      console.log('Upload response:', response.data);
-      
       const imageUrl = response.data.profileImage;
-      
       if (imageUrl) {
         toast.success('Profile image updated!');
         onImageUpdate(imageUrl);
@@ -104,14 +92,7 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
     setUploading(true);
     try {
       const response = await userAPI.removeProfileImage();
-      console.log('Remove response:', response.data);
-      
-      const imageUrl = response.data.profileImage;
-      if (imageUrl) {
-        onImageRemove(imageUrl);
-      } else {
-        onImageRemove();
-      }
+      onImageRemove(response.data.profileImage || undefined);
       toast.success('Profile image removed');
     } catch (error) {
       console.error('Remove error:', error);
@@ -123,25 +104,93 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
   };
 
   const handleImageError = (e) => {
-    console.log('Image failed to load, using fallback');
     e.target.onerror = null;
     e.target.src = 'https://via.placeholder.com/150';
   };
 
-  const handleImageClick = () => {
-    if (displayImage && displayImage !== 'https://via.placeholder.com/150') {
-      setShowEnlarged(true);
-    }
-  };
+  const optionsMenu = (
+    <AnimatePresence>
+      {showOptions && (
+        <>
+          <motion.button
+            type="button"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[200]"
+            onClick={() => setShowOptions(false)}
+            aria-label="Close photo options"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            className="fixed left-1/2 top-1/2 z-[210] w-[min(92vw,20rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl overflow-hidden"
+          >
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="font-semibold text-gray-900">Profile photo</p>
+              <p className="text-xs text-gray-500 mt-0.5">Choose an action</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                fileInputRef.current?.click();
+                setShowOptions(false);
+              }}
+              disabled={uploading}
+              className="flex items-center gap-3 p-4 hover:bg-gray-50 w-full text-left transition-colors border-b border-gray-50"
+            >
+              <FiUpload className="w-5 h-5 text-blue-500 shrink-0" />
+              <span className="text-sm font-medium text-gray-800">Upload photo</span>
+            </button>
+            {currentImage && currentImage !== 'https://via.placeholder.com/150' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEnlarged(true);
+                    setShowOptions(false);
+                  }}
+                  className="flex items-center gap-3 p-4 hover:bg-gray-50 w-full text-left transition-colors border-b border-gray-50"
+                >
+                  <FiMaximize2 className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm font-medium text-gray-800">View full size</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  disabled={uploading}
+                  className="flex items-center gap-3 p-4 hover:bg-red-50 w-full text-left transition-colors"
+                >
+                  <FiX className="w-5 h-5 text-red-500 shrink-0" />
+                  <span className="text-sm font-medium text-red-600">Remove photo</span>
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowOptions(false)}
+              className="w-full py-3 text-sm text-gray-500 hover:bg-gray-50 border-t border-gray-100"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <>
-      <div className="relative">
-        {/* Profile Image Container */}
+      <div className="relative z-10">
         <div className="relative group">
-          <div 
+          <div
             className={`${sizeClasses.container} rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 p-0.5 cursor-pointer`}
-            onClick={handleImageClick}
+            onClick={() => {
+              if (displayImage && displayImage !== 'https://via.placeholder.com/150') {
+                setShowEnlarged(true);
+              }
+            }}
           >
             <div className="w-full h-full rounded-full overflow-hidden bg-gray-100">
               {displayImage ? (
@@ -159,79 +208,24 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
             </div>
           </div>
 
-          {/* Hover Overlay for Enlarge Hint */}
           {displayImage && displayImage !== 'https://via.placeholder.com/150' && (
-            <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
               <FiMaximize2 className={`${sizeClasses.iconSize} text-white`} />
             </div>
           )}
 
-          {/* Upload Button Overlay */}
           <button
-            onClick={() => setShowOptions(!showOptions)}
-            className={`absolute ${sizeClasses.buttonPosition} bg-gradient-to-r from-blue-500 to-purple-500 text-white ${sizeClasses.buttonSize} rounded-full shadow-lg hover:scale-110 transition-transform`}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowOptions(true);
+            }}
+            className={`absolute ${sizeClasses.buttonPosition} bg-gradient-to-r from-blue-500 to-purple-500 text-white ${sizeClasses.buttonSize} rounded-full shadow-lg hover:scale-110 transition-transform z-20`}
           >
             <FiCamera className={sizeClasses.iconSize} />
           </button>
         </div>
 
-        {/* Options Modal */}
-        <AnimatePresence>
-          {showOptions && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/50 z-40"
-                onClick={() => setShowOptions(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl z-50 w-48 overflow-hidden"
-              >
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                    setShowOptions(false);
-                  }}
-                  disabled={uploading}
-                  className="flex items-center gap-3 p-3 hover:bg-gray-50 w-full text-left transition-colors"
-                >
-                  <FiUpload className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm">Upload Photo</span>
-                </button>
-                
-                {currentImage && currentImage !== 'https://via.placeholder.com/150' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowEnlarged(true);
-                        setShowOptions(false);
-                      }}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 w-full text-left transition-colors"
-                    >
-                      <FiMaximize2 className="w-4 h-4 text-green-500" />
-                      <span className="text-sm">View Full Size</span>
-                    </button>
-                    <button
-                      onClick={handleRemoveImage}
-                      disabled={uploading}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 w-full text-left transition-colors"
-                    >
-                      <FiX className="w-4 h-4 text-red-500" />
-                      <span className="text-sm">Remove Photo</span>
-                    </button>
-                  </>
-                )}
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -241,58 +235,43 @@ const ImageUpload = ({ currentImage, onImageUpdate, onImageRemove, size = 'small
           disabled={uploading}
         />
 
-        {/* Uploading Overlay */}
         {uploading && (
-          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center z-30">
             <div className={`${sizeClasses.loadingSpinner} border-2 border-white border-t-transparent rounded-full animate-spin`} />
           </div>
         )}
       </div>
 
-      {/* Enlarged Image Modal */}
+      {typeof document !== 'undefined' && createPortal(optionsMenu, document.body)}
+
       <AnimatePresence>
         {showEnlarged && displayImage && displayImage !== 'https://via.placeholder.com/150' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/90 z-[220] flex items-center justify-center p-4"
             onClick={() => setShowEnlarged(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative max-w-4xl max-h-[90vh]"
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="relative max-w-4xl max-h-[90vh] w-full"
               onClick={(e) => e.stopPropagation()}
             >
               <img
                 src={displayImage}
-                alt="Profile Enlarged"
-                className="w-full h-full object-contain rounded-xl"
+                alt="Profile enlarged"
+                className="w-full max-h-[85vh] object-contain rounded-xl mx-auto"
               />
-              
-              {/* Close Button */}
               <button
+                type="button"
                 onClick={() => setShowEnlarged(false)}
-                className="absolute -top-10 -right-10 text-white hover:text-gray-300 transition-colors"
+                className="absolute top-2 right-2 p-2 rounded-full bg-black/60 text-white hover:bg-black/80"
               >
-                <FiX className="w-8 h-8" />
+                <FiX className="w-6 h-6" />
               </button>
-              
-              {/* Download Button */}
-              <a
-                href={displayImage}
-                download="profile-image.jpg"
-                className="absolute -bottom-10 right-0 text-white hover:text-gray-300 transition-colors"
-              >
-                <FiUpload className="w-6 h-6" />
-              </a>
-              
-              {/* Image Info */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white text-xs px-3 py-1 rounded-full">
-                Click anywhere to close
-              </div>
             </motion.div>
           </motion.div>
         )}

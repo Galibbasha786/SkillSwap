@@ -23,7 +23,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../common/NotificationBell';
 import ThemeToggle from '../common/ThemeToggle';
-import WelcomeReminderModal from '../common/WelcomeReminderModal';
+import BrandMarquee from '../common/BrandMarquee';
 import { userAPI } from '../../services/api';
 import skillswapLogo from '../../assets/skillswaplogo.jpg';
 
@@ -172,8 +172,11 @@ const AppLayout = ({ children }) => {
 
       <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'}`}>
         <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex justify-end items-center gap-2 sm:gap-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <BrandMarquee className="hidden md:flex flex-1 min-w-0 max-w-2xl" />
+
+              <div className="flex items-center gap-2 sm:gap-4 shrink-0 ml-auto">
               <Link
                 to="/posts"
                 title="Community Board"
@@ -222,14 +225,15 @@ const AppLayout = ({ children }) => {
                 </span>
                 <FiUser className="w-5 h-5" />
               </button>
+              </div>
             </div>
           </div>
+
+          <BrandMarquee className="md:hidden border-t border-indigo-100/80 dark:border-gray-700 bg-gradient-to-r from-blue-50/80 via-white/80 to-purple-50/80 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 py-2" />
         </nav>
 
         {children}
       </main>
-
-      <WelcomeReminderModal />
     </div>
   );
 };

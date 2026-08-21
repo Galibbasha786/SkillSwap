@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import WalletBalance from '../components/wallet/WalletBalance';
 import RatingModal from '../components/ratings/RatingModal';
 import RewardsCard from '../components/rewards/RewardsCard';
+import SkillSwapFamilyCard from '../components/dashboard/SkillSwapFamilyCard';
 import {
   FiUser,
   FiBook,
@@ -244,13 +245,18 @@ const Dashboard = () => {
             ))}
             
             {/* Wallet Card */}
-            <WalletBalance />
-            <div className="col-span-1">
-  <RewardsCard />
-</div>
+            <WalletBalance layout="card-only" />
           </div>
 
-          {/* Rest of your dashboard content remains the same */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8 items-stretch">
+            <RewardsCard />
+            <SkillSwapFamilyCard
+              name={userData?.name || user?.name}
+              profileImage={userData?.profileImage || user?.profileImage}
+            />
+            <WalletBalance layout="transactions-only" />
+          </div>
+
           {/* Add Skills Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Teaching Skills */}

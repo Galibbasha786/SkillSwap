@@ -52,8 +52,8 @@ const RewardsCard = () => {
   }
 
   return (
-    <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg overflow-hidden">
-      <div className="p-6 text-white">
+    <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg overflow-hidden flex flex-col">
+      <div className="p-6 text-white flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <FiAward className="w-6 h-6" />

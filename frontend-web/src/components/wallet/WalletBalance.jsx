@@ -6,7 +6,7 @@ import { FiDollarSign, FiArrowUp, FiArrowDown, FiTrendingUp } from 'react-icons/
 import { walletAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const WalletBalance = () => {
+const WalletBalance = ({ layout = 'full' }) => {
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -75,6 +75,18 @@ const WalletBalance = () => {
   };
 
   if (loading) {
+    if (layout === 'transactions-only') {
+      return (
+        <div className="bg-white rounded-xl shadow-md p-6 animate-pulse h-full min-h-[280px]">
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-4" />
+          <div className="space-y-3">
+            <div className="h-12 bg-gray-200 rounded" />
+            <div className="h-12 bg-gray-200 rounded" />
+            <div className="h-12 bg-gray-200 rounded" />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="bg-white rounded-xl shadow-md p-6 animate-pulse h-full">
         <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
@@ -84,92 +96,96 @@ const WalletBalance = () => {
     );
   }
 
-  return (
-    <>
-      {/* Wallet Card */}
-      <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer group h-full flex flex-col">
-        <div className="flex items-center justify-between mb-3">
-          <div className="p-3 bg-green-100 rounded-lg group-hover:scale-110 transition-transform">
-            <FiDollarSign className="w-6 h-6 text-green-600" />
+  const walletCard = (
+    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all group h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <div className="p-3 bg-green-100 rounded-lg group-hover:scale-110 transition-transform">
+          <FiDollarSign className="w-6 h-6 text-green-600" />
+        </div>
+        {wallet?.balance >= 50 && (
+          <button
+            type="button"
+            onClick={() => setShowWithdrawModal(true)}
+            className="text-xs bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition-colors"
+          >
+            Withdraw
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1">
+        <p className="text-gray-500 text-sm mb-1">Wallet Balance</p>
+        <p className="text-2xl font-bold text-gray-900">₹{wallet?.balance?.toFixed(2)}</p>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <div>
+            <p className="text-xs text-gray-400">Total Earned</p>
+            <p className="text-sm font-semibold text-gray-700">₹{wallet?.totalEarnings?.toFixed(2) || 0}</p>
           </div>
-          {wallet?.balance >= 50 && (
-            <button
-              onClick={() => setShowWithdrawModal(true)}
-              className="text-xs bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition-colors"
+          <div className="text-right">
+            <p className="text-xs text-gray-400">Pending Withdrawal</p>
+            <p className="text-sm font-semibold text-gray-700">₹{wallet?.pendingWithdrawals?.toFixed(2) || 0}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const transactionsPanel = (
+    <div className="bg-white rounded-xl shadow-md p-6 h-full flex flex-col min-h-[280px]">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
+      <div className="space-y-3 flex-1 overflow-y-auto max-h-72">
+        {wallet?.recentTransactions?.length > 0 ? (
+          wallet.recentTransactions.slice(0, 5).map((tx, idx) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between p-3 border border-gray-100 hover:bg-gray-50 transition-colors rounded-lg"
             >
-              Withdraw
-            </button>
-          )}
-        </div>
-        
-        <div className="flex-1">
-          <p className="text-gray-500 text-sm mb-1">Wallet Balance</p>
-          <p className="text-2xl font-bold text-gray-900">₹{wallet?.balance?.toFixed(2)}</p>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-            <div>
-              <p className="text-xs text-gray-400">Total Earned</p>
-              <p className="text-sm font-semibold text-gray-700">₹{wallet?.totalEarnings?.toFixed(2) || 0}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-400">Pending Withdrawal</p>
-              <p className="text-sm font-semibold text-gray-700">₹{wallet?.pendingWithdrawals?.toFixed(2) || 0}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="mt-6 bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
-        <div className="space-y-3 max-h-64 overflow-y-auto">
-          {wallet?.recentTransactions?.length > 0 ? (
-            wallet.recentTransactions.slice(0, 5).map((tx, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${
                     tx.learnerId?._id === wallet?.userId ? 'bg-red-100' : 'bg-green-100'
-                  }`}>
-                    {tx.learnerId?._id === wallet?.userId ? (
-                      <FiArrowUp className="w-4 h-4 text-red-500" />
-                    ) : (
-                      <FiArrowDown className="w-4 h-4 text-green-500" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {tx.sessionId?.title || tx.description || 'Session Payment'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(tx.createdAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                    {tx.skillName && (
-                      <p className="text-xs text-gray-400">Skill: {tx.skillName}</p>
-                    )}
-                  </div>
+                  }`}
+                >
+                  {tx.learnerId?._id === wallet?.userId ? (
+                    <FiArrowUp className="w-4 h-4 text-red-500" />
+                  ) : (
+                    <FiArrowDown className="w-4 h-4 text-green-500" />
+                  )}
                 </div>
-                <span className={`font-semibold ${
-                  tx.learnerId?._id === wallet?.userId ? 'text-red-500' : 'text-green-500'
-                }`}>
-                  {tx.learnerId?._id === wallet?.userId ? '-' : '+'}₹{tx.amount?.toFixed(2)}
-                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {tx.sessionId?.title || tx.description || 'Session Payment'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(tx.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
               </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <FiTrendingUp className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-              <p>No transactions yet</p>
-              <p className="text-xs mt-1">Book sessions to see earnings</p>
+              <span
+                className={`font-semibold shrink-0 ml-2 ${
+                  tx.learnerId?._id === wallet?.userId ? 'text-red-500' : 'text-green-500'
+                }`}
+              >
+                {tx.learnerId?._id === wallet?.userId ? '-' : '+'}₹{tx.amount?.toFixed(2)}
+              </span>
             </div>
-          )}
-        </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500 flex flex-col items-center justify-center h-full">
+            <FiTrendingUp className="w-12 h-12 mb-2 text-gray-300" />
+            <p>No transactions yet</p>
+            <p className="text-xs mt-1">Book sessions to see earnings</p>
+          </div>
+        )}
       </div>
+    </div>
+  );
 
-      {/* Withdrawal Modal - NO QR CODE, NO PAYMENT */}
-      {showWithdrawModal && (
+  const withdrawModal = showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -301,7 +317,26 @@ const WalletBalance = () => {
             </div>
           </motion.div>
         </div>
-      )}
+  );
+
+  if (layout === 'card-only') {
+    return (
+      <>
+        {walletCard}
+        {withdrawModal}
+      </>
+    );
+  }
+
+  if (layout === 'transactions-only') {
+    return transactionsPanel;
+  }
+
+  return (
+    <>
+      {walletCard}
+      <div className="mt-6">{transactionsPanel}</div>
+      {withdrawModal}
     </>
   );
 };

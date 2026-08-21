@@ -288,14 +288,14 @@ const Profile = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-md overflow-hidden"
+          className="bg-white rounded-xl shadow-md overflow-visible"
         >
           {/* Cover Photo */}
-          <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+          <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-500 rounded-t-xl overflow-hidden"></div>
           
-          <div className="px-6 pb-6">
+          <div className="px-6 pb-6 relative z-10">
             {/* Profile Image */}
-            <div className="flex items-end -mt-12 mb-4">
+            <div className="flex items-end -mt-12 mb-4 overflow-visible">
               <ImageUpload
                 currentImage={profileImage}
                 onImageUpdate={handleImageUpdate}

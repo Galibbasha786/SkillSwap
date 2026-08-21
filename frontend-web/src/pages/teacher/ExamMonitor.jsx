@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  FiVideo, FiUsers, FiAlertTriangle, FiEye, FiMic, FiMicOff, FiVolume2
+  FiVideo, FiUsers, FiAlertTriangle, FiEye, FiMic, FiMicOff, FiVolume2, FiX, FiMaximize2
 } from 'react-icons/fi';
 import { examAPI } from '../../services/api';
 import examProctoringService from '../../services/examProctoringService';
@@ -27,6 +27,8 @@ const StudentFeed = memo(({
 }) => {
   const cameraRef = useRef(null);
   const screenRef = useRef(null);
+  const expandedVideoRef = useRef(null);
+  const [expandedView, setExpandedView] = useState(null);
 
   useEffect(() => {
     const video = cameraRef.current;
@@ -60,6 +62,15 @@ const StudentFeed = memo(({
     }
   }, [listenEnabled, cameraStream]);
 
+  useEffect(() => {
+    const video = expandedVideoRef.current;
+    if (!video || !expandedView) return;
+    const stream = expandedView === 'screen' ? screenStream : cameraStream;
+    if (!stream) return;
+    video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [expandedView, screenStream, cameraStream]);
+
   const hasScreen = !!screenStream;
 
   return (
@@ -67,31 +78,63 @@ const StudentFeed = memo(({
       <div className={`relative bg-black ${hasScreen ? 'aspect-video' : 'aspect-video'}`}>
         {hasScreen ? (
           <>
-            <video
-              ref={screenRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-contain bg-black"
-            />
+            <button
+              type="button"
+              onClick={() => setExpandedView('screen')}
+              className="w-full h-full block cursor-zoom-in group/screen"
+              title="Click to expand screen share"
+            >
+              <video
+                ref={screenRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-contain bg-black pointer-events-none"
+              />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/screen:bg-black/30 transition-colors">
+                <span className="opacity-0 group-hover/screen:opacity-100 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
+                  <FiMaximize2 className="w-3.5 h-3.5" /> Expand screen
+                </span>
+              </span>
+            </button>
             {cameraStream && (
-              <div className="absolute bottom-2 left-2 w-24 h-20 rounded-lg overflow-hidden border-2 border-white/80 shadow-lg bg-black">
+              <button
+                type="button"
+                onClick={() => setExpandedView('camera')}
+                className="absolute bottom-2 left-2 w-24 h-20 rounded-lg overflow-hidden border-2 border-white/80 shadow-lg bg-black cursor-zoom-in group/cam"
+                title="Click to expand face cam"
+              >
                 <video
                   ref={cameraRef}
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover pointer-events-none"
                 />
-              </div>
+                <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/cam:bg-black/40">
+                  <FiMaximize2 className="w-4 h-4 text-white opacity-0 group-hover/cam:opacity-100" />
+                </span>
+              </button>
             )}
           </>
         ) : cameraStream ? (
-          <video
-            ref={cameraRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => setExpandedView('camera')}
+            className="w-full h-full block cursor-zoom-in group/cam"
+            title="Click to expand face cam"
+          >
+            <video
+              ref={cameraRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-contain bg-black pointer-events-none"
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/cam:bg-black/30">
+              <span className="opacity-0 group-hover/cam:opacity-100 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
+                <FiMaximize2 className="w-3.5 h-3.5" /> Expand camera
+              </span>
+            </span>
+          </button>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <FiVideo className="w-10 h-10 mb-2 animate-pulse" />
@@ -163,6 +206,37 @@ const StudentFeed = memo(({
           </div>
         )}
       </div>
+
+      {expandedView && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4"
+          onClick={() => setExpandedView(null)}
+        >
+          <div className="w-full max-w-6xl flex-1 flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 text-white shrink-0">
+              <p className="font-medium">
+                {studentName} — {expandedView === 'screen' ? 'Screen share' : 'Face camera'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setExpandedView(null)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-black border border-gray-700">
+              <video
+                ref={expandedVideoRef}
+                autoPlay
+                playsInline
+                muted={expandedView === 'screen'}
+                className="w-full h-full max-h-[80vh] object-contain bg-black mx-auto"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-3">
         <p className="text-white font-medium text-sm truncate">{studentName}</p>

@@ -17,6 +17,12 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loginSignal, setLoginSignal] = useState(0);
+
+  const markLoggedIn = () => {
+    setLoginSignal((value) => value + 1);
+    window.dispatchEvent(new CustomEvent('auth:logged-in'));
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -30,6 +36,7 @@ export const AuthProvider = ({ children }) => {
           id: parsedUser.id || parsedUser._id,
           _id: parsedUser._id || parsedUser.id
         });
+        markLoggedIn();
       } catch (e) {
         console.error('Error parsing saved user:', e);
       }
@@ -60,6 +67,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
+      markLoggedIn();
       
       toast.success('Login successful!');
       return { success: true, user: normalizedUser };
@@ -84,6 +92,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
+      markLoggedIn();
       
       toast.success('Google login successful!');
       return { success: true, user: normalizedUser };
@@ -141,6 +150,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     getUserId,
     googleLogin,
+    loginSignal,
     isAuthenticated: !!user,
   };
 

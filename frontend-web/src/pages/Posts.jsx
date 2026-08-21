@@ -10,7 +10,10 @@ import {
   FiSend,
   FiTag,
   FiImage,
-  FiX
+  FiX,
+  FiMaximize2,
+  FiChevronDown,
+  FiChevronUp
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import AppLayout from '../components/layout/AppLayout';
@@ -45,6 +48,8 @@ const formatDate = (value) => {
   }
 };
 
+const CONTENT_PREVIEW_LENGTH = 280;
+
 const Posts = () => {
   const { getUserId } = useAuth();
   const userId = getUserId();
@@ -62,6 +67,12 @@ const Posts = () => {
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [expandedPosts, setExpandedPosts] = useState({});
+  const [lightboxImage, setLightboxImage] = useState(null);
+
+  const togglePostExpanded = (postId) => {
+    setExpandedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
+  };
 
   const fetchPosts = async (category = activeCategory) => {
     try {
@@ -283,7 +294,8 @@ const Posts = () => {
               <img
                 src={imagePreview}
                 alt="Preview"
-                className="mt-3 max-h-48 rounded-lg border border-gray-200 object-cover"
+                className="mt-3 max-h-64 w-full rounded-lg border border-gray-200 object-contain bg-gray-50 cursor-zoom-in"
+                onClick={() => setLightboxImage(imagePreview)}
               />
             )}
           </div>
@@ -360,16 +372,55 @@ const Posts = () => {
                       </h3>
                     )}
 
-                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
-                      {post.content}
-                    </p>
+                    {(() => {
+                      const isExpanded = expandedPosts[post._id];
+                      const isLong = post.content.length > CONTENT_PREVIEW_LENGTH;
+                      const displayContent =
+                        isLong && !isExpanded
+                          ? `${post.content.slice(0, CONTENT_PREVIEW_LENGTH).trim()}…`
+                          : post.content;
+
+                      return (
+                        <>
+                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                            {displayContent}
+                          </p>
+                          {isLong && (
+                            <button
+                              type="button"
+                              onClick={() => togglePostExpanded(post._id)}
+                              className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1"
+                            >
+                              {isExpanded ? (
+                                <>
+                                  <FiChevronUp className="w-4 h-4" /> Show less
+                                </>
+                              ) : (
+                                <>
+                                  <FiChevronDown className="w-4 h-4" /> Read more
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {post.imageUrl && (
-                      <img
-                        src={post.imageUrl}
-                        alt={post.title || 'Post image'}
-                        className="mt-3 rounded-lg max-h-80 w-full object-cover border border-gray-100"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxImage(post.imageUrl)}
+                        className="mt-3 block w-full text-left group"
+                      >
+                        <img
+                          src={post.imageUrl}
+                          alt={post.title || 'Post image'}
+                          className="rounded-lg max-h-96 w-full object-contain border border-gray-100 bg-gray-50 group-hover:opacity-95 transition-opacity"
+                        />
+                        <span className="mt-1 text-xs text-indigo-600 inline-flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                          <FiMaximize2 className="w-3.5 h-3.5" /> Click to expand
+                        </span>
+                      </button>
                     )}
 
                     {post.tags?.length > 0 && (
@@ -428,6 +479,27 @@ const Posts = () => {
           </div>
         )}
       </div>
+
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+          >
+            <FiX className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Expanded post"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </AppLayout>
   );
 };

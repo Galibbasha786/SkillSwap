@@ -1,33 +1,34 @@
 // frontend-web/src/components/common/WelcomeReminderModal.jsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiBell, FiCalendar, FiX } from 'react-icons/fi';
 import { notificationAPI, sessionAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 
-const STORAGE_KEY = 'skillswap_welcome_reminder_shown';
-
 const WelcomeReminderModal = () => {
-  const { user, getUserId } = useAuth();
+  const { user, getUserId, loginSignal } = useAuth();
   const [open, setOpen] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const dismissedForSignal = useRef(-1);
 
   useEffect(() => {
     const userId = getUserId();
     if (!user && !userId) return;
-    if (sessionStorage.getItem(STORAGE_KEY) === '1') return;
+    if (dismissedForSignal.current === loginSignal) return;
+
+    let cancelled = false;
 
     const loadReminders = async () => {
       try {
-        setLoading(true);
         const [sessionsRes, notificationsRes] = await Promise.all([
           sessionAPI.getAll(),
           notificationAPI.getNotifications()
         ]);
+
+        if (cancelled) return;
 
         const now = new Date();
         const upcoming = (sessionsRes.data || []).filter((session) => {
@@ -43,7 +44,7 @@ const WelcomeReminderModal = () => {
         const unread = notificationsRes.data?.unreadCount || 0;
 
         if (upcoming.length === 0 && unread === 0) {
-          sessionStorage.setItem(STORAGE_KEY, '1');
+          setOpen(false);
           return;
         }
 
@@ -53,20 +54,22 @@ const WelcomeReminderModal = () => {
         setOpen(true);
       } catch (error) {
         console.error('Welcome reminder load failed:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
     loadReminders();
-  }, [user, getUserId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, getUserId, loginSignal]);
 
   const dismiss = () => {
-    sessionStorage.setItem(STORAGE_KEY, '1');
+    dismissedForSignal.current = loginSignal;
     setOpen(false);
   };
 
-  if (loading || !open) return null;
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">

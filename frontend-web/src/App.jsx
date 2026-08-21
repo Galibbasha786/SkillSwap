@@ -36,6 +36,7 @@ import AdminUserDetails from './pages/admin/AdminUserDetails';
 
 // Import toast for error messages
 import toast from 'react-hot-toast';
+import WelcomeReminderModal from './components/common/WelcomeReminderModal';
 
 // Protected Route Component (for regular users)
 const ProtectedRoute = ({ children }) => {
@@ -331,6 +332,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <WelcomeReminderModal />
         <AppContent />
       </AuthProvider>
     </Router>
