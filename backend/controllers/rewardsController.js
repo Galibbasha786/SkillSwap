@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Session = require('../models/Session');
 const Transaction = require('../models/Transaction');
 const Notification = require('../models/Notification');
+const { sendSessionConfirmationEmails } = require('../utils/emailService');
 
 // @desc    Get user rewards balance
 // @route   GET /api/rewards/balance
@@ -172,6 +173,12 @@ exports.redeemFreeSession = async (req, res) => {
       message: `${learner.name} booked a free session using rewards. You received 10 bonus rewards!`,
       type: 'reward_bonus',
       data: { sessionId: session._id, studentName: learner.name }
+    });
+
+    await session.populate('teacherId', 'name email profileImage phone location rating totalSessions');
+    await session.populate('learnerId', 'name email profileImage phone location rating');
+    sendSessionConfirmationEmails(session).catch((error) => {
+      console.warn('⚠️ Session confirmation emails skipped/failed:', error.message);
     });
     
     res.status(201).json({
