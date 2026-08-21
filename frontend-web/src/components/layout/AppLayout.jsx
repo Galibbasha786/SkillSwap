@@ -16,12 +16,15 @@ import {
   FiHeart,
   FiChevronLeft,
   FiChevronRight,
-  FiCode
+  FiCode,
+  FiGlobe,
+  FiFileText
 } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../common/NotificationBell';
 import ThemeToggle from '../common/ThemeToggle';
 import { userAPI } from '../../services/api';
+import skillswapLogo from '../../assets/skillswaplogo.jpg';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: FiHome },
@@ -29,6 +32,8 @@ const NAV_ITEMS = [
   { to: '/mutual-matches', label: 'Free Skill Swaps', icon: FiHeart },
   { to: '/sessions', label: 'My Sessions', icon: FiCalendar },
   { to: '/messages', label: 'Messages', icon: FiMessageSquare },
+  { to: '/posts', label: 'Community', icon: FiGlobe },
+  { to: '/resume-builder', label: 'Resume Builder', icon: FiFileText },
   { to: '/compiler', label: 'Online Compiler', icon: FiCode },
   { to: '/exams', label: 'Exams', icon: FiBook },
   { to: '/teacher/exams', label: 'My Exams', icon: FiCheckCircle },
@@ -101,10 +106,19 @@ const AppLayout = ({ children }) => {
         } w-72`}
       >
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
-            SkillSwap
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">Learn. Share. Grow.</p>
+          <Link to="/dashboard" className="flex items-center gap-3 group">
+            <img
+              src={skillswapLogo}
+              alt="SkillSwap logo"
+              className="w-11 h-11 rounded-xl object-cover shadow-sm ring-2 ring-indigo-100 group-hover:ring-indigo-200 transition-all"
+            />
+            <div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+                SkillSwap
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">Learn. Share. Grow.</p>
+            </div>
+          </Link>
         </div>
 
         <div className="p-4 pb-24 overflow-y-auto h-[calc(100vh-5rem)]">
@@ -159,6 +173,18 @@ const AppLayout = ({ children }) => {
         <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-end items-center gap-2 sm:gap-4">
+              <Link
+                to="/posts"
+                title="Community Board"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname.startsWith('/posts')
+                    ? 'bg-sky-50 text-sky-600'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                <FiGlobe className="w-5 h-5" />
+                <span className="hidden md:inline">Community</span>
+              </Link>
               <Link
                 to="/compiler"
                 title="Online Compiler"

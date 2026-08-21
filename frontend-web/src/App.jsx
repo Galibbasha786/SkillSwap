@@ -25,6 +25,8 @@ import StudentExams from './pages/student/StudentExams';
 import ExamTaking from './pages/ExamTaking';
 import ExamPractice from './pages/ExamPractice';
 import OnlineCompiler from './pages/OnlineCompiler';
+import Posts from './pages/Posts';
+import ResumeBuilder from './pages/ResumeBuilder';
 import Certificate from './components/exam/Certificate';
 import VerifyCertificate from './components/exam/VerifyCertificate';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -228,6 +230,18 @@ function AppContent() {
           <Route path="/compiler" element={
             <ProtectedRoute>
               <OnlineCompiler />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/posts" element={
+            <ProtectedRoute>
+              <Posts />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/resume-builder" element={
+            <ProtectedRoute>
+              <ResumeBuilder />
             </ProtectedRoute>
           } />
           

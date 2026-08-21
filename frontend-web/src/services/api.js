@@ -234,6 +234,18 @@ export const compilerAPI = {
   run: (data) => api.post('/compiler/run', data, { timeout: 30000 }),
 };
 
+export const postAPI = {
+  getAll: (params) => api.get('/posts', { params }),
+  getById: (id) => api.get(`/posts/${id}`),
+  create: (data) =>
+    data instanceof FormData
+      ? api.post('/posts', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+      : api.post('/posts', data),
+  delete: (id) => api.delete(`/posts/${id}`),
+  toggleLike: (id) => api.post(`/posts/${id}/like`),
+  getCategories: () => api.get('/posts/meta/categories'),
+};
+
 // ==================== CERTIFICATE APIs ====================
 export const certificateAPI = {
   getCertificate: (id) => api.get(`/certificates/${id}`),

@@ -39,6 +39,7 @@ const swapRoutes = require('./routes/swapRoutes');
 const rewardsRoutes = require('./routes/rewardsRoutes');
 const timeSlotRoutes = require('./routes/timeSlotRoutes');
 const compilerRoutes = require('./routes/compilerRoutes');
+const postRoutes = require('./routes/postRoutes');
 // Initialize express
 const app = express();
 
@@ -128,6 +129,7 @@ app.use('/api/swaps', swapRoutes);
 app.use('/api/rewards', rewardsRoutes);
 app.use('/api/timeslots', timeSlotRoutes);
 app.use('/api/compiler', compilerRoutes);
+app.use('/api/posts', postRoutes);
 // Base route
 app.get('/', (req, res) => {
   res.json({ 

@@ -4,11 +4,10 @@ const Exam = require('../models/Exam');
 const ExamAttempt = require('../models/ExamAttempt');
 const Certificate = require('../models/Certificate');
 const User = require('../models/User');
-const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const crypto = require('crypto');
 const Session = require('../models/Session');
-const { getLogoBase64 } = require('../utils/logoUtil');
+const { buildCertificatePdf } = require('../utils/certificatePdf');
 const { getIO, forceEndStudentProctoring } = require('../socket');
 const fs = require('fs');
 const { executeCode } = require('../services/codeExecutionService');
@@ -1071,288 +1070,27 @@ exports.recordViolation = async (req, res) => {
 const generateCertificate = async (exam, attempt, user) => {
   try {
     const certificateId = crypto.randomBytes(16).toString('hex');
-    
-    // Generate QR Code
     const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify/${certificateId}`;
     const qrCode = await QRCode.toDataURL(verificationUrl);
-    
-    // Create PDF
-    const doc = new PDFDocument({
-      size: 'A4',
-      layout: 'landscape',
-      margin: 50
-    });
-    
-    let buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-    
-    const pageWidth = doc.page.width;
-    const pageHeight = doc.page.height;
-    const margin = 50;
-    
-    // Brand colors
-    const colors = {
-      primary: '#1E3A8A',
-      secondary: '#3B82F6',
-      accent: '#10B981',
-      gold: '#F59E0B',
-      light: '#EFF6FF',
-      dark: '#1F2937',
-      gray: '#6B7280'
-    };
-    
-    // ========== BORDERS ==========
-    
-    // Outer border
-    doc.rect(margin, margin, pageWidth - margin * 2, pageHeight - margin * 2)
-      .stroke(colors.primary)
-      .lineWidth(2);
-    
-    // Inner border
-    doc.rect(margin + 10, margin + 10, pageWidth - (margin * 2) - 20, pageHeight - (margin * 2) - 20)
-      .stroke(colors.accent)
-      .lineWidth(1);
-    
-    // Corner decorations
-    const cornerSize = 30;
-    // Top-left
-    doc.rect(margin, margin, cornerSize, 3).fill(colors.secondary);
-    doc.rect(margin, margin, 3, cornerSize).fill(colors.secondary);
-    // Top-right
-    doc.rect(pageWidth - margin - cornerSize, margin, cornerSize, 3).fill(colors.secondary);
-    doc.rect(pageWidth - margin - 3, margin, 3, cornerSize).fill(colors.secondary);
-    // Bottom-left
-    doc.rect(margin, pageHeight - margin - cornerSize, cornerSize, 3).fill(colors.secondary);
-    doc.rect(margin, pageHeight - margin - cornerSize, 3, cornerSize).fill(colors.secondary);
-    // Bottom-right
-    doc.rect(pageWidth - margin - cornerSize, pageHeight - margin - cornerSize, cornerSize, 3).fill(colors.secondary);
-    doc.rect(pageWidth - margin - 3, pageHeight - margin - cornerSize, 3, cornerSize).fill(colors.secondary);
-    
-    // ========== LOGO SECTION ==========
-    let currentY = margin + 35;
-    
-    // Get logo from logoUtil
-    const { getLogoBase64 } = require('../utils/logoUtil');
-    const logoBase64 = getLogoBase64();
-    
-    if (logoBase64) {
-      try {
-        // Decode base64 to buffer
-        const logoBuffer = Buffer.from(logoBase64.split(',')[1], 'base64');
-        doc.image(logoBuffer, margin + 30, currentY - 15, { width: 70 });
-        currentY = currentY + 40;
-      } catch (err) {
-        console.log('Logo placement error:', err);
-        // Fallback to text logo
-        doc.font('Helvetica-Bold')
-          .fontSize(24)
-          .fill(colors.primary)
-          .text('SKILL', margin + 30, currentY);
-        doc.font('Helvetica-Bold')
-          .fontSize(24)
-          .fill(colors.secondary)
-          .text('SWAP', margin + 105, currentY);
-        doc.font('Helvetica')
-          .fontSize(8)
-          .fill(colors.gray)
-          .text('LEARN.SHARE.GROW.', margin + 30, currentY + 28);
-        currentY = currentY + 50;
-      }
-    } else {
-      // Text logo fallback
-      doc.font('Helvetica-Bold')
-        .fontSize(24)
-        .fill(colors.primary)
-        .text('SKILL', margin + 30, currentY);
-      doc.font('Helvetica-Bold')
-        .fontSize(24)
-        .fill(colors.secondary)
-        .text('SWAP', margin + 105, currentY);
-      doc.font('Helvetica')
-        .fontSize(8)
-        .fill(colors.gray)
-        .text('LEARN.SHARE.GROW.', margin + 30, currentY + 28);
-      currentY = currentY + 50;
-    }
-    
-    // ========== CERTIFICATE TITLE ==========
-    currentY = margin + 100;
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(36)
-      .fill(colors.primary)
-      .text('CERTIFICATE', margin + 30, currentY);
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(28)
-      .fill(colors.accent)
-      .text('OF ACHIEVEMENT', margin + 30, currentY + 45);
-    
-    // ========== SUBTITLE ==========
-    currentY = margin + 170;
-    
-    doc.font('Helvetica')
-      .fontSize(16)
-      .fill(colors.gray)
-      .text('This is to proudly certify that', margin + 30, currentY);
-    
-    // ========== STUDENT NAME ==========
-    currentY = margin + 210;
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(42)
-      .fill(colors.primary)
-      .text(user.name, margin + 30, currentY);
-    
-    // ========== ACHIEVEMENT TEXT ==========
-    currentY = margin + 270;
-    
-    doc.font('Helvetica')
-      .fontSize(16)
-      .fill(colors.gray)
-      .text('has successfully completed the', margin + 30, currentY);
-    
-    // ========== SKILL NAME ==========
-    currentY = margin + 310;
-    
-    // Background highlight for skill
-    const skillWidth = doc.widthOfString(exam.skillName);
-    doc.rect(margin + 25, currentY - 8, skillWidth + 10, 38)
-      .fill(colors.light);
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(28)
-      .fill(colors.secondary)
-      .text(exam.skillName, margin + 30, currentY);
-    
-    // ========== DESCRIPTION ==========
-    currentY = margin + 370;
-    
-    doc.font('Helvetica')
-      .fontSize(10)
-      .fill(colors.gray)
-      .text('Demonstrating exceptional knowledge and practical understanding', margin + 30, currentY);
-    
-    doc.font('Helvetica')
-      .fontSize(10)
-      .fill(colors.gray)
-      .text('of the subject matter through rigorous assessment and evaluation.', margin + 30, currentY + 15);
-    
-    // ========== SCORE SECTION ==========
-    currentY = margin + 430;
-    
-    const score = attempt.percentage.toFixed(2);
-    const scoreWidth_display = doc.widthOfString(`${score}%`);
-    
-    // Score badge
-    doc.rect(margin + 30, currentY - 10, 100, 35)
-      .fill(colors.accent);
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(24)
-      .fill('#FFFFFF')
-      .text(`${score}%`, margin + 40, currentY - 5);
-    
-    // Grade text
-    let grade = '';
-    let gradeColor = '';
-    if (attempt.percentage >= 90) {
-      grade = 'EXCELLENT';
-      gradeColor = '#10B981';
-    } else if (attempt.percentage >= 80) {
-      grade = 'DISTINCTION';
-      gradeColor = '#3B82F6';
-    } else if (attempt.percentage >= 70) {
-      grade = 'MERIT';
-      gradeColor = '#8B5CF6';
-    } else if (attempt.percentage >= 60) {
-      grade = 'CREDIT';
-      gradeColor = '#F59E0B';
-    } else {
-      grade = 'PASS';
-      gradeColor = '#6B7280';
-    }
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(18)
-      .fill(gradeColor)
-      .text(grade, margin + 150, currentY - 5);
-    
-    // ========== FOOTER SECTION ==========
-    const footerY = pageHeight - margin - 80;
-    
-    // Left - Certificate Details
-    doc.font('Helvetica-Bold')
-      .fontSize(9)
-      .fill(colors.primary)
-      .text('CERTIFICATE DETAILS', margin + 30, footerY);
-    
-    doc.font('Helvetica')
-      .fontSize(8)
-      .fill(colors.gray)
-      .text(`Certificate ID: ${certificateId.slice(0, 8)}-${certificateId.slice(8, 16)}-${certificateId.slice(16, 24)}`, margin + 30, footerY + 15);
-    
-    doc.font('Helvetica')
-      .fontSize(8)
-      .fill(colors.gray)
-      .text(`Issue Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, margin + 30, footerY + 30);
-    
-    // Right - QR Code
-    const qrImage = await QRCode.toBuffer(verificationUrl);
-    doc.image(qrImage, pageWidth - margin - 90, footerY - 10, { width: 70 });
-    
-    // Center - Signature
     const teacher = await User.findById(exam.teacherId);
-    const signatureX = (pageWidth / 2) - 80;
-    
-    doc.font('Helvetica-Bold')
-      .fontSize(9)
-      .fill(colors.primary)
-      .text('AUTHORIZED SIGNATURE', signatureX, footerY - 5);
-    
-    // Signature line
-    doc.moveTo(signatureX, footerY + 10)
-      .lineTo(signatureX + 160, footerY + 10)
-      .stroke(colors.secondary)
-      .lineWidth(1);
-    
-    doc.font('Helvetica')
-      .fontSize(9)
-      .fill(colors.dark)
-      .text(teacher.name, signatureX, footerY + 15);
-    
-    doc.font('Helvetica')
-      .fontSize(7)
-      .fill(colors.gray)
-      .text('(Instructor / Certifying Authority)', signatureX, footerY + 30);
-    
-    // Bottom verification note
-    doc.font('Helvetica')
-      .fontSize(7)
-      .fill(colors.gray)
-      .text(`Verify this certificate at: ${verificationUrl}`, { align: 'center', y: pageHeight - margin - 20 });
-    
-    // Decorative line
-    doc.moveTo(margin + 30, footerY - 25)
-      .lineTo(pageWidth - margin - 30, footerY - 25)
-      .stroke(colors.light)
-      .lineWidth(0.5);
-    
-    doc.end();
-    
-    await new Promise((resolve) => {
-      doc.on('end', resolve);
+
+    const pdfBuffer = await buildCertificatePdf({
+      user,
+      exam,
+      attempt,
+      certificateId,
+      verificationUrl,
+      teacherName: teacher?.name
     });
-    
-    const pdfBuffer = Buffer.concat(buffers);
+
     const pdfBase64 = pdfBuffer.toString('base64');
-    
+
     const certificate = await Certificate.create({
       examId: exam._id,
       studentId: user.id,
       teacherId: exam.teacherId,
       attemptId: attempt._id,
-      certificateId: certificateId,
+      certificateId,
       studentName: user.name,
       skillName: exam.skillName,
       score: attempt.percentage,
@@ -1360,7 +1098,7 @@ const generateCertificate = async (exam, attempt, user) => {
       certificateUrl: `data:application/pdf;base64,${pdfBase64}`,
       qrCode
     });
-    
+
     return certificate;
   } catch (error) {
     console.error('❌ Certificate generation error:', error);

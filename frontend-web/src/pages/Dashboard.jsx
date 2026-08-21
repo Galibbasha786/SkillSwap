@@ -19,7 +19,9 @@ import {
   FiAward,
   FiVideo,
   FiCheckCircle,
-  FiCode
+  FiCode,
+  FiGlobe,
+  FiFileText
 } from 'react-icons/fi';
 import AppLayout from '../components/layout/AppLayout';
 import AddTeachingSkill from '../components/skills/AddTeachingSkill';
@@ -522,6 +524,20 @@ const Dashboard = () => {
               <button className="w-full p-4 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex flex-col items-center gap-2">
                 <FiMessageSquare className="w-6 h-6" />
                 <span className="text-sm">Messages</span>
+              </button>
+            </Link>
+
+            <Link to="/posts">
+              <button className="w-full p-4 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-100 transition-colors flex flex-col items-center gap-2">
+                <FiGlobe className="w-6 h-6" />
+                <span className="text-sm">Community</span>
+              </button>
+            </Link>
+
+            <Link to="/resume-builder">
+              <button className="w-full p-4 bg-violet-50 text-violet-600 rounded-xl hover:bg-violet-100 transition-colors flex flex-col items-center gap-2">
+                <FiFileText className="w-6 h-6" />
+                <span className="text-sm">Resume Builder</span>
               </button>
             </Link>
 
