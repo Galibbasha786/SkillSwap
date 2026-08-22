@@ -98,8 +98,20 @@ const examAttemptSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['in_progress', 'completed', 'terminated', 'passed', 'failed'],
+    enum: ['in_progress', 'completed', 'terminated', 'passed', 'failed', 'submitted'],
     default: 'in_progress'
+  },
+  teacherAdjusted: {
+    type: Boolean,
+    default: false
+  },
+  teacherNotes: {
+    type: String,
+    default: ''
+  },
+  resultsVisible: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

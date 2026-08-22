@@ -216,6 +216,8 @@ export const examAPI = {
   getLiveAttempts: (examId) => api.get(`/exams/${examId}/live-attempts`),
   getExamResults: (examId) => api.get(`/exams/${examId}/results`),
   publishExamResults: (examId) => api.post(`/exams/${examId}/publish-results`),
+  updateAttemptGrade: (examId, attemptId, data) =>
+    api.put(`/exams/${examId}/attempts/${attemptId}/grade`, data),
   getExamById: (examId) => api.get(`/exams/${examId}`), // ✅ ADD THIS - Missing!
   startExam: (examId, data = {}) => api.post(`/exams/${examId}/start`, data),
   submitAnswer: (examId, answerData) => api.post(`/exams/${examId}/submit`, answerData),
@@ -245,6 +247,9 @@ export const postAPI = {
   delete: (id) => api.delete(`/posts/${id}`),
   toggleLike: (id) => api.post(`/posts/${id}/like`),
   getCategories: () => api.get('/posts/meta/categories'),
+  getComments: (id) => api.get(`/posts/${id}/comments`),
+  addComment: (id, content) => api.post(`/posts/${id}/comments`, { content }),
+  share: (id, message = '') => api.post(`/posts/${id}/share`, { message }),
 };
 
 // ==================== CERTIFICATE APIs ====================

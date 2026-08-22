@@ -21,6 +21,7 @@ const statusBadge = (status, passed) => {
 };
 
 const statusLabel = (status, passed) => {
+  if (status === 'submitted') return 'Awaiting Review';
   if (status === 'terminated') return 'Terminated';
   if (passed) return 'Passed';
   return 'Failed';
@@ -34,6 +35,8 @@ const ExamResults = () => {
   const [attempts, setAttempts] = useState([]);
   const [summary, setSummary] = useState(null);
   const [expandedStudent, setExpandedStudent] = useState(null);
+  const [gradeEdits, setGradeEdits] = useState({});
+  const [savingGradeId, setSavingGradeId] = useState(null);
 
   const fetchResults = async () => {
     try {
@@ -75,6 +78,25 @@ const ExamResults = () => {
       toast.error(error.response?.data?.message || 'Failed to publish results');
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleSaveGrade = async (attempt) => {
+    const edit = gradeEdits[attempt._id] || {};
+    setSavingGradeId(attempt._id);
+    try {
+      await examAPI.updateAttemptGrade(examId, attempt._id, {
+        obtainedMarks: edit.obtainedMarks ?? attempt.obtainedMarks,
+        percentage: edit.percentage ?? attempt.percentage,
+        passed: edit.passed ?? attempt.passed,
+        teacherNotes: edit.teacherNotes ?? attempt.teacherNotes ?? ''
+      });
+      toast.success('Result updated');
+      await fetchResults();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update result');
+    } finally {
+      setSavingGradeId(null);
     }
   };
 
@@ -130,6 +152,12 @@ const ExamResults = () => {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {exam?.examType === 'manual' && !exam?.resultsPublished && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            Manual exam: review auto-calculated scores below, edit if needed, then publish results. No certificates are issued.
+          </div>
+        )}
+
         {exam?.resultsPublished && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
             Results were published on {new Date(exam.resultsPublishedAt).toLocaleString()}.
@@ -194,16 +222,82 @@ const ExamResults = () => {
                             <p className="text-xs text-gray-500">{attempt.studentEmail}</p>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
-                              <FiBarChart2 className="w-4 h-4 text-blue-500" />
-                              <span className="font-semibold">
-                                {attempt.status === 'terminated' ? '—' : `${(attempt.percentage || 0).toFixed(1)}%`}
-                              </span>
-                            </div>
-                            {attempt.totalMarks > 0 && (
-                              <p className="text-xs text-gray-500">
-                                {attempt.obtainedMarks}/{attempt.totalMarks} marks
-                              </p>
+                            {exam?.examType === 'manual' && !exam?.resultsPublished && attempt.status !== 'terminated' ? (
+                              <div className="space-y-2 min-w-[180px]">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={attempt.totalMarks || 100}
+                                  value={gradeEdits[attempt._id]?.obtainedMarks ?? attempt.obtainedMarks ?? 0}
+                                  onChange={(e) =>
+                                    setGradeEdits((prev) => ({
+                                      ...prev,
+                                      [attempt._id]: {
+                                        ...prev[attempt._id],
+                                        obtainedMarks: Number(e.target.value)
+                                      }
+                                    }))
+                                  }
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                  placeholder="Marks"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.1"
+                                  value={gradeEdits[attempt._id]?.percentage ?? attempt.percentage ?? 0}
+                                  onChange={(e) =>
+                                    setGradeEdits((prev) => ({
+                                      ...prev,
+                                      [attempt._id]: {
+                                        ...prev[attempt._id],
+                                        percentage: Number(e.target.value)
+                                      }
+                                    }))
+                                  }
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                  placeholder="Percentage"
+                                />
+                                <select
+                                  value={String(gradeEdits[attempt._id]?.passed ?? attempt.passed ?? false)}
+                                  onChange={(e) =>
+                                    setGradeEdits((prev) => ({
+                                      ...prev,
+                                      [attempt._id]: {
+                                        ...prev[attempt._id],
+                                        passed: e.target.value === 'true'
+                                      }
+                                    }))
+                                  }
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                >
+                                  <option value="true">Pass</option>
+                                  <option value="false">Fail</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveGrade(attempt)}
+                                  disabled={savingGradeId === attempt._id}
+                                  className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {savingGradeId === attempt._id ? 'Saving...' : 'Save'}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1">
+                                  <FiBarChart2 className="w-4 h-4 text-blue-500" />
+                                  <span className="font-semibold">
+                                    {attempt.status === 'terminated' ? '—' : `${(attempt.percentage || 0).toFixed(1)}%`}
+                                  </span>
+                                </div>
+                                {attempt.totalMarks > 0 && (
+                                  <p className="text-xs text-gray-500">
+                                    {attempt.obtainedMarks}/{attempt.totalMarks} marks
+                                  </p>
+                                )}
+                              </>
                             )}
                           </td>
                           <td className="px-4 py-3">

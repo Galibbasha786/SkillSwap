@@ -29,11 +29,16 @@ const StudentExams = () => {
 
   const getExamAction = (exam) => {
     const attempt = exam.studentAttempt;
+    const isManual = exam.examType === 'manual';
+
     if (!attempt?.status) {
-      return { label: 'Start Exam', disabled: false, variant: 'primary' };
+      return { label: isManual ? 'Start Manual Exam' : 'Start Exam', disabled: false, variant: 'primary' };
     }
     if (attempt.status === 'in_progress') {
       return { label: 'Continue Exam', disabled: false, variant: 'primary' };
+    }
+    if (isManual && attempt.status === 'submitted' && !exam.resultsPublished) {
+      return { label: 'Awaiting Results', disabled: true, variant: 'muted' };
     }
     if (attempt.status === 'passed') {
       return { label: 'Passed ✓', disabled: true, variant: 'success' };
@@ -41,7 +46,7 @@ const StudentExams = () => {
     if (attempt.canRetake) {
       return { label: 'Attempt Again', disabled: false, variant: 'retry' };
     }
-    return { label: 'Submitted', disabled: true, variant: 'muted' };
+    return { label: isManual ? 'Submitted' : 'Submitted', disabled: true, variant: 'muted' };
   };
 
   if (loading) {
@@ -60,7 +65,7 @@ const StudentExams = () => {
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Available Certifications</h1>
         <p className="text-gray-600 mb-8">
-          Practice anytime without proctoring. Certification exams use camera monitoring during the real attempt.
+          Certification and manual exams both use camera monitoring during the real attempt. Manual exams require the teacher to publish results; only certification exams issue certificates.
         </p>
 
         {exams.length === 0 ? (
@@ -94,7 +99,7 @@ const StudentExams = () => {
                       <div className="flex items-center gap-2">
                         <FiAward className="text-purple-500" />
                         <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-                          Certification
+                          {exam.examType === 'manual' ? 'Manual Exam' : 'Certification'}
                         </span>
                       </div>
                       {attempt?.status === 'passed' && (
@@ -115,7 +120,16 @@ const StudentExams = () => {
                         <span className="text-gray-500">Questions:</span>
                         <span className="font-medium">{exam.questions?.length || 0}</span>
                       </div>
-                      {attempt?.percentage != null && attempt.status !== 'in_progress' && (
+                      {exam.proctoring?.enabled !== false && (
+                        <div className="flex items-center gap-2 text-xs text-indigo-700 bg-indigo-50 px-2 py-1 rounded-full mb-3">
+                          <FiAward className="w-3 h-3" />
+                          Camera, mic & screen share required
+                        </div>
+                      )}
+
+                      {attempt?.percentage != null &&
+                        attempt.status !== 'in_progress' &&
+                        !(exam.examType === 'manual' && !exam.resultsPublished) && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500">Last score:</span>
                           <span className="font-medium">{attempt.percentage.toFixed(1)}%</span>

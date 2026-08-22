@@ -14,6 +14,8 @@ import {
   FiUsers
 } from 'react-icons/fi';
 import { userAPI, skillAPI } from '../services/api';
+import { skillCategories, getSkillCategory } from '../data/skillCategories';
+import BackButton from '../components/common/BackButton';
 import toast from 'react-hot-toast';
 
 const SkillMarketplace = () => {
@@ -73,13 +75,16 @@ const SkillMarketplace = () => {
   const fetchCategories = async () => {
     try {
       const response = await skillAPI.getCategories();
-      if (response.data && Array.isArray(response.data)) {
-        setCategories(['all', ...response.data]);
-      }
+      const apiCategories = response.data && Array.isArray(response.data) ? response.data : [];
+      const defaults = skillCategories.map((category) => category.name);
+      setCategories(['all', ...new Set([...defaults, ...apiCategories, 'Other'])]);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories(['all', ...skillCategories.map((category) => category.name), 'Other']);
     }
   };
+
+  const resolveSkillCategory = (skill) => skill.category || getSkillCategory(skill.name);
 
   const filteredTeachers = teachers.filter(teacher => {
     // Search in teacher name and skills
@@ -91,7 +96,7 @@ const SkillMarketplace = () => {
     
     // Filter by category
     const matchesCategory = selectedCategory === 'all' || 
-      teacher.skillsTeach?.some(skill => skill.category === selectedCategory);
+      teacher.skillsTeach?.some(skill => resolveSkillCategory(skill) === selectedCategory);
     
     return matchesSearch && matchesCategory;
   });
@@ -123,6 +128,9 @@ const SkillMarketplace = () => {
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="mb-3">
+            <BackButton />
+          </div>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* Search Bar */}
             <div className="relative flex-1 max-w-2xl">

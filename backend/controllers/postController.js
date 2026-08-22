@@ -1,4 +1,5 @@
 const Post = require('../models/Post');
+const Comment = require('../models/Comment');
 const { POST_CATEGORIES } = require('../models/Post');
 const { cloudinary, upload, isCloudinaryConfigured } = require('../config/cloudinary');
 
@@ -32,6 +33,35 @@ const uploadPostImage = async (file) => {
   };
 };
 
+const uploadPostVideo = async (file) => {
+  if (!file) {
+    return { videoUrl: '', videoPublicId: '' };
+  }
+
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Video upload is not configured on the server');
+  }
+
+  const result = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'skillswap-posts/videos',
+        resource_type: 'video'
+      },
+      (error, uploadResult) => {
+        if (error) reject(error);
+        else resolve(uploadResult);
+      }
+    );
+    stream.end(file.buffer);
+  });
+
+  return {
+    videoUrl: result.secure_url,
+    videoPublicId: result.public_id
+  };
+};
+
 const normalizeTags = (tags) => {
   if (!tags) return [];
   if (Array.isArray(tags)) {
@@ -44,16 +74,22 @@ const normalizeTags = (tags) => {
     .slice(0, 8);
 };
 
-const formatPost = (post, userId) => {
+const formatPost = (post, userId, meta = {}) => {
   const doc = post.toObject ? post.toObject() : post;
   const likedByMe = userId
     ? (doc.likes || []).some((id) => String(id) === String(userId) || String(id?._id) === String(userId))
+    : false;
+  const sharedByMe = userId
+    ? (doc.shares || []).some((id) => String(id) === String(userId) || String(id?._id) === String(userId))
     : false;
 
   return {
     ...doc,
     likeCount: doc.likes?.length || 0,
+    shareCount: doc.shares?.length || 0,
+    commentCount: meta.commentCount || 0,
     likedByMe,
+    sharedByMe,
     isOwner: userId ? String(doc.author?._id || doc.author) === String(userId) : false
   };
 };
@@ -77,20 +113,41 @@ exports.createPost = async (req, res) => {
 
     let imageUrl = req.body.imageUrl?.trim() || '';
     let imagePublicId = req.body.imagePublicId?.trim() || '';
+    let videoUrl = req.body.videoUrl?.trim() || '';
+    let videoPublicId = req.body.videoPublicId?.trim() || '';
+    let mediaType = 'none';
 
-    if (req.file) {
+    if (req.files?.image?.[0]) {
+      try {
+        const uploaded = await uploadPostImage(req.files.image[0]);
+        imageUrl = uploaded.imageUrl;
+        imagePublicId = uploaded.imagePublicId;
+        mediaType = 'image';
+      } catch (uploadError) {
+        console.error('Post image upload error:', uploadError);
+        return res.status(503).json({ message: 'Failed to upload image.' });
+      }
+    } else if (req.file && req.file.mimetype?.startsWith('image/')) {
       try {
         const uploaded = await uploadPostImage(req.file);
         imageUrl = uploaded.imageUrl;
         imagePublicId = uploaded.imagePublicId;
+        mediaType = 'image';
       } catch (uploadError) {
         console.error('Post image upload error:', uploadError);
-        return res.status(503).json({
-          message:
-            uploadError.message?.includes('not configured')
-              ? 'Image upload is not available right now. Post without an image or try again later.'
-              : 'Failed to upload image. Try posting without an image.'
-        });
+        return res.status(503).json({ message: 'Failed to upload image.' });
+      }
+    }
+
+    if (req.files?.video?.[0]) {
+      try {
+        const uploaded = await uploadPostVideo(req.files.video[0]);
+        videoUrl = uploaded.videoUrl;
+        videoPublicId = uploaded.videoPublicId;
+        mediaType = 'video';
+      } catch (uploadError) {
+        console.error('Post video upload error:', uploadError);
+        return res.status(503).json({ message: 'Failed to upload video.' });
       }
     }
 
@@ -102,7 +159,10 @@ exports.createPost = async (req, res) => {
       tags: normalizeTags(tags),
       link: link?.trim() || '',
       imageUrl,
-      imagePublicId
+      imagePublicId,
+      videoUrl,
+      videoPublicId,
+      mediaType
     });
 
     await post.populate('author', 'name profileImage email');
@@ -135,18 +195,29 @@ exports.getPosts = async (req, res) => {
       filter.category = req.query.category;
     }
 
-    const [posts, total] = await Promise.all([
+    const [posts, total, commentCounts] = await Promise.all([
       Post.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('author', 'name profileImage email'),
-      Post.countDocuments(filter)
+        .populate('author', 'name profileImage email')
+        .populate('originalPost', 'content title author'),
+      Post.countDocuments(filter),
+      Comment.aggregate([
+        { $match: { post: { $exists: true } } },
+        { $group: { _id: '$post', count: { $sum: 1 } } }
+      ])
     ]);
+
+    const commentCountMap = Object.fromEntries(
+      commentCounts.map((item) => [String(item._id), item.count])
+    );
 
     res.json({
       success: true,
-      posts: posts.map((post) => formatPost(post, req.user.id)),
+      posts: posts.map((post) =>
+        formatPost(post, req.user.id, { commentCount: commentCountMap[String(post._id)] || 0 })
+      ),
       pagination: {
         page,
         limit,
@@ -210,6 +281,14 @@ exports.deletePost = async (req, res) => {
       }
     }
 
+    if (post.videoPublicId) {
+      try {
+        await cloudinary.uploader.destroy(post.videoPublicId, { resource_type: 'video' });
+      } catch (videoError) {
+        console.warn('Post video cleanup failed:', videoError.message);
+      }
+    }
+
     post.isActive = false;
     await post.save();
 
@@ -261,4 +340,91 @@ exports.getCategories = async (_req, res) => {
     success: true,
     categories: POST_CATEGORIES
   });
+};
+
+exports.addComment = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content?.trim()) {
+      return res.status(400).json({ message: 'Comment cannot be empty' });
+    }
+
+    const post = await Post.findOne({ _id: req.params.id, isActive: true });
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const comment = await Comment.create({
+      post: post._id,
+      author: req.user.id,
+      content: content.trim()
+    });
+
+    await comment.populate('author', 'name profileImage email');
+
+    res.status(201).json({ success: true, comment });
+  } catch (error) {
+    console.error('Add comment error:', error);
+    res.status(500).json({ message: 'Failed to add comment' });
+  }
+};
+
+exports.getComments = async (req, res) => {
+  try {
+    const comments = await Comment.find({ post: req.params.id })
+      .sort({ createdAt: 1 })
+      .populate('author', 'name profileImage email');
+
+    res.json({ success: true, comments });
+  } catch (error) {
+    console.error('Get comments error:', error);
+    res.status(500).json({ message: 'Failed to load comments' });
+  }
+};
+
+exports.sharePost = async (req, res) => {
+  try {
+    const original = await Post.findOne({ _id: req.params.id, isActive: true });
+    if (!original) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const alreadyShared = (original.shares || []).some(
+      (id) => String(id) === String(req.user.id)
+    );
+    if (!alreadyShared) {
+      original.shares.push(req.user.id);
+      await original.save();
+    }
+
+    const message = req.body.message?.trim();
+    const reshare = await Post.create({
+      author: req.user.id,
+      category: original.category,
+      title: original.title,
+      content: message || original.content,
+      tags: original.tags,
+      link: original.link,
+      imageUrl: original.imageUrl,
+      imagePublicId: original.imagePublicId,
+      videoUrl: original.videoUrl,
+      videoPublicId: original.videoPublicId,
+      mediaType: original.mediaType,
+      originalPost: original._id
+    });
+
+    await reshare.populate('author', 'name profileImage email');
+    await reshare.populate('originalPost', 'content title author');
+
+    res.status(201).json({
+      success: true,
+      post: formatPost(reshare, req.user.id),
+      originalPost: formatPost(original, req.user.id, {
+        commentCount: await Comment.countDocuments({ post: original._id })
+      })
+    });
+  } catch (error) {
+    console.error('Share post error:', error);
+    res.status(500).json({ message: 'Failed to reshare post' });
+  }
 };

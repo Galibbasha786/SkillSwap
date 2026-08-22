@@ -163,7 +163,27 @@ app.use((req, res) => {
 });
 
 // ✅ FIX: Connect to DB ONCE, then start server and auto-complete service
-connectDB().then(() => {
+connectDB().then(async () => {
+  try {
+    const Exam = require('./models/Exam');
+    const result = await Exam.updateMany(
+      { examType: 'manual', $or: [{ 'proctoring.enabled': false }, { proctoring: { $exists: false } }] },
+      {
+        $set: {
+          'proctoring.enabled': true,
+          'proctoring.faceDetection': true,
+          'proctoring.tabSwitchDetection': true,
+          'proctoring.screenshotDetection': true
+        }
+      }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`✅ Re-enabled proctoring on ${result.modifiedCount} manual exam(s)`);
+    }
+  } catch (migrationError) {
+    console.warn('⚠️ Manual exam proctoring migration skipped:', migrationError.message);
+  }
+
   // Start server
   const PORT = process.env.PORT || 5000;
   const server = app.listen(PORT, () => {

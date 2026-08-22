@@ -23,6 +23,7 @@ const CreateExam = () => {
     description: '',
     duration: 30,
     passingScore: 70,
+    examType: 'certification',
     questions: [],
     accessControl: {
       type: 'all',
@@ -90,6 +91,7 @@ const CreateExam = () => {
           description: existingExam.description || '',
           duration: existingExam.duration || 30,
           passingScore: existingExam.passingScore || 70,
+          examType: existingExam.examType || 'certification',
           questions: existingExam.questions || [],
           accessControl: existingExam.accessControl || {
             type: 'all',
@@ -330,6 +332,7 @@ const CreateExam = () => {
       description: exam.description,
       duration: exam.duration,
       passingScore: exam.passingScore,
+      examType: exam.examType,
       availableFrom: new Date(availableFrom).toISOString(),
       availableTo: new Date(availableTo).toISOString(),
       accessControl: exam.accessControl,
@@ -429,6 +432,50 @@ const CreateExam = () => {
                 />
               </div>
               
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Exam Type *
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className={`border rounded-lg p-4 cursor-pointer ${exam.examType === 'certification' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <input
+                      type="radio"
+                      name="examType"
+                      value="certification"
+                      checked={exam.examType === 'certification'}
+                      onChange={(e) => setExam({ ...exam, examType: e.target.value })}
+                      className="mr-2"
+                    />
+                    <span className="font-medium">Certification Exam</span>
+                    <p className="text-xs text-gray-600 mt-1">Auto-graded with certificate on pass.</p>
+                  </label>
+                  <label className={`border rounded-lg p-4 cursor-pointer ${exam.examType === 'manual' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <input
+                      type="radio"
+                      name="examType"
+                      value="manual"
+                      checked={exam.examType === 'manual'}
+                      onChange={(e) =>
+                        setExam({
+                          ...exam,
+                          examType: e.target.value,
+                          proctoring: {
+                            ...exam.proctoring,
+                            enabled: true,
+                            faceDetection: true,
+                            tabSwitchDetection: true,
+                            screenshotDetection: true
+                          }
+                        })
+                      }
+                      className="mr-2"
+                    />
+                    <span className="font-medium">Manual Exam</span>
+                    <p className="text-xs text-gray-600 mt-1">Same proctoring and live monitor as certification. You review scores and publish results. No certificate.</p>
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description

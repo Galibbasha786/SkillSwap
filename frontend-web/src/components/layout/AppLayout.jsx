@@ -24,6 +24,7 @@ import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../common/NotificationBell';
 import ThemeToggle from '../common/ThemeToggle';
 import BrandMarquee from '../common/BrandMarquee';
+import BackButton from '../common/BackButton';
 import { userAPI } from '../../services/api';
 import skillswapLogo from '../../assets/skillswaplogo.jpg';
 
@@ -174,7 +175,12 @@ const AppLayout = ({ children }) => {
         <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between gap-3">
-              <BrandMarquee className="hidden md:flex flex-1 min-w-0 max-w-2xl" />
+              <div className="flex items-center gap-2 min-w-0">
+                {location.pathname !== '/dashboard' && (
+                  <BackButton className="px-2 py-1.5 text-sm" />
+                )}
+                <BrandMarquee className="hidden md:flex flex-1 min-w-0 max-w-2xl" />
+              </div>
 
               <div className="flex items-center gap-2 sm:gap-4 shrink-0 ml-auto">
               <Link

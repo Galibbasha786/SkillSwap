@@ -14,7 +14,22 @@ router.get('/categories', async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    res.json(categories.map((item) => item._id).filter(Boolean));
+    res.json([...new Set([
+      'Programming',
+      'Web Development',
+      'Mobile Development',
+      'Data Science',
+      'Music',
+      'Languages',
+      'Design',
+      'Fitness',
+      'Business',
+      'Art',
+      'Cooking',
+      'Photography',
+      'Other',
+      ...categories.map((item) => item._id).filter(Boolean)
+    ])].sort());
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ message: 'Failed to fetch categories' });

@@ -153,7 +153,12 @@ const examSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  resultsPublishedAt: Date
+  resultsPublishedAt: Date,
+  examType: {
+    type: String,
+    enum: ['certification', 'manual'],
+    default: 'certification'
+  }
 }, {
   timestamps: true
 });

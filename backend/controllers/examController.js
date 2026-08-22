@@ -175,8 +175,19 @@ exports.createExam = async (req, res) => {
       teacherId: req.user.id,
       availableFrom: fromDate,
       availableTo: toDate,
-      status: 'active'
+      status: 'active',
+      examType: otherData.examType === 'manual' ? 'manual' : 'certification'
     };
+
+    if (examData.examType === 'manual') {
+      examData.proctoring = {
+        enabled: true,
+        faceDetection: examData.proctoring?.faceDetection !== false,
+        tabSwitchDetection: examData.proctoring?.tabSwitchDetection !== false,
+        screenshotDetection: examData.proctoring?.screenshotDetection !== false,
+        allowedAttempts: examData.proctoring?.allowedAttempts || 3
+      };
+    }
     
     // Remove any _id from questions if present
     if (examData.questions) {
@@ -276,7 +287,7 @@ exports.getExamResults = async (req, res) => {
 
     const attempts = await ExamAttempt.find({
       examId: req.params.examId,
-      status: { $in: ['passed', 'failed', 'terminated', 'completed'] }
+      status: { $in: ['passed', 'failed', 'terminated', 'completed', 'submitted'] }
     })
       .populate('studentId', 'name email profileImage')
       .sort({ endTime: -1, updatedAt: -1 });
@@ -311,7 +322,10 @@ exports.getExamResults = async (req, res) => {
         proctoringLogs: logs,
         startTime: attempt.startTime,
         endTime: attempt.endTime,
-        certificateId: attempt.certificateId
+        certificateId: attempt.certificateId,
+        teacherAdjusted: attempt.teacherAdjusted,
+        teacherNotes: attempt.teacherNotes,
+        resultsVisible: attempt.resultsVisible
       };
     });
 
@@ -323,6 +337,7 @@ exports.getExamResults = async (req, res) => {
         passingScore: exam.passingScore,
         duration: exam.duration,
         availableTo: exam.availableTo,
+        examType: exam.examType || 'certification',
         resultsPublished: exam.resultsPublished,
         resultsPublishedAt: exam.resultsPublishedAt
       },
@@ -356,7 +371,7 @@ exports.publishExamResults = async (req, res) => {
 
     const attempts = await ExamAttempt.find({
       examId: req.params.examId,
-      status: { $in: ['passed', 'failed', 'terminated', 'completed'] }
+      status: { $in: ['passed', 'failed', 'terminated', 'completed', 'submitted'] }
     }).populate('studentId', 'name email');
 
     if (attempts.length === 0) {
@@ -379,12 +394,23 @@ exports.publishExamResults = async (req, res) => {
     const notifications = [];
 
     for (const attempt of attempts) {
+      if (exam.examType === 'manual') {
+        if (attempt.status === 'submitted') {
+          attempt.passed = (attempt.percentage || 0) >= exam.passingScore;
+          attempt.status = attempt.passed ? 'passed' : 'failed';
+        }
+        attempt.resultsVisible = true;
+        await attempt.save();
+      }
+
       const student = attempt.studentId;
       if (!student?._id) continue;
 
       const scoreText = attempt.status === 'terminated'
         ? 'Exam terminated due to proctoring violations'
-        : `Score: ${(attempt.percentage || 0).toFixed(1)}% — ${attempt.passed ? 'Passed' : 'Failed'}`;
+        : exam.examType === 'manual'
+          ? `Score: ${(attempt.percentage || 0).toFixed(1)}% — ${attempt.passed ? 'Passed' : 'Failed'} (manual review)`
+          : `Score: ${(attempt.percentage || 0).toFixed(1)}% — ${attempt.passed ? 'Passed' : 'Failed'}`;
 
       const notification = await Notification.create({
         userId: student._id,
@@ -501,11 +527,19 @@ exports.getAvailableExams = async (req, res) => {
         studentAttempt: attempt
           ? {
               status: attempt.status,
-              passed: attempt.passed,
-              percentage: attempt.percentage,
-              canRetake: !lockedByRemovals &&
+              passed:
+                exam.examType === 'manual' && !exam.resultsPublished
+                  ? null
+                  : attempt.passed,
+              percentage:
+                exam.examType === 'manual' && !exam.resultsPublished
+                  ? null
+                  : attempt.percentage,
+              canRetake:
+                !lockedByRemovals &&
                 !attempt.passed &&
                 attempt.status !== 'in_progress' &&
+                attempt.status !== 'submitted' &&
                 totalAttempts < (exam.proctoring?.allowedAttempts || 3)
             }
           : { status: null, canRetake: !lockedByRemovals }
@@ -710,6 +744,20 @@ exports.startExam = async (req, res) => {
       });
     }
 
+    if (exam.examType === 'manual' && !exam.resultsPublished) {
+      const submittedAttempt = await ExamAttempt.findOne({
+        examId: exam._id,
+        studentId: req.user.id,
+        status: 'submitted'
+      });
+      if (submittedAttempt) {
+        return res.status(400).json({
+          message: 'Your exam is submitted. Waiting for your teacher to publish results.',
+          resultsPending: true
+        });
+      }
+    }
+
     const teacherRemovals = await countTeacherRemovals(exam._id, req.user.id);
     if (teacherRemovals >= MAX_TEACHER_REMOVALS) {
       const lastAttempt = await ExamAttempt.findOne({
@@ -872,10 +920,17 @@ exports.finishExam = async (req, res) => {
     const existingFinished = await ExamAttempt.findOne({
       examId: req.params.examId,
       studentId: req.user.id,
-      status: { $in: ['passed', 'failed', 'completed'] }
+      status: { $in: ['passed', 'failed', 'completed', 'submitted'] }
     });
     
     if (existingFinished) {
+      const exam = await Exam.findById(req.params.examId);
+      if (existingFinished.status === 'submitted' && exam?.examType === 'manual' && !exam.resultsPublished) {
+        return res.status(400).json({
+          message: 'Exam already submitted. Waiting for teacher to publish results.',
+          resultsPending: true
+        });
+      }
       return res.status(400).json({ 
         message: 'You have already completed this exam',
         passed: existingFinished.passed,
@@ -907,6 +962,34 @@ exports.finishExam = async (req, res) => {
 
     attempt.totalMarks = totalMarks;
     attempt.percentage = percentage;
+
+    if (exam.examType === 'manual') {
+      attempt.obtainedMarks = attempt.obtainedMarks || 0;
+      attempt.passed = false;
+      attempt.status = 'submitted';
+      attempt.endTime = new Date();
+      attempt.resultsVisible = false;
+      await attempt.save();
+
+      try {
+        const { getIO } = require('../socket');
+        const io = getIO();
+        io.to(`exam-monitor:${req.params.examId}`).emit('student-proctoring-ended', {
+          examId: String(req.params.examId),
+          studentId: String(req.user.id)
+        });
+      } catch (socketError) {
+        console.warn('Could not emit proctoring end on finish:', socketError.message);
+      }
+
+      return res.json({
+        submitted: true,
+        resultsPending: true,
+        message: 'Exam submitted. Your teacher will publish results after review.',
+        attempt
+      });
+    }
+
     attempt.passed = passed;
     attempt.status = passed ? 'passed' : 'failed';
     attempt.endTime = new Date();
@@ -1485,7 +1568,7 @@ exports.updateExam = async (req, res) => {
     }
 
     const allowedFields = [
-      'skillName', 'title', 'description', 'duration', 'passingScore',
+      'skillName', 'title', 'description', 'duration', 'passingScore', 'examType',
       'questions', 'accessControl', 'proctoring'
     ];
 
@@ -1839,5 +1922,64 @@ exports.submitPractice = async (req, res) => {
   } catch (error) {
     console.error('Error grading practice:', error);
     res.status(500).json({ message: 'Failed to grade practice' });
+  }
+};
+
+exports.updateAttemptGrade = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (String(exam.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to update results' });
+    }
+
+    if (exam.examType !== 'manual') {
+      return res.status(400).json({ message: 'Only manual exams support result editing' });
+    }
+
+    if (exam.resultsPublished) {
+      return res.status(400).json({ message: 'Results already published' });
+    }
+
+    const attempt = await ExamAttempt.findOne({
+      _id: req.params.attemptId,
+      examId: exam._id
+    });
+
+    if (!attempt) {
+      return res.status(404).json({ message: 'Attempt not found' });
+    }
+
+    const { obtainedMarks, percentage, passed, teacherNotes } = req.body;
+
+    if (obtainedMarks != null) {
+      attempt.obtainedMarks = Number(obtainedMarks);
+    }
+    if (percentage != null) {
+      attempt.percentage = Number(percentage);
+    } else if (obtainedMarks != null && attempt.totalMarks > 0) {
+      attempt.percentage = (attempt.obtainedMarks / attempt.totalMarks) * 100;
+    }
+
+    if (passed != null) {
+      attempt.passed = Boolean(passed);
+    } else if (attempt.percentage != null) {
+      attempt.passed = attempt.percentage >= exam.passingScore;
+    }
+
+    if (teacherNotes != null) {
+      attempt.teacherNotes = String(teacherNotes);
+    }
+
+    attempt.teacherAdjusted = true;
+    await attempt.save();
+
+    res.json({ success: true, attempt });
+  } catch (error) {
+    console.error('Error updating attempt grade:', error);
+    res.status(500).json({ message: 'Failed to update result' });
   }
 };

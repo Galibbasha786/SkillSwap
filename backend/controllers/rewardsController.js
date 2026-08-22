@@ -5,6 +5,7 @@ const Session = require('../models/Session');
 const Transaction = require('../models/Transaction');
 const Notification = require('../models/Notification');
 const { sendSessionConfirmationEmails } = require('../utils/emailService');
+const { hasTeacherBookingConflict } = require('../utils/sessionConflict');
 
 // @desc    Get user rewards balance
 // @route   GET /api/rewards/balance
@@ -108,6 +109,13 @@ exports.redeemFreeSession = async (req, res) => {
     const teacher = await User.findById(teacherId);
     if (!teacher) {
       return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    const conflict = await hasTeacherBookingConflict(teacherId, date, duration || 60);
+    if (conflict) {
+      return res.status(409).json({
+        message: 'This time slot is already booked. Please choose another time.'
+      });
     }
     
     // Create free session (no payment required)

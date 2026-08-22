@@ -13,6 +13,7 @@ import Proctoring from '../components/exam/Proctoring';
 import ProctoringSetup from '../components/exam/ProctoringSetup';
 import examProctoringService from '../services/examProctoringService';
 import CodeEditor from '../components/exam/CodeEditor';
+import BackButton from '../components/common/BackButton';
 import { useAuth } from '../hooks/useAuth';
 
 const ExamTaking = () => {
@@ -330,6 +331,12 @@ const ExamTaking = () => {
     try {
       const result = await examAPI.finishExam(examId);
       toast.dismiss('submit-exam');
+
+      if (result.data.resultsPending) {
+        toast.success(result.data.message || 'Exam submitted. Waiting for teacher to publish results.');
+        navigate('/exams');
+        return;
+      }
       
       if (result.data.passed) {
         toast.success('Congratulations! You passed the exam!');
@@ -524,6 +531,11 @@ const ExamTaking = () => {
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
               <h1 className="text-2xl font-bold">{exam?.title}</h1>
               <p className="text-blue-100 mt-1">{exam?.description}</p>
+              {exam?.examType === 'manual' && (
+                <p className="text-blue-100 text-sm mt-2">
+                  Manual exam — same camera, microphone, and screen monitoring as certification. Results are published by your teacher.
+                </p>
+              )}
             </div>
 
             <div className="p-6">
@@ -641,6 +653,9 @@ const ExamTaking = () => {
       />
       
       <div className="pt-20 max-w-6xl mx-auto px-4 py-8">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="flex items-center gap-3">

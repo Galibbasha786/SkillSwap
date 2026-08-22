@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FiSearch, FiUser } from 'react-icons/fi';
+import BackButton from '../components/common/BackButton';
 import ChatWindow from '../components/chat/ChatWindow';
 import VideoCallModal from '../components/calls/VideoCallModal';
 import { useAuth } from '../hooks/useAuth';
@@ -270,6 +271,9 @@ const Messages = () => {
           {/* Chat List Sidebar */}
           <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
             <div className="p-4 border-b border-gray-200">
+              <div className="mb-3">
+                <BackButton />
+              </div>
               <h2 className="text-xl font-semibold mb-4">Messages</h2>
               <div className="relative">
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />

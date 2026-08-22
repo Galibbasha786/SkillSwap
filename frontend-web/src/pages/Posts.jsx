@@ -13,7 +13,10 @@ import {
   FiX,
   FiMaximize2,
   FiChevronDown,
-  FiChevronUp
+  FiChevronUp,
+  FiMessageCircle,
+  FiShare2,
+  FiVideo
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import AppLayout from '../components/layout/AppLayout';
@@ -67,8 +70,13 @@ const Posts = () => {
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoPreview, setVideoPreview] = useState('');
   const [expandedPosts, setExpandedPosts] = useState({});
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [openComments, setOpenComments] = useState({});
+  const [commentsByPost, setCommentsByPost] = useState({});
+  const [commentDrafts, setCommentDrafts] = useState({});
 
   const togglePostExpanded = (postId) => {
     setExpandedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
@@ -116,6 +124,84 @@ const Posts = () => {
     setImagePreview('');
   };
 
+  const handleVideoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please select a video file');
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Video must be under 50MB');
+      return;
+    }
+
+    clearImage();
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    setVideoFile(file);
+    setVideoPreview(URL.createObjectURL(file));
+  };
+
+  const clearVideo = () => {
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    setVideoFile(null);
+    setVideoPreview('');
+  };
+
+  const loadComments = async (postId) => {
+    try {
+      const response = await postAPI.getComments(postId);
+      setCommentsByPost((prev) => ({ ...prev, [postId]: response.data.comments || [] }));
+    } catch (error) {
+      toast.error('Failed to load comments');
+    }
+  };
+
+  const toggleComments = async (postId) => {
+    const isOpen = openComments[postId];
+    setOpenComments((prev) => ({ ...prev, [postId]: !isOpen }));
+    if (!isOpen && !commentsByPost[postId]) {
+      await loadComments(postId);
+    }
+  };
+
+  const handleAddComment = async (postId) => {
+    const content = commentDrafts[postId]?.trim();
+    if (!content) return;
+
+    try {
+      const response = await postAPI.addComment(postId, content);
+      setCommentsByPost((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), response.data.comment]
+      }));
+      setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, commentCount: (post.commentCount || 0) + 1 }
+            : post
+        )
+      );
+    } catch (error) {
+      toast.error('Failed to add comment');
+    }
+  };
+
+  const handleShare = async (post) => {
+    try {
+      const response = await postAPI.share(post._id);
+      toast.success('Post reshared!');
+      if (response.data.post) {
+        setPosts((prev) => [response.data.post, ...prev]);
+      }
+    } catch (error) {
+      toast.error('Failed to reshare post');
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -135,10 +221,11 @@ const Posts = () => {
         link: form.link.trim()
       };
 
-      if (imageFile) {
+      if (imageFile || videoFile) {
         const payload = new FormData();
         Object.entries(postData).forEach(([key, value]) => payload.append(key, value));
-        payload.append('image', imageFile);
+        if (imageFile) payload.append('image', imageFile);
+        if (videoFile) payload.append('video', videoFile);
         await postAPI.create(payload);
       } else {
         await postAPI.create(postData);
@@ -147,6 +234,7 @@ const Posts = () => {
       toast.success('Post shared!');
       setForm({ category: form.category, title: '', content: '', tags: '', link: '' });
       clearImage();
+      clearVideo();
       fetchPosts(activeCategory);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create post');
@@ -300,6 +388,36 @@ const Posts = () => {
             )}
           </div>
 
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Video (optional)
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
+                <FiVideo className="w-4 h-4" />
+                Choose video
+                <input type="file" accept="video/*" className="hidden" onChange={handleVideoChange} />
+              </label>
+              {videoPreview && (
+                <button
+                  type="button"
+                  onClick={clearVideo}
+                  className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600"
+                >
+                  <FiX className="w-4 h-4" />
+                  Remove
+                </button>
+              )}
+            </div>
+            {videoPreview && (
+              <video
+                src={videoPreview}
+                controls
+                className="mt-3 max-h-64 w-full rounded-lg border border-gray-200 bg-black"
+              />
+            )}
+          </div>
+
           <button
             type="submit"
             disabled={submitting}
@@ -406,6 +524,20 @@ const Posts = () => {
                       );
                     })()}
 
+                    {post.videoUrl && (
+                      <video
+                        src={post.videoUrl}
+                        controls
+                        className="mt-3 max-h-96 w-full rounded-lg border border-gray-100 bg-black"
+                      />
+                    )}
+
+                    {post.originalPost && (
+                      <div className="mt-3 p-3 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600">
+                        Reshared from another post
+                      </div>
+                    )}
+
                     {post.imageUrl && (
                       <button
                         type="button"
@@ -461,6 +593,24 @@ const Posts = () => {
                         {post.likeCount || 0}
                       </button>
 
+                      <button
+                        type="button"
+                        onClick={() => toggleComments(post._id)}
+                        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600"
+                      >
+                        <FiMessageCircle className="w-4 h-4" />
+                        {post.commentCount || 0}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShare(post)}
+                        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600"
+                      >
+                        <FiShare2 className="w-4 h-4" />
+                        {post.shareCount || 0}
+                      </button>
+
                       {(post.isOwner || String(post.author?._id) === String(userId)) && (
                         <button
                           type="button"
@@ -472,6 +622,42 @@ const Posts = () => {
                         </button>
                       )}
                     </div>
+
+                    {openComments[post._id] && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                        {(commentsByPost[post._id] || []).map((comment) => (
+                          <div key={comment._id} className="flex gap-2">
+                            <img
+                              src={comment.author?.profileImage || 'https://via.placeholder.com/32'}
+                              alt={comment.author?.name || 'User'}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-gray-900">{comment.author?.name}</p>
+                              <p className="text-sm text-gray-700">{comment.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={commentDrafts[post._id] || ''}
+                            onChange={(e) =>
+                              setCommentDrafts((prev) => ({ ...prev, [post._id]: e.target.value }))
+                            }
+                            placeholder="Write a comment..."
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddComment(post._id)}
+                            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+                          >
+                            Post
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.article>

@@ -69,7 +69,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     try {
       setCheckingAvailability(true);
       const response = await timeSlotAPI.getAvailableSlotsForWeek(teacher._id, selectedDate);
-      setAvailableTimeSlots(response.data.availableSlots || []);
+      setAvailableTimeSlots((response.data.availableSlots || []).filter((slot) => !slot.isBooked));
       
       if (!response.data.availableSlots || response.data.availableSlots.length === 0) {
         toast.info(`No available time slots for ${response.data.dayOfWeek}`);
@@ -138,7 +138,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Failed to process booking. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to process booking. Please try again.');
     } finally {
       setLoading(false);
     }

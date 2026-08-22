@@ -46,6 +46,30 @@ const postSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    videoUrl: {
+      type: String,
+      default: ''
+    },
+    videoPublicId: {
+      type: String,
+      default: ''
+    },
+    mediaType: {
+      type: String,
+      enum: ['none', 'image', 'video'],
+      default: 'none'
+    },
+    originalPost: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Post',
+      default: null
+    },
+    shares: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    ],
     likes: [
       {
         type: mongoose.Schema.Types.ObjectId,

@@ -2,6 +2,7 @@
 
 const TimeSlot = require('../models/TimeSlot');
 const User = require('../models/User');
+const { getBookedSessionsForDate, sessionsOverlap } = require('../utils/sessionConflict');
 
 // @desc    Get all time slots for a teacher
 // @route   GET /api/timeslots/:teacherId
@@ -260,11 +261,30 @@ const getAvailableSlotsForWeek = async (req, res) => {
       isAvailable: true
     });
 
+    const bookedSessions = await getBookedSessionsForDate(teacherId, start);
+    const availableSlots = timeSlots.map((slot) => {
+      const slotStartMins = parseInt(slot.startTime.split(':')[0], 10) * 60 + parseInt(slot.startTime.split(':')[1], 10);
+      const slotEndMins = parseInt(slot.endTime.split(':')[0], 10) * 60 + parseInt(slot.endTime.split(':')[1], 10);
+      const slotDuration = slotEndMins - slotStartMins;
+
+      const slotDate = new Date(start);
+      slotDate.setHours(parseInt(slot.startTime.split(':')[0], 10), parseInt(slot.startTime.split(':')[1], 10), 0, 0);
+
+      const isBooked = bookedSessions.some((session) =>
+        sessionsOverlap(slotDate, slotDuration, session.date, session.duration)
+      );
+
+      return {
+        ...slot.toObject(),
+        isBooked
+      };
+    }).filter((slot) => !slot.isBooked);
+
     res.json({
       success: true,
       date: start.toISOString().split('T')[0],
       dayOfWeek: dayName,
-      availableSlots: timeSlots
+      availableSlots
     });
   } catch (error) {
     console.error('Error fetching available slots:', error);

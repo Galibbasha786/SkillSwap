@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
 const { sendSessionBookedToTeacher, sendSessionBookedToLearner } = require('../utils/emailService');
 const { addRewardToLearner } = require('./rewardsController');
+const { hasTeacherBookingConflict } = require('../utils/sessionConflict');
 
 // ✅ Generate Jitsi Meet link (FREE, works immediately)
 const generateJitsiLink = (sessionId, title) => {
@@ -34,6 +35,13 @@ exports.createSession = async (req, res) => {
     
     // Get learner (current user)
     const learner = await User.findById(req.user.id);
+
+    const conflict = await hasTeacherBookingConflict(teacherId, date, duration);
+    if (conflict) {
+      return res.status(409).json({
+        message: 'This time slot is already booked. Please choose another time.'
+      });
+    }
     
     // Calculate amounts
     const totalAmount = (hourlyRate * duration) / 60;

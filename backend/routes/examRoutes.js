@@ -15,6 +15,7 @@ const {
   getLiveAttempts,
   getExamResults,
   publishExamResults,
+  updateAttemptGrade,
   updateExam,
   cancelExam,
   deleteExam,
@@ -39,6 +40,7 @@ router.post('/:examId/practice/submit', submitPractice);
 router.get('/:examId/live-attempts', getLiveAttempts);
 router.get('/:examId/results', getExamResults);
 router.post('/:examId/publish-results', publishExamResults);
+router.put('/:examId/attempts/:attemptId/grade', updateAttemptGrade);
 router.get('/:examId', getExamById);
 router.post('/:examId/start', startExam);
 router.post('/:examId/submit', submitAnswer);

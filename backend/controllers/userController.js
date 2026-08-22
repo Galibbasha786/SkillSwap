@@ -153,7 +153,7 @@ exports.updateProfile = async (req, res) => {
 // @access  Private
 exports.addTeachingSkill = async (req, res) => {
   try {
-    const { name, experience, yearsOfExperience, hourlyRate, currency } = req.body;
+    const { name, experience, yearsOfExperience, hourlyRate, currency, category } = req.body;
     
     console.log('Adding teaching skill for user:', req.user.id);
     console.log('Skill data:', req.body);
@@ -175,7 +175,8 @@ exports.addTeachingSkill = async (req, res) => {
       experience,
       yearsOfExperience: yearsOfExperience || 0,
       hourlyRate: hourlyRate || 0,
-      currency: currency || 'USD'
+      currency: currency || 'USD',
+      category: category || 'Other'
     });
     
     await user.save();
