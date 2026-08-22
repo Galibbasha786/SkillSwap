@@ -1,7 +1,7 @@
 // frontend-web/src/pages/admin/AdminDashboard.jsx
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiUsers, 
   FiBook, 
@@ -21,12 +21,79 @@ import {
   FiLogOut,
   FiBell,
   FiSend,
-  FiMail
+  FiMail,
+  FiSun,
+  FiMoon
 } from 'react-icons/fi';
 import { adminAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import skillswapLogo from '../../assets/skillswaplogo.jpg';
+import { loadAdminPreferences, saveAdminPreferences } from '../../utils/adminTheme';
+
+const AdminBackground = ({ isDark }) => (
+  <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
+    <div className={`absolute inset-0 ${isDark ? 'bg-[#0f1419]' : 'bg-[#f8fafc]'}`} />
+    {/* Single centered circular logo watermark */}
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div
+        className={`relative flex items-center justify-center rounded-full ${
+          isDark ? 'opacity-[0.07]' : 'opacity-[0.09]'
+        }`}
+        style={{ width: 'min(480px, 70vw)', height: 'min(480px, 70vw)' }}
+      >
+        <div
+          className={`absolute inset-0 rounded-full border-[14px] ${
+            isDark ? 'border-white/10' : 'border-slate-300/40'
+          }`}
+        />
+        <div className="absolute inset-[14px] rounded-full overflow-hidden">
+          <img
+            src={skillswapLogo}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const ThemeControls = ({ mode, onModeChange, isDark }) => (
+  <div className="flex items-center rounded-lg border p-0.5 bg-transparent">
+    <div
+      className={`flex rounded-md overflow-hidden border ${
+        isDark ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-white'
+      }`}
+    >
+      {[
+        { id: 'light', icon: FiSun, label: 'Light' },
+        { id: 'dark', icon: FiMoon, label: 'Dark' },
+      ].map(({ id, icon: Icon, label }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onModeChange(id)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+            mode === id
+              ? isDark
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-900 text-white'
+              : isDark
+                ? 'text-slate-400 hover:text-white'
+                : 'text-slate-500 hover:text-slate-900'
+          }`}
+          title={label}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">{label}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+);
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -40,6 +107,20 @@ const AdminDashboard = () => {
   const [sendingNotification, setSendingNotification] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [themePrefs, setThemePrefs] = useState(loadAdminPreferences);
+  const isDark = themePrefs.mode === 'dark';
+
+  useEffect(() => {
+    saveAdminPreferences(themePrefs);
+  }, [themePrefs]);
+
+  const setMode = (mode) => setThemePrefs((p) => ({ ...p, mode }));
+
+  const surface = isDark
+    ? 'bg-[#161b22]/95 border-slate-800'
+    : 'bg-white/95 border-slate-200';
+  const textPrimary = isDark ? 'text-slate-100' : 'text-slate-900';
+  const textMuted = isDark ? 'text-slate-400' : 'text-slate-500';
 
   // Check if user is admin
   useEffect(() => {
@@ -157,157 +238,141 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <FiLoader className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
+      <div className={`min-h-screen flex items-center justify-center relative ${isDark ? 'bg-[#0f1419]' : 'bg-[#f8fafc]'}`}>
+        <AdminBackground isDark={isDark} />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-slate-300/50 shadow-sm">
+            <img src={skillswapLogo} alt="SkillSwap" className="w-full h-full object-cover" />
+          </div>
+          <FiLoader className={`w-6 h-6 animate-spin ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+          <p className={`text-sm ${textMuted}`}>Loading dashboard…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className={`min-h-screen relative ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+      <AdminBackground isDark={isDark} />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Admin Dashboard
-              </h1>
-              <p className="text-gray-600 mt-1">Manage platform, users, and payments</p>
+      <header className={`sticky top-0 z-20 border-b backdrop-blur-md ${surface}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={skillswapLogo}
+                alt="SkillSwap"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-700 shrink-0"
+              />
+              <div className="min-w-0">
+                <h1 className={`text-lg font-semibold truncate ${textPrimary}`}>Admin Dashboard</h1>
+                <p className={`text-xs truncate ${textMuted}`}>Platform management</p>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* Send Notification Button */}
+
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <ThemeControls mode={themePrefs.mode} onModeChange={setMode} isDark={isDark} />
               <button
+                type="button"
                 onClick={() => setShowNotificationModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md"
+                className={`hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  isDark
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white'
+                }`}
               >
-                <FiBell className="w-5 h-5" />
-                <span className="hidden sm:inline">Send Notification</span>
+                <FiBell className="w-4 h-4" />
+                Notify
               </button>
-              
-              {/* Logout Button */}
               <button
+                type="button"
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100"
+                className={`p-2 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+                title="Logout"
               >
                 <FiLogOut className="w-5 h-5" />
-                <span className="hidden sm:inline">Logout</span>
               </button>
-              
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Logged in as</p>
-                  <p className="font-semibold text-gray-900">{user?.name}</p>
-                </div>
-                <img 
-                  src={user?.profileImage || 'https://via.placeholder.com/40'} 
-                  alt="Admin" 
-                  className="w-10 h-10 rounded-full border-2 border-blue-500"
-                />
+              <div className={`hidden md:flex items-center gap-2 pl-3 border-l ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                <span className={`text-sm font-medium ${textPrimary}`}>{user?.name}</span>
+                <img src={skillswapLogo} alt="" className="w-8 h-8 rounded-full object-cover" />
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total Users"
-            value={stats?.totalUsers || 0}
-            icon={FiUsers}
-            color="blue"
-            trend={`${stats?.totalTeachers || 0} Teachers, ${stats?.totalStudents || 0} Students`}
-          />
-          <StatCard
-            title="Total Sessions"
-            value={stats?.totalSessions || 0}
-            icon={FiBook}
-            color="green"
-            trend={`${stats?.completedSessions || 0} Completed`}
-          />
-          <StatCard
-            title="Total Revenue"
-            value={`₹${(stats?.totalRevenue || 0).toFixed(2)}`}
-            icon={FiDollarSign}
-            color="purple"
-            trend="Platform fees"
-          />
-          <StatCard
-            title="Pending Withdrawals"
-            value={`₹${(stats?.pendingWithdrawals || 0).toFixed(2)}`}
-            icon={FiClock}
-            color="orange"
-            trend="Awaiting processing"
-          />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard title="Total Users" value={stats?.totalUsers || 0} icon={FiUsers} trend={`${stats?.totalTeachers || 0} teachers · ${stats?.totalStudents || 0} students`} isDark={isDark} />
+          <StatCard title="Sessions" value={stats?.totalSessions || 0} icon={FiBook} trend={`${stats?.completedSessions || 0} completed`} isDark={isDark} />
+          <StatCard title="Revenue" value={`₹${(stats?.totalRevenue || 0).toLocaleString()}`} icon={FiDollarSign} trend="10% platform fee" isDark={isDark} />
+          <StatCard title="Pending Withdrawals" value={`₹${(stats?.pendingWithdrawals || 0).toFixed(2)}`} icon={FiClock} trend="Needs review" isDark={isDark} highlight />
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6 overflow-x-auto">
-              {['overview', 'withdrawals', 'users', 'transactions'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`py-4 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === tab
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  {tab === 'withdrawals' && withdrawals.length > 0 && (
-                    <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">
-                      {withdrawals.length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </div>
+        <div className={`rounded-xl border shadow-sm overflow-hidden ${surface}`}>
+          <nav className={`flex border-b overflow-x-auto ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            {['overview', 'withdrawals', 'users', 'transactions'].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-3.5 text-sm font-medium capitalize whitespace-nowrap border-b-2 -mb-px transition-colors ${
+                  activeTab === tab
+                    ? isDark
+                      ? 'border-blue-500 text-blue-400'
+                      : 'border-slate-900 text-slate-900'
+                    : isDark
+                      ? 'border-transparent text-slate-500 hover:text-slate-300'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {tab}
+                {tab === 'withdrawals' && withdrawals.length > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-semibold rounded-full bg-red-500 text-white">
+                    {withdrawals.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
 
           <div className="p-6">
-            {activeTab === 'overview' && (
-              <OverviewTab stats={stats} />
-            )}
-            
-            {activeTab === 'withdrawals' && (
-              <WithdrawalsTab 
-                withdrawals={withdrawals}
-                onApprove={handleApproveWithdrawal}
-                onComplete={handleCompleteWithdrawal}
-                onReject={handleRejectWithdrawal}
-              />
-            )}
-            
-            {activeTab === 'users' && (
-              <UsersTab />
-            )}
-            
-            {activeTab === 'transactions' && (
-              <TransactionsTab />
-            )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTab === 'overview' && <OverviewTab stats={stats} isDark={isDark} />}
+                {activeTab === 'withdrawals' && (
+                  <WithdrawalsTab withdrawals={withdrawals} onApprove={handleApproveWithdrawal} onComplete={handleCompleteWithdrawal} onReject={handleRejectWithdrawal} isDark={isDark} />
+                )}
+                {activeTab === 'users' && <UsersTab isDark={isDark} />}
+                {activeTab === 'transactions' && <TransactionsTab isDark={isDark} />}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Send Notification Modal */}
       {showNotificationModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            initial={{ scale: 0.92, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.92, opacity: 0 }}
+            className={`rounded-2xl max-w-md w-full p-6 shadow-2xl border ${
+              isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-gray-100'
+            }`}
           >
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <FiMail className="w-6 h-6 text-blue-500" />
-                <h2 className="text-xl font-bold text-gray-900">Send Notification</h2>
+                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Send Notification</h2>
               </div>
               <button
                 onClick={() => setShowNotificationModal(false)}
@@ -328,7 +393,9 @@ const AdminDashboard = () => {
               <select
                 value={notificationType}
                 onChange={(e) => setNotificationType(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-gray-300'
+                }`}
               >
                 <option value="info">ℹ️ Information</option>
                 <option value="success">✅ Success</option>
@@ -347,7 +414,9 @@ const AdminDashboard = () => {
                 value={notificationTitle}
                 onChange={(e) => setNotificationTitle(e.target.value)}
                 placeholder="e.g., Platform Update, New Feature, etc."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-gray-300'
+                }`}
               />
             </div>
 
@@ -360,7 +429,9 @@ const AdminDashboard = () => {
                 onChange={(e) => setNotificationMessage(e.target.value)}
                 rows="4"
                 placeholder="Enter your notification message here..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${
+                  isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-gray-300'
+                }`}
               />
             </div>
 
@@ -381,7 +452,9 @@ const AdminDashboard = () => {
               <button
                 onClick={handleSendNotification}
                 disabled={sendingNotification}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  isDark ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'
+                }`}
               >
                 {sendingNotification ? (
                   <>
@@ -404,101 +477,83 @@ const AdminDashboard = () => {
 };
 
 // Stat Card Component
-const StatCard = ({ title, value, icon: Icon, color, trend }) => {
-  const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    orange: 'bg-orange-100 text-orange-600'
-  };
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-500 text-sm font-medium">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
-          {trend && <p className="text-xs text-gray-400 mt-1">{trend}</p>}
-        </div>
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-          <Icon className="w-6 h-6" />
-        </div>
+const StatCard = ({ title, value, icon: Icon, trend, isDark, highlight = false }) => (
+  <div
+    className={`rounded-xl border p-5 transition-shadow hover:shadow-md ${
+      isDark
+        ? `bg-[#161b22]/90 border-slate-800 ${highlight ? 'ring-1 ring-amber-500/30' : ''}`
+        : `bg-white/95 border-slate-200 ${highlight ? 'ring-1 ring-amber-400/40' : ''}`
+    }`}
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+          {title}
+        </p>
+        <p className={`text-2xl font-semibold mt-1 truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          {value}
+        </p>
+        {trend && (
+          <p className={`text-xs mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{trend}</p>
+        )}
       </div>
-    </motion.div>
-  );
-};
+      <div
+        className={`shrink-0 p-2.5 rounded-lg ${
+          isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+        }`}
+      >
+        <Icon className="w-5 h-5" />
+      </div>
+    </div>
+  </div>
+);
 
 // Overview Tab Component
-const OverviewTab = ({ stats }) => {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <InfoCard
-          title="Exams Created"
-          value={stats?.totalExams || 0}
-          icon={FiFileText}
-          color="blue"
-        />
-        <InfoCard
-          title="Certificates Issued"
-          value={stats?.totalCertificates || 0}
-          icon={FiAward}
-          color="green"
-        />
-        <InfoCard
-          title="Platform Fee"
-          value="10%"
-          icon={FiTrendingUp}
-          color="purple"
-          subtitle="of each transaction"
-        />
-      </div>
-
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
-        <h3 className="font-semibold text-gray-900 mb-3">Platform Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-          <div className="space-y-2">
-            <p>✓ Teachers earn 90% of session fees</p>
-            <p>✓ Platform earns 10% as service fee</p>
-          </div>
-          <div className="space-y-2">
-            <p>✓ Withdrawals processed within 24-48 hours</p>
-            <p>✓ Minimum withdrawal amount: ₹100</p>
-          </div>
-        </div>
-      </div>
+const OverviewTab = ({ stats, isDark }) => (
+  <div className="space-y-5">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <InfoCard title="Exams Created" value={stats?.totalExams || 0} icon={FiFileText} isDark={isDark} />
+      <InfoCard title="Certificates Issued" value={stats?.totalCertificates || 0} icon={FiAward} isDark={isDark} />
+      <InfoCard title="Platform Fee" value="10%" icon={FiTrendingUp} subtitle="per transaction" isDark={isDark} />
     </div>
-  );
-};
+    <div
+      className={`rounded-lg border p-5 text-sm leading-relaxed ${
+        isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'
+      }`}
+    >
+      <h3 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>Platform policies</h3>
+      <ul className="grid md:grid-cols-2 gap-2 list-disc list-inside marker:text-slate-400">
+        <li>Teachers earn 90% of session fees</li>
+        <li>Platform retains 10% service fee</li>
+        <li>Withdrawals processed within 24–48 hours</li>
+        <li>Minimum withdrawal: ₹100</li>
+      </ul>
+    </div>
+  </div>
+);
 
 // Info Card Component
-const InfoCard = ({ title, value, icon: Icon, color, subtitle }) => {
-  const colorClasses = {
-    blue: 'text-blue-600',
-    green: 'text-green-600',
-    purple: 'text-purple-600'
-  };
-  
-  return (
-    <div className="bg-white rounded-lg p-4 border border-gray-200">
-      <div className="flex items-center gap-3">
-        <Icon className={`w-5 h-5 ${colorClasses[color]}`} />
-        <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900">{value}</p>
-          {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
-        </div>
+const InfoCard = ({ title, value, icon: Icon, subtitle, isDark }) => (
+  <div
+    className={`rounded-lg border p-4 ${
+      isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200'
+    }`}
+  >
+    <div className="flex items-center gap-3">
+      <div className={`p-2 rounded-md ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div>
+        <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{title}</p>
+        <p className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{value}</p>
+        {subtitle && <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{subtitle}</p>}
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 // Withdrawals Tab Component - COMPLETE VERSION with status badges and message button
-const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject }) => {
+const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject, isDark = false }) => {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageSubject, setMessageSubject] = useState('');
@@ -550,10 +605,10 @@ const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject }) =
 
   if (safeWithdrawals.length === 0) {
     return (
-      <div className="text-center py-12">
-        <FiCheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Withdrawal Requests</h3>
-        <p className="text-gray-500">All withdrawal requests have been processed</p>
+      <div className="text-center py-16">
+        <FiCheckCircle className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-emerald-500' : 'text-emerald-600'}`} />
+        <h3 className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>No pending withdrawals</h3>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>All requests have been processed.</p>
       </div>
     );
   }
@@ -564,7 +619,12 @@ const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject }) =
         const status = withdrawal.status || 'pending';
         
         return (
-          <div key={withdrawal._id} className="border rounded-lg p-5 hover:shadow-md transition-shadow">
+          <div
+            key={withdrawal._id}
+            className={`border rounded-lg p-4 transition-colors ${
+              isDark ? 'border-slate-700 bg-slate-800/30 hover:border-slate-600' : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
@@ -760,7 +820,7 @@ const WithdrawalsTab = ({ withdrawals = [], onApprove, onComplete, onReject }) =
 };
 
 // Users Tab Component
-const UsersTab = () => {
+const UsersTab = ({ isDark = false }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -1017,7 +1077,7 @@ const UsersTab = () => {
 };
 
 // Transactions Tab Component
-const TransactionsTab = () => {
+const TransactionsTab = ({ isDark = false }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -1048,47 +1108,50 @@ const TransactionsTab = () => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className={isDark ? 'bg-slate-800/80' : 'bg-gray-50'}>
           <tr>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Date</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Session</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Learner</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Teacher</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Amount</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Platform Fee</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Teacher Earns</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Status</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Date</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Session</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Learner</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Teacher</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Amount</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Platform Fee</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Teacher Earns</th>
+            <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200">
+        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-gray-200'}`}>
           {transactions.map((transaction) => (
-            <tr key={transaction._id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 text-sm text-gray-500">
+            <tr
+              key={transaction._id}
+              className={isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}
+            >
+              <td className={`px-4 py-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {new Date(transaction.createdAt).toLocaleDateString()}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-900">
+              <td className={`px-4 py-3 text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {transaction.sessionId?.title || 'N/A'}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-900">
+              <td className={`px-4 py-3 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                 {transaction.learnerId?.name}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-900">
+              <td className={`px-4 py-3 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                 {transaction.teacherId?.name}
               </td>
-              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+              <td className={`px-4 py-3 text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 ₹{transaction.amount}
               </td>
-              <td className="px-4 py-3 text-sm text-orange-600">
+              <td className="px-4 py-3 text-sm text-orange-500">
                 ₹{transaction.platformFee}
               </td>
-              <td className="px-4 py-3 text-sm text-green-600 font-medium">
+              <td className="px-4 py-3 text-sm text-green-500 font-medium">
                 ₹{transaction.teacherEarnings}
               </td>
               <td className="px-4 py-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  transaction.status === 'completed' ? 'bg-green-100 text-green-700' :
-                  transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-red-100 text-red-700'
+                  transaction.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                  transaction.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/20 text-red-400'
                 }`}>
                   {transaction.status}
                 </span>
@@ -1099,7 +1162,7 @@ const TransactionsTab = () => {
       </table>
       
       {transactions.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           No transactions found
         </div>
       )}

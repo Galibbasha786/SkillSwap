@@ -25,15 +25,14 @@ const auth = async (req, res, next) => {
         return res.status(401).json({ message: 'User not found' });
       }
 
-      // TODO: re-enable one device / one login after testing
-      // if (req.user.activeSessionId) {
-      //   if (!decoded.sid || decoded.sid !== req.user.activeSessionId) {
-      //     return res.status(401).json({
-      //       message: 'Your account was logged in on another device.',
-      //       code: 'SESSION_REPLACED'
-      //     });
-      //   }
-      // }
+      if (req.user.activeSessionId) {
+        if (!decoded.sid || decoded.sid !== req.user.activeSessionId) {
+          return res.status(401).json({
+            message: 'Your account was logged in on another device.',
+            code: 'SESSION_REPLACED'
+          });
+        }
+      }
 
       next();
     } catch (error) {

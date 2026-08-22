@@ -15,13 +15,18 @@ import {
   FiAlertCircle,
   FiPhone,
   FiMapPin,
-  FiMail
+  FiMail,
+  FiDollarSign
 } from 'react-icons/fi';
 import { sessionAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import BackButton from '../components/common/BackButton';
+import { useAuth } from '../hooks/useAuth';
+import BookingModal from '../components/sessions/BookingModal';
 
 const Sessions = () => {
+  const { user, getUserId } = useAuth();
+  const userId = getUserId();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('upcoming');
@@ -29,6 +34,7 @@ const Sessions = () => {
   const [selectedSession, setSelectedSession] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [paySession, setPaySession] = useState(null);
 
   useEffect(() => {
     fetchSessions();
@@ -59,6 +65,57 @@ const Sessions = () => {
     }
     return true;
   });
+
+  const getApprovalBadge = (session) => {
+    if (session.isFreeReward || session.paymentStatus === 'completed') return null;
+    if (!session.approvalStatus || session.approvalStatus === 'approved') return null;
+    const map = {
+      pending: 'bg-amber-100 text-amber-700',
+      approved: 'bg-green-100 text-green-700',
+      declined: 'bg-red-100 text-red-700',
+    };
+    const label = session.approvalStatus || 'pending';
+    return (
+      <span className={`text-xs px-2 py-1 rounded-full capitalize ${map[label] || map.pending}`}>
+        {label === 'pending' ? 'awaiting approval' : label}
+      </span>
+    );
+  };
+
+  const isTeacherFor = (session) =>
+    (session.teacherId?._id || session.teacherId)?.toString() === userId?.toString();
+
+  const isLearnerFor = (session) =>
+    (session.learnerId?._id || session.learnerId)?.toString() === userId?.toString();
+
+  const handleRespondBooking = async (session, action) => {
+    let reason = '';
+    if (action === 'decline') {
+      reason = window.prompt('Reason for declining (optional):') || '';
+    }
+    try {
+      setActionLoading(true);
+      const response = await sessionAPI.respondToBooking(session._id, { action, reason });
+      setSessions((prev) =>
+        prev.map((s) => (s._id === session._id ? response.data.session : s))
+      );
+      toast.success(action === 'accept' ? 'Booking approved' : 'Booking declined');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBookedFromModal = (updatedSession) => {
+    if (updatedSession?._id) {
+      setSessions((prev) =>
+        prev.map((s) => (s._id === updatedSession._id ? { ...s, ...updatedSession } : s))
+      );
+    }
+    setPaySession(null);
+    fetchSessions();
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -123,8 +180,17 @@ const Sessions = () => {
   };
 
   const canCancel = (session) => {
-    return new Date(session.date) > new Date() && session.status === 'scheduled';
+    return (
+      isTeacherFor(session) &&
+      new Date(session.date) > new Date() &&
+      session.status === 'scheduled'
+    );
   };
+
+  const canJoin = (session) =>
+    session.meetLink &&
+    session.status === 'scheduled' &&
+    (session.paymentStatus === 'completed' || session.isFreeReward);
 
   if (loading) {
     return (
@@ -197,6 +263,12 @@ const Sessions = () => {
                         <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(session.status)}`}>
                           {session.status}
                         </span>
+                        {getApprovalBadge(session)}
+                        {session.paymentStatus === 'refunded' && (
+                          <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                            refunded
+                          </span>
+                        )}
                       </div>
                       
                       {/* Meet Link */}
@@ -250,10 +322,44 @@ const Sessions = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
-                    {/* Join Button */}
-                   
-{session.meetLink && session.status === 'scheduled' && (
+                  <div className="flex flex-wrap gap-2">
+                    {isTeacherFor(session) &&
+                      session.approvalStatus === 'pending' &&
+                      session.status !== 'cancelled' && (
+                        <>
+                          <button
+                            onClick={() => handleRespondBooking(session, 'accept')}
+                            disabled={actionLoading}
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                          >
+                            <FiCheckCircle className="w-4 h-4" />
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleRespondBooking(session, 'decline')}
+                            disabled={actionLoading}
+                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                          >
+                            <FiXCircle className="w-4 h-4" />
+                            Decline
+                          </button>
+                        </>
+                      )}
+
+                    {isLearnerFor(session) &&
+                      session.approvalStatus === 'approved' &&
+                      session.paymentStatus === 'pending' &&
+                      session.status !== 'cancelled' && (
+                        <button
+                          onClick={() => setPaySession(session)}
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                        >
+                          <FiDollarSign className="w-4 h-4" />
+                          Pay Now
+                        </button>
+                      )}
+
+                    {canJoin(session) && (
   <button
     onClick={() => handleJoinMeet(session.meetLink)}
     className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
@@ -336,6 +442,20 @@ const Sessions = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {paySession && (
+        <BookingModal
+          teacher={paySession.teacherId}
+          skill={{
+            name: paySession.skillName,
+            hourlyRate: paySession.hourlyRate,
+            _id: paySession.skillId,
+          }}
+          existingSession={paySession}
+          onClose={() => setPaySession(null)}
+          onBooked={handleBookedFromModal}
+        />
+      )}
     </div>
   );
 };

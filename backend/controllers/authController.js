@@ -10,14 +10,13 @@ const { sendOTPEmail, generateOTP } = require('../utils/emailService');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const issueAuthToken = async (user) => {
-  // TODO: re-enable one device / one login after testing
-  // const sessionId = crypto.randomUUID();
-  // user.activeSessionId = sessionId;
+  const sessionId = crypto.randomUUID();
+  user.activeSessionId = sessionId;
   user.lastLogin = Date.now();
   await user.save({ validateBeforeSave: false });
 
   const token = jwt.sign(
-    { id: user._id, role: user.role /* , sid: sessionId */ },
+    { id: user._id, role: user.role, sid: sessionId },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );

@@ -17,17 +17,17 @@ import {
   FiAward,
   FiAlertCircle
 } from 'react-icons/fi';
-import { sessionAPI, rewardsAPI, timeSlotAPI } from '../../services/api';
+import { sessionAPI, rewardsAPI, timeSlotAPI, paymentAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
-  const [step, setStep] = useState(1);
+const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = null }) => {
+  const [step, setStep] = useState(existingSession ? 2 : 1);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState(60);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState(existingSession || null);
   const [upiPaymentData, setUpiPaymentData] = useState(null);
   const [upiTransactionId, setUpiTransactionId] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -45,6 +45,21 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   useEffect(() => {
     fetchRewardsBalance();
   }, []);
+
+  const refreshSessionStatus = async () => {
+    if (!session?._id) return;
+    try {
+      const response = await sessionAPI.getById(session._id);
+      setSession(response.data);
+      if (response.data.approvalStatus === 'approved') {
+        toast.success('Teacher approved! You can complete payment.');
+      } else if (response.data.approvalStatus === 'declined') {
+        toast.error('Teacher declined this booking request.');
+      }
+    } catch (error) {
+      toast.error('Could not refresh booking status');
+    }
+  };
 
   const fetchRewardsBalance = async () => {
     try {
@@ -132,9 +147,10 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
       } else {
         // Regular paid session - create session first
         const response = await sessionAPI.create(sessionData);
-        console.log('✅ Session created:', response.data);
+        console.log('✅ Booking request created:', response.data);
         setSession(response.data);
         setStep(2);
+        toast.success('Booking request sent to teacher!');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -180,30 +196,21 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
     
     setVerifying(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-upi-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          transactionId: upiPaymentData.id,
-          upiTransactionId
-        })
+      const response = await paymentAPI.verifyUPIPayment({
+        transactionId: upiPaymentData.id || session._id,
+        upiTransactionId,
       });
       
-      const data = await response.json();
-      
-      if (data.success) {
+      if (response.data.success) {
         toast.success('Payment verified! Session confirmed.');
         onBooked(session);
         onClose();
       } else {
-        toast.error(data.message || 'Verification failed');
+        toast.error(response.data.message || 'Verification failed');
       }
     } catch (error) {
       console.error('Verification error:', error);
-      toast.error('Failed to verify payment');
+      toast.error(error.response?.data?.message || 'Failed to verify payment');
     } finally {
       setVerifying(false);
     }
@@ -212,29 +219,30 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
   const createUPIPayment = async () => {
     try {
       setProcessing(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-upi-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ sessionId: session._id })
-      });
+
+      const latest = await sessionAPI.getById(session._id);
+      const latestSession = latest.data;
+      setSession(latestSession);
+
+      if (latestSession.approvalStatus !== 'approved') {
+        toast.error('Teacher has not approved this booking yet.');
+        return;
+      }
+
+      const response = await paymentAPI.createUPIPayment({ sessionId: latestSession._id });
       
-      const data = await response.json();
-      if (data.success) {
-        // Check if this is TEST MODE response
-        if (data.testMode) {
-          setUpiPaymentData({ testMode: true, message: data.message, sessionId: session._id });
+      if (response.data.success) {
+        if (response.data.testMode) {
+          setUpiPaymentData({ testMode: true, message: response.data.message, sessionId: session._id });
         } else {
-          setUpiPaymentData(data.transaction);
+          setUpiPaymentData(response.data.transaction);
         }
       } else {
-        toast.error('Failed to create UPI payment');
+        toast.error(response.data.message || 'Failed to create UPI payment');
       }
     } catch (error) {
       console.error('UPI payment error:', error);
-      toast.error('Failed to create payment');
+      toast.error(error.response?.data?.message || 'Failed to create payment');
     } finally {
       setProcessing(false);
     }
@@ -248,47 +256,23 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
 
     setVerifying(true);
     try {
-      console.log('📤 Sending test mode booking request...');
-      console.log('Session ID:', session._id);
-      console.log('Transaction ID:', upiTransactionId);
-      
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/test-book-session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          sessionId: session._id,
-          transactionId: upiTransactionId
-        })
+      const response = await paymentAPI.testBookSession({
+        sessionId: session._id,
+        transactionId: upiTransactionId,
       });
       
-      console.log('Response status:', response.status);
-      const data = await response.json();
-      console.log('Response data:', data);
-      
-      if (data.success) {
-        toast.success('✅ Session booked successfully in TEST MODE!', {
-          duration: 4000,
-          icon: '✅'
-        });
-        console.log('✅ Booking successful, closing modal...');
+      if (response.data.success) {
+        toast.success('Session booked successfully!', { duration: 4000, icon: '✅' });
         setTimeout(() => {
           onBooked(session);
           onClose();
         }, 1000);
       } else {
-        toast.error(data.message || 'Booking failed', {
-          duration: 3000
-        });
-        console.error('❌ Booking failed:', data.message);
+        toast.error(response.data.message || 'Booking failed');
       }
     } catch (error) {
-      console.error('❌ Test mode booking error:', error);
-      toast.error('Failed to book session: ' + error.message, {
-        duration: 3000
-      });
+      console.error('Test mode booking error:', error);
+      toast.error(error.response?.data?.message || 'Failed to book session');
     } finally {
       setVerifying(false);
     }
@@ -500,7 +484,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
                     {useRewards ? 'Booking Free Session...' : 'Creating Session...'}
                   </div>
                 ) : (
-                  useRewards ? 'Book Free Session with Rewards' : 'Continue to Payment'
+                  useRewards ? 'Book Free Session with Rewards' : 'Send Booking Request'
                 )}
               </button>
             </div>
@@ -508,6 +492,41 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
 
           {step === 2 && session && !useRewards && (
             <div className="space-y-4">
+              {session.approvalStatus === 'pending' && (
+                <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <FiClock className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-bold text-blue-900">Waiting for teacher approval</h3>
+                      <p className="text-sm text-blue-800 mt-1">
+                        {teacher?.name} must accept your request before you can pay.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={refreshSessionStatus}
+                    className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium"
+                  >
+                    Check approval status
+                  </button>
+                </div>
+              )}
+
+              {session.approvalStatus === 'declined' && (
+                <div className="border-2 border-red-200 bg-red-50 rounded-lg p-4">
+                  <p className="font-semibold text-red-800">Booking declined</p>
+                  <p className="text-sm text-red-700 mt-1">
+                    {session.declineReason || 'The teacher declined this request.'}
+                  </p>
+                </div>
+              )}
+
+              {session.approvalStatus === 'approved' && session.paymentStatus !== 'completed' && (
+                <>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                <FiCheckCircle className="text-green-600" />
+                <span className="text-sm font-medium text-green-800">Approved — complete payment below</span>
+              </div>
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal ({duration} mins)</span>
@@ -564,7 +583,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
                     <p className="text-sm text-gray-600 mb-2">📌 Instructions for testing:</p>
                     <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside">
                       <li>No real payment will be charged</li>
-                      <li>No money will be transferred to the teacher</li>
+                      <li>Teacher wallet will be credited after payment</li>
                       <li>Enter any fake transaction ID below</li>
                       <li>Click "Book Session" to proceed</li>
                     </ul>
@@ -671,12 +690,33 @@ const BookingModal = ({ teacher, skill, onClose, onBooked }) => {
                 </div>
               )}
 
+                </>
+              )}
+
+              {session.paymentStatus === 'completed' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <FiCheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                  <p className="font-semibold text-green-800">Payment complete — session confirmed!</p>
+                </div>
+              )}
+
+              {session.approvalStatus === 'pending' && (
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-gray-600 hover:text-gray-800 text-sm"
+              >
+                Close — we'll notify you when approved
+              </button>
+              )}
+
+              {session.approvalStatus === 'approved' && session.paymentStatus !== 'completed' && (
               <button
                 onClick={() => setStep(1)}
                 className="w-full py-2 text-gray-600 hover:text-gray-800 text-sm"
               >
                 Back to Edit
               </button>
+              )}
             </div>
           )}
         </div>

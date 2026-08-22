@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
-const { upload } = require('../config/cloudinary');
+const { postMediaUpload } = require('../config/cloudinary');
 const {
   createPost,
   getPosts,
@@ -22,7 +22,7 @@ const optionalMediaUpload = (req, res, next) => {
     return next();
   }
 
-  upload.fields([
+  postMediaUpload.fields([
     { name: 'image', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ])(req, res, (err) => {

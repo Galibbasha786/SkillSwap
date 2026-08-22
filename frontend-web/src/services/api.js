@@ -164,6 +164,7 @@ export const sessionAPI = {
   completeSession: (id) => api.put(`/sessions/${id}/complete`),
   rate: (id, rating, review) => api.post(`/sessions/${id}/rate`, { rating, review }),
   cancelSession: (id, data) => api.post(`/sessions/${id}/cancel`, data),
+  respondToBooking: (id, data) => api.post(`/sessions/${id}/respond`, data),
   deleteSession: (id) => api.delete(`/sessions/${id}`),
 };
 
@@ -186,6 +187,7 @@ export const paymentAPI = {
   requestWithdrawal: (data) => api.post('/payments/withdraw', data),
   createUPIPayment: (data) => api.post('/payments/create-upi-payment', data),
   verifyUPIPayment: (data) => api.post('/payments/verify-upi-payment', data),
+  testBookSession: (data) => api.post('/payments/test-book-session', data),
 };
 
 // ==================== RAZORPAY APIs ====================

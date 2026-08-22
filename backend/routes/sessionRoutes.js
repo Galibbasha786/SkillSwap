@@ -8,11 +8,11 @@ const {
   getSessions,
   getSessionById,
   updateSessionStatus,
+  respondToBookingRequest,
   cancelSession,
   deleteSession,
-  completeSession , // ✅ Add this import
+  completeSession,
   autoCompleteSession
-
 } = require('../controllers/sessionController');
 
 router.post('/', auth, createSession);
@@ -20,6 +20,7 @@ router.get('/', auth, getSessions);
 router.get('/:id', auth, getSessionById);
 router.put('/:id/status', auth, updateSessionStatus);
 router.put('/:id/complete', auth, completeSession);  // ✅ Add this route
+router.post('/:id/respond', auth, respondToBookingRequest);
 router.post('/:id/cancel', auth, cancelSession);
 router.delete('/:id', auth, deleteSession);
 router.post('/:id/auto-complete', auth, autoCompleteSession);

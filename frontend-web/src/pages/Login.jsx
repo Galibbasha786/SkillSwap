@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiMail, FiLock, FiArrowRight, FiUser, FiAlertCircle, FiEye, FiEyeOff, FiStar, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
@@ -309,20 +309,16 @@ const Login = () => {
           <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:50px_50px]"></div>
 
           {/* Content */}
-          <div className="relative z-10 flex flex-col justify-center items-center text-center p-12 w-full">
-            {/* Logo Container with Animation - Circular with proper cropping */}
+          <div className="relative z-10 flex flex-col items-center text-center p-10 lg:p-12 w-full min-h-full justify-center gap-0 overflow-y-auto">
+            {/* Logo Container with Animation */}
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
-              className="mb-8 relative"
+              className="mb-6 relative shrink-0"
             >
-              {/* Outer Glow Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full blur-2xl opacity-50 animate-pulse"></div>
-              
-              {/* Main Circular Container */}
-              <div className="relative w-48 h-48 rounded-full bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm border-4 border-white/30 shadow-2xl flex items-center justify-center overflow-hidden">
-                {/* Image Container with proper object-fit cover to make square image circular */}
+              <div className="relative w-40 h-40 rounded-full bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm border-4 border-white/30 shadow-2xl flex items-center justify-center overflow-hidden">
                 <div className="w-full h-full rounded-full overflow-hidden">
                   <img 
                     src={skillswapLogo} 
@@ -333,50 +329,60 @@ const Login = () => {
               </div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25, duration: 0.7 }}
-              className="relative mb-8 w-full"
-            >
-              <LearningScene variant="login" />
-            </motion.div>
-
-            {/* Brand Name with Animation */}
+            {/* Brand Name */}
             <motion.h1
-              initial={{ y: 50, opacity: 0 }}
+              initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className="text-6xl font-bold text-white mb-4 tracking-tight"
+              transition={{ delay: 0.25, duration: 0.6 }}
+              className="text-5xl lg:text-6xl font-bold text-white mb-6 tracking-tight shrink-0"
             >
               Skill<span className="text-yellow-300">Swap</span>
             </motion.h1>
 
-            {/* Rotating Quote Section */}
-            <div className="relative h-32 mt-8">
-              <motion.div
-                key={currentQuoteIndex}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.5 }}
-                className="absolute w-full"
-              >
-                <div className={`bg-gradient-to-r ${currentQuote.color} bg-clip-text`}>
-                  <QuoteIcon className="w-12 h-12 text-white/80 mx-auto mb-4" />
-                  <p className="text-3xl font-semibold text-white">
+            {/* Rotating Quote — fixed layout, no overlap */}
+            <div className="w-full max-w-md min-h-[7.5rem] flex flex-col items-center justify-center mb-6 shrink-0 px-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentQuoteIndex}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.45 }}
+                  className="flex flex-col items-center gap-3 w-full"
+                >
+                  <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br ${currentQuote.color} shadow-lg`}>
+                    <QuoteIcon className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="text-2xl lg:text-3xl font-semibold text-white leading-snug px-2">
                     {currentQuote.text}
                   </p>
-                </div>
-              </motion.div>
+                </motion.div>
+              </AnimatePresence>
             </div>
+
+            {/* Divider line — separated from quote and stats */}
+            <motion.div
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: 1, opacity: 1 }}
+              transition={{ delay: 0.45, duration: 0.5 }}
+              className="w-24 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent mb-6 shrink-0"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.6 }}
+              className="relative mb-8 w-full max-w-sm shrink-0"
+            >
+              <LearningScene variant="login" />
+            </motion.div>
 
             {/* Stats Section */}
             <motion.div
-              initial={{ y: 50, opacity: 0 }}
+              initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.6 }}
-              className="grid grid-cols-3 gap-8 mt-16 pt-8 border-t border-white/20"
+              transition={{ delay: 0.55, duration: 0.6 }}
+              className="grid grid-cols-3 gap-6 lg:gap-8 w-full max-w-lg pt-8 border-t border-white/20 shrink-0"
             >
               <div className="text-center">
                 <div className="text-3xl font-bold text-yellow-300">10K+</div>

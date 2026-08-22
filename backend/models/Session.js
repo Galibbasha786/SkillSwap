@@ -224,7 +224,19 @@ isFreeReward: {
   
   // Cancellation
   cancellationReason: String,
-  cancelledAt: Date
+  cancelledAt: Date,
+
+  // Teacher must approve before student pays
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'declined'],
+    default: 'pending',
+  },
+  approvedAt: Date,
+  declinedAt: Date,
+  declineReason: String,
+  refundedAt: Date,
+  refundAmount: Number,
 }, {
   timestamps: true
 });

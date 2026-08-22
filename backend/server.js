@@ -184,6 +184,24 @@ connectDB().then(async () => {
     console.warn('⚠️ Manual exam proctoring migration skipped:', migrationError.message);
   }
 
+  try {
+    const Session = require('./models/Session');
+    const legacyApproved = await Session.updateMany(
+      { approvalStatus: { $exists: false }, paymentStatus: 'completed' },
+      { $set: { approvalStatus: 'approved' } }
+    );
+    const legacyPending = await Session.updateMany(
+      { approvalStatus: { $exists: false }, paymentStatus: { $ne: 'completed' }, isFreeReward: { $ne: true } },
+      { $set: { approvalStatus: 'approved' } }
+    );
+    const migrated = (legacyApproved.modifiedCount || 0) + (legacyPending.modifiedCount || 0);
+    if (migrated > 0) {
+      console.log(`✅ Migrated approvalStatus on ${migrated} legacy session(s)`);
+    }
+  } catch (migrationError) {
+    console.warn('⚠️ Session approval migration skipped:', migrationError.message);
+  }
+
   // Start server
   const PORT = process.env.PORT || 5000;
   const server = app.listen(PORT, () => {

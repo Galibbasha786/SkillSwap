@@ -126,6 +126,11 @@ const WalletBalance = ({ layout = 'full' }) => {
             <p className="text-sm font-semibold text-gray-700">₹{wallet?.pendingWithdrawals?.toFixed(2) || 0}</p>
           </div>
         </div>
+        {wallet?.balance >= 5000 && (
+          <p className="text-xs text-amber-600 mt-2">
+            Balance at or above ₹5,000 — an auto-withdrawal may be created if UPI/bank details are saved.
+          </p>
+        )}
       </div>
     </div>
   );

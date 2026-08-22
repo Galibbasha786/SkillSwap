@@ -8,6 +8,11 @@ const { createNotification } = require('./notificationController');
 const { sendSessionBookedToTeacher, sendSessionBookedToLearner } = require('../utils/emailService');
 const { addRewardToLearner } = require('./rewardsController');
 const { hasTeacherBookingConflict } = require('../utils/sessionConflict');
+const {
+  creditLearnerRefund,
+  reverseTeacherEarnings,
+  completeSessionPayment
+} = require('../utils/walletHelper');
 
 // ✅ Generate Jitsi Meet link (FREE, works immediately)
 const generateJitsiLink = (sessionId, title) => {
@@ -64,7 +69,8 @@ exports.createSession = async (req, res) => {
       meetLink: 'temp', // Temporary placeholder
       meetProvider: 'jitsi',
       paymentStatus: 'pending',
-      status: 'scheduled'
+      status: 'scheduled',
+      approvalStatus: 'pending'
     });
     
     // Generate Jitsi Meet link with actual session ID
@@ -78,16 +84,24 @@ exports.createSession = async (req, res) => {
     await session.populate('teacherId', 'name email profileImage phone location rating totalSessions');
     await session.populate('learnerId', 'name email profileImage phone location rating');
     
-    // ✅ Send email notifications (don't block if email fails)
+    // Notify teacher — booking request (payment after approval)
     try {
-      await Promise.all([
-        sendSessionBookedToTeacher(session, teacher, learner),
-        sendSessionBookedToLearner(session, teacher, learner)
-      ]);
-      console.log('📧 Session confirmation emails sent successfully');
-    } catch (emailError) {
-      console.error('❌ Email sending error (non-blocking):', emailError.message);
-      // Don't fail the request if email fails
+      await createNotification(
+        teacherId,
+        'booking_request',
+        `New booking request: ${skillName}`,
+        `${learner.name} requested a session on ${new Date(date).toLocaleString()}. Accept or decline in My Sessions.`,
+        { sessionId: session._id, skillName, learnerName: learner.name }
+      );
+      await createNotification(
+        req.user.id,
+        'booking_request_sent',
+        'Booking request sent',
+        `Your request to learn ${skillName} with ${teacher.name} is pending teacher approval.`,
+        { sessionId: session._id }
+      );
+    } catch (notifyErr) {
+      console.error('Notification error (non-blocking):', notifyErr.message);
     }
     
     res.status(201).json(session);
@@ -200,6 +214,89 @@ exports.updateSessionStatus = async (req, res) => {
   }
 };
 
+// @desc    Teacher accepts or declines a booking request
+// @route   POST /api/sessions/:id/respond
+// @access  Private (teacher)
+exports.respondToBookingRequest = async (req, res) => {
+  try {
+    const { action, reason } = req.body;
+    if (!['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ message: 'Action must be accept or decline' });
+    }
+
+    const session = await Session.findById(req.params.id)
+      .populate('teacherId', 'name email')
+      .populate('learnerId', 'name email');
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (session.teacherId._id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the teacher can respond to this request' });
+    }
+
+    if (session.approvalStatus !== 'pending') {
+      return res.status(400).json({ message: 'This booking request was already handled' });
+    }
+
+    if (action === 'accept') {
+      session.approvalStatus = 'approved';
+      session.approvedAt = new Date();
+      await session.save();
+
+      await createNotification(
+        session.learnerId._id,
+        'booking_approved',
+        'Booking approved — complete payment',
+        `${session.teacherId.name} accepted your session request for ${session.skillName}. Please complete payment to confirm.`,
+        { sessionId: session._id }
+      );
+
+      try {
+        const learner = session.learnerId;
+        const teacher = session.teacherId;
+        await Promise.all([
+          sendSessionBookedToTeacher(session, teacher, learner),
+          sendSessionBookedToLearner(session, teacher, learner)
+        ]);
+      } catch (emailError) {
+        console.error('Email error (non-blocking):', emailError.message);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Booking approved. Student can now pay.',
+        session
+      });
+    }
+
+    session.approvalStatus = 'declined';
+    session.declinedAt = new Date();
+    session.declineReason = reason || 'Declined by teacher';
+    session.status = 'cancelled';
+    session.cancelledAt = new Date();
+    await session.save();
+
+    await createNotification(
+      session.learnerId._id,
+      'booking_declined',
+      'Booking request declined',
+      `${session.teacherId.name} declined your session request for ${session.skillName}.${reason ? ` Reason: ${reason}` : ''}`,
+      { sessionId: session._id, reason }
+    );
+
+    res.json({
+      success: true,
+      message: 'Booking request declined',
+      session
+    });
+  } catch (error) {
+    console.error('Error responding to booking:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // @desc    Cancel session with reason
 // @route   POST /api/sessions/:id/cancel
 // @access  Private
@@ -234,6 +331,25 @@ exports.cancelSession = async (req, res) => {
       return res.status(400).json({ message: 'Session already cancelled' });
     }
     
+    // Refund student if payment was completed (full amount including platform fee)
+    if (session.paymentStatus === 'completed' && !session.isFreeReward) {
+      const refundAmount = session.totalAmount;
+      await creditLearnerRefund(session.learnerId._id, refundAmount);
+      await reverseTeacherEarnings(session.teacherId._id, session);
+
+      session.paymentStatus = 'refunded';
+      session.refundedAt = new Date();
+      session.refundAmount = refundAmount;
+
+      await createNotification(
+        session.learnerId._id,
+        'session_refunded',
+        'Session refunded',
+        `₹${refundAmount.toFixed(2)} (including platform fee) was credited to your wallet after cancellation.`,
+        { sessionId: session._id, refundAmount }
+      );
+    }
+
     // Update session
     session.status = 'cancelled';
     session.cancellationReason = reason;
@@ -426,6 +542,7 @@ module.exports = {
   getSessions: exports.getSessions,
   getSessionById: exports.getSessionById,
   updateSessionStatus: exports.updateSessionStatus,
+  respondToBookingRequest: exports.respondToBookingRequest,
   cancelSession: exports.cancelSession,
   deleteSession: exports.deleteSession,
   completeSession: exports.completeSession,

@@ -134,9 +134,11 @@ exports.redeemFreeSession = async (req, res) => {
       teacherEarnings: 0,
       meetLink: `https://meet.jit.si/skillswap-free-${Date.now()}`,
       meetProvider: 'jitsi',
-      paymentStatus: 'completed', // Free, no payment needed
+      paymentStatus: 'completed',
       status: 'scheduled',
-      isFreeReward: true  // Add this field to track
+      approvalStatus: 'approved',
+      approvedAt: new Date(),
+      isFreeReward: true
     });
     
     // Deduct 20 rewards from learner

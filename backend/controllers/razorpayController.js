@@ -5,6 +5,7 @@ const Session = require('../models/Session');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const crypto = require('crypto');
+const { completeSessionPayment } = require('../utils/walletHelper');
 
 // Initialize Razorpay with error handling
 let razorpay;
@@ -32,6 +33,17 @@ exports.createOrder = async (req, res) => {
     
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (session.approvalStatus !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher must approve this booking before payment',
+      });
+    }
+
+    if (session.paymentStatus === 'completed') {
+      return res.status(400).json({ success: false, message: 'Session is already paid' });
     }
     
     // Convert to paise (Razorpay uses smallest currency unit)
@@ -104,8 +116,14 @@ exports.verifyPayment = async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
+
+    if (session.approvalStatus === 'pending') {
+      return res.status(400).json({ success: false, message: 'Teacher must approve this booking before payment' });
+    }
+    if (session.approvalStatus === 'declined') {
+      return res.status(400).json({ success: false, message: 'Booking was declined' });
+    }
     
-    // Create transaction record
     const transaction = await Transaction.create({
       sessionId: session._id,
       learnerId: session.learnerId,
@@ -127,19 +145,8 @@ exports.verifyPayment = async (req, res) => {
     // Update session payment status
     session.paymentStatus = 'completed';
     await session.save();
-    
-    // Update teacher's wallet
-    await User.findByIdAndUpdate(session.teacherId, {
-      $inc: { 
-        'wallet.balance': session.teacherEarnings || session.totalAmount * 0.9,
-        totalEarnings: session.teacherEarnings || session.totalAmount * 0.9
-      }
-    });
-    
-    // Update learner's total spent
-    await User.findByIdAndUpdate(session.learnerId, {
-      $inc: { totalSpent: session.totalAmount }
-    });
+
+    await completeSessionPayment(session);
     
     res.json({ 
       success: true, 
