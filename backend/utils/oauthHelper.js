@@ -73,6 +73,7 @@ const findOrCreateOAuthUser = async ({
   if (linkedinProfile && !user.linkedinProfile) {
     user.linkedinProfile = linkedinProfile;
   }
+  user.isOAuth = true;
   await user.save();
   return user;
 };

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -6,11 +6,20 @@ import toast from 'react-hot-toast';
 const AuthCallback = () => {
   const navigate = useNavigate();
   const { completeOAuthLogin } = useAuth();
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const error = params.get('error');
+
+    // Prevent duplicate handling (React Strict Mode runs effects twice in dev)
+    const dedupeKey = token ? `oauth:token:${token.slice(0, 32)}` : error ? `oauth:error:${error}` : null;
+    if (dedupeKey && sessionStorage.getItem(dedupeKey)) return;
+    if (dedupeKey) sessionStorage.setItem(dedupeKey, '1');
 
     const finish = async () => {
       if (error) {
@@ -27,6 +36,8 @@ const AuthCallback = () => {
 
       const result = await completeOAuthLogin(token);
       if (result.success) {
+        // Clear token from URL before navigating (avoids leaking JWT in history)
+        window.history.replaceState({}, '', '/auth/callback');
         toast.success('Login successful!');
         navigate(result.user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true });
       } else {
