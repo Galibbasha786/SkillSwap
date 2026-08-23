@@ -32,8 +32,13 @@ const notificationSchema = new mongoose.Schema({
       'withdrawal_success',      // ✅ Add this alias
       'withdrawal_failed',       // ✅ Add this
       'session_cancelled',
-       'rating_received',     // ✅ Add this
-    'session_completed',
+      'session_completed',
+      'booking_request',
+      'booking_request_sent',
+      'booking_approved',
+      'booking_declined',
+      'session_refunded',
+      'rating_received',
          'swap_request',      // When someone wants to swap skills
       'swap_confirmed',    // When swap is confirmed
       'swap_completed',     // When swap sessions are completed

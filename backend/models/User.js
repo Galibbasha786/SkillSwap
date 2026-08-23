@@ -97,6 +97,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+
+  githubProfile: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+
+  linkedinProfile: {
+    type: String,
+    default: '',
+    trim: true,
+  },
   
   // Bank Account
   bankAccount: {

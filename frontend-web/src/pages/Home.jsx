@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { FiArrowRight, FiUsers, FiBook, FiAward, FiMessageCircle, FiTrendingUp, FiStar } from 'react-icons/fi';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
 import LearningScene from '../components/common/LearningScene';
+import MeetAndHandshakeScene from '../components/common/MeetAndHandshakeScene';
 import BrandMarquee from '../components/common/BrandMarquee';
 
 const Home = () => {
@@ -136,6 +137,10 @@ const Home = () => {
                 </Link>
               </div>
 
+              <div className="lg:hidden mb-8 flex justify-center">
+                <MeetAndHandshakeScene compact />
+              </div>
+
               {/* Stats */}
               <div className="grid grid-cols-3 gap-6">
                 {stats.map((stat, idx) => (
@@ -158,9 +163,10 @@ const Home = () => {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
-              className="hidden lg:block"
+              className="hidden lg:flex flex-col items-center gap-6"
             >
-              <LearningScene />
+              <MeetAndHandshakeScene />
+              <LearningScene compact />
             </motion.div>
           </div>
         </div>

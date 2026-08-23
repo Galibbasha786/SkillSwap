@@ -7,6 +7,32 @@ const Transaction = require('../models/Transaction');
 const crypto = require('crypto');
 const { completeSessionPayment } = require('../utils/walletHelper');
 
+const normalizeId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value._id) return value._id.toString();
+  return value.toString();
+};
+
+const assertSessionPayable = (session, userId) => {
+  if (normalizeId(session.learnerId) !== normalizeId(userId)) {
+    return 'Only the student can pay for this session';
+  }
+  if (session.approvalStatus === 'pending') {
+    return 'Teacher must approve this booking before payment';
+  }
+  if (session.approvalStatus === 'declined') {
+    return 'Booking was declined by the teacher';
+  }
+  if (session.paymentStatus === 'completed') {
+    return 'Session is already paid';
+  }
+  if (session.status === 'cancelled') {
+    return 'Session was cancelled';
+  }
+  return null;
+};
+
 // Initialize Razorpay with error handling
 let razorpay;
 try {
@@ -14,9 +40,8 @@ try {
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
   });
-  console.log('✅ Razorpay initialized successfully');
 } catch (error) {
-  console.error('❌ Razorpay initialization failed:', error.message);
+  console.error('Razorpay initialization failed:', error.message);
 }
 
 // @desc    Create Razorpay order
@@ -25,44 +50,57 @@ try {
 exports.createOrder = async (req, res) => {
   try {
     const { sessionId } = req.body;
-    console.log('📦 Creating Razorpay order for session:', sessionId);
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'Session ID is required' });
+    }
     
-    const session = await Session.findById(sessionId)
-      .populate('teacherId')
-      .populate('learnerId');
+    const session = await Session.findById(sessionId);
     
     if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ success: false, message: 'Session not found' });
     }
 
-    if (session.approvalStatus !== 'approved') {
-      return res.status(400).json({
+    const blockReason = assertSessionPayable(session, req.user.id || req.user._id);
+    if (blockReason) {
+      return res.status(400).json({ success: false, message: blockReason });
+    }
+
+    if (!razorpay) {
+      return res.status(503).json({
         success: false,
-        message: 'Teacher must approve this booking before payment',
+        message: 'Payment gateway is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend .env',
       });
     }
 
-    if (session.paymentStatus === 'completed') {
-      return res.status(400).json({ success: false, message: 'Session is already paid' });
+    if (!process.env.RAZORPAY_KEY_ID) {
+      return res.status(503).json({
+        success: false,
+        message: 'RAZORPAY_KEY_ID is missing in server configuration',
+      });
     }
     
-    // Convert to paise (Razorpay uses smallest currency unit)
-    const amountInPaise = Math.round(session.totalAmount * 100);
+    const amountInPaise = Math.round(Number(session.totalAmount) * 100);
+    if (!Number.isFinite(amountInPaise) || amountInPaise < 100) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid session amount (₹${session.totalAmount}). Minimum payment is ₹1.`,
+      });
+    }
     
     const options = {
       amount: amountInPaise,
       currency: 'INR',
       receipt: `receipt_${sessionId.slice(-8)}`,
       notes: {
-        sessionId: sessionId,
-        teacherId: session.teacherId._id.toString(),
-        learnerId: session.learnerId._id.toString(),
+        sessionId: sessionId.toString(),
+        teacherId: session.teacherId.toString(),
+        learnerId: session.learnerId.toString(),
         skillName: session.skillName
       }
     };
     
     const order = await razorpay.orders.create(options);
-    console.log('✅ Razorpay order created:', order.id);
     
     res.json({
       success: true,
@@ -72,7 +110,7 @@ exports.createOrder = async (req, res) => {
       keyId: process.env.RAZORPAY_KEY_ID
     });
   } catch (error) {
-    console.error('❌ Error creating Razorpay order:', error);
+    console.error('Error creating Razorpay order:', error);
     res.status(500).json({ 
       success: false,
       message: 'Error creating payment order',
@@ -93,9 +131,6 @@ exports.verifyPayment = async (req, res) => {
       sessionId 
     } = req.body;
     
-    console.log('🔐 Verifying payment:', { razorpay_order_id, razorpay_payment_id });
-    
-    // Generate signature for verification
     const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -104,7 +139,6 @@ exports.verifyPayment = async (req, res) => {
     
     // Verify signature
     if (expectedSignature !== razorpay_signature) {
-      console.error('❌ Invalid payment signature');
       return res.status(400).json({ 
         success: false, 
         message: 'Invalid payment signature' 
@@ -114,14 +148,24 @@ exports.verifyPayment = async (req, res) => {
     const session = await Session.findById(sessionId);
     
     if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ success: false, message: 'Session not found' });
     }
 
-    if (session.approvalStatus === 'pending') {
-      return res.status(400).json({ success: false, message: 'Teacher must approve this booking before payment' });
+    const existingTxn = await Transaction.findOne({
+      razorpayOrderId: razorpay_order_id,
+      status: 'completed',
+    });
+    if (existingTxn || session.paymentStatus === 'completed') {
+      return res.json({
+        success: true,
+        message: 'Payment already verified',
+        transaction: existingTxn,
+      });
     }
-    if (session.approvalStatus === 'declined') {
-      return res.status(400).json({ success: false, message: 'Booking was declined' });
+
+    const blockReason = assertSessionPayable(session, req.user.id || req.user._id);
+    if (blockReason) {
+      return res.status(400).json({ success: false, message: blockReason });
     }
     
     const transaction = await Transaction.create({
@@ -132,6 +176,7 @@ exports.verifyPayment = async (req, res) => {
       platformFee: session.platformFee || session.totalAmount * 0.1,
       teacherEarnings: session.teacherEarnings || session.totalAmount * 0.9,
       status: 'completed',
+      transferStatus: 'completed',
       paymentMethod: 'razorpay',
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id,
@@ -140,9 +185,6 @@ exports.verifyPayment = async (req, res) => {
       paidAt: new Date()
     });
     
-    console.log('✅ Transaction created:', transaction._id);
-    
-    // Update session payment status
     session.paymentStatus = 'completed';
     await session.save();
 
@@ -154,7 +196,7 @@ exports.verifyPayment = async (req, res) => {
       transaction 
     });
   } catch (error) {
-    console.error('❌ Error verifying payment:', error);
+    console.error('Error verifying payment:', error);
     res.status(500).json({ 
       success: false,
       message: 'Error verifying payment',
@@ -168,17 +210,11 @@ exports.verifyPayment = async (req, res) => {
 // @access  Private
 exports.testRazorpay = async (req, res) => {
   try {
-    console.log('🧪 Testing Razorpay connection...');
-    console.log('Key ID present:', !!process.env.RAZORPAY_KEY_ID);
-    console.log('Key Secret present:', !!process.env.RAZORPAY_KEY_SECRET);
-    
     const order = await razorpay.orders.create({
       amount: 10000, // ₹100
       currency: 'INR',
       receipt: 'test_receipt'
     });
-    
-    console.log('✅ Test order created:', order.id);
     
     res.json({ 
       success: true, 
@@ -186,7 +222,7 @@ exports.testRazorpay = async (req, res) => {
       orderId: order.id 
     });
   } catch (error) {
-    console.error('❌ Razorpay test failed:', error);
+    console.error('Razorpay test failed:', error);
     res.status(500).json({ 
       success: false,
       error: error.message 

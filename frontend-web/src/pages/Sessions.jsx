@@ -88,6 +88,13 @@ const Sessions = () => {
   const isLearnerFor = (session) =>
     (session.learnerId?._id || session.learnerId)?.toString() === userId?.toString();
 
+  const canPaySession = (s) =>
+    s &&
+    s.paymentStatus !== 'completed' &&
+    s.approvalStatus !== 'pending' &&
+    s.approvalStatus !== 'declined' &&
+    (s.approvalStatus === 'approved' || s.approvalStatus == null);
+
   const handleRespondBooking = async (session, action) => {
     let reason = '';
     if (action === 'decline') {
@@ -347,8 +354,7 @@ const Sessions = () => {
                       )}
 
                     {isLearnerFor(session) &&
-                      session.approvalStatus === 'approved' &&
-                      session.paymentStatus === 'pending' &&
+                      canPaySession(session) &&
                       session.status !== 'cancelled' && (
                         <button
                           onClick={() => setPaySession(session)}

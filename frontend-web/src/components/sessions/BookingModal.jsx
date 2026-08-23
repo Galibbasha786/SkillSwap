@@ -10,27 +10,25 @@ import {
   FiVideo,
   FiCheckCircle,
   FiDollarSign,
-  FiCopy,
-  FiExternalLink,
   FiGift,
   FiStar,
   FiAward,
   FiAlertCircle
 } from 'react-icons/fi';
-import { sessionAPI, rewardsAPI, timeSlotAPI, paymentAPI } from '../../services/api';
+import { sessionAPI, rewardsAPI, timeSlotAPI, razorpayAPI } from '../../services/api';
+import { loadRazorpay, openRazorpayCheckout } from '../../utils/loadRazorpay';
+import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
 const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = null }) => {
+  const { user } = useAuth();
   const [step, setStep] = useState(existingSession ? 2 : 1);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState(60);
   const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [session, setSession] = useState(existingSession || null);
-  const [upiPaymentData, setUpiPaymentData] = useState(null);
-  const [upiTransactionId, setUpiTransactionId] = useState('');
-  const [verifying, setVerifying] = useState(false);
+  const [paying, setPaying] = useState(false);
   
   // Rewards State
   const [useRewards, setUseRewards] = useState(false);
@@ -44,7 +42,10 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
 
   useEffect(() => {
     fetchRewardsBalance();
-  }, []);
+    if (existingSession?.duration) {
+      setDuration(existingSession.duration);
+    }
+  }, [existingSession?.duration]);
 
   const refreshSessionStatus = async () => {
     if (!session?._id) return;
@@ -100,13 +101,25 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
   };
 
   const calculateTotal = () => {
+    if (session?.totalAmount != null) {
+      const total = Number(session.totalAmount);
+      const fee = Number(session.platformFee ?? total * 0.1);
+      const subtotal = total - fee;
+      return {
+        subtotal: subtotal.toFixed(2),
+        fee: fee.toFixed(2),
+        total: total.toFixed(2),
+      };
+    }
+
     const hours = duration / 60;
-    const subtotal = skill?.hourlyRate * hours;
-    const fee = subtotal * 0.1;
+    const total = skill?.hourlyRate * hours;
+    const fee = total * 0.1;
+    const subtotal = total - fee;
     return {
       subtotal: subtotal.toFixed(2),
       fee: fee.toFixed(2),
-      total: (subtotal + fee).toFixed(2)
+      total: total.toFixed(2),
     };
   };
 
@@ -147,7 +160,6 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
       } else {
         // Regular paid session - create session first
         const response = await sessionAPI.create(sessionData);
-        console.log('✅ Booking request created:', response.data);
         setSession(response.data);
         setStep(2);
         toast.success('Booking request sent to teacher!');
@@ -188,93 +200,108 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
     }
   };
 
-  const handleUPIPayment = async () => {
-    if (!upiTransactionId) {
-      toast.error('Please enter UPI transaction ID');
-      return;
-    }
-    
-    setVerifying(true);
-    try {
-      const response = await paymentAPI.verifyUPIPayment({
-        transactionId: upiPaymentData.id || session._id,
-        upiTransactionId,
-      });
-      
-      if (response.data.success) {
-        toast.success('Payment verified! Session confirmed.');
-        onBooked(session);
-        onClose();
-      } else {
-        toast.error(response.data.message || 'Verification failed');
-      }
-    } catch (error) {
-      console.error('Verification error:', error);
-      toast.error(error.response?.data?.message || 'Failed to verify payment');
-    } finally {
-      setVerifying(false);
-    }
-  };
+  const canPaySession = (s) =>
+    s &&
+    s.paymentStatus !== 'completed' &&
+    s.approvalStatus !== 'pending' &&
+    s.approvalStatus !== 'declined' &&
+    (s.approvalStatus === 'approved' || s.approvalStatus == null);
 
-  const createUPIPayment = async () => {
-    try {
-      setProcessing(true);
+  const handleRazorpayPayment = async () => {
+    if (!session?._id || paying) return;
 
+    setPaying(true);
+    let latestSession = session;
+
+    try {
       const latest = await sessionAPI.getById(session._id);
-      const latestSession = latest.data;
+      latestSession = latest.data;
       setSession(latestSession);
 
-      if (latestSession.approvalStatus !== 'approved') {
+      if (latestSession.approvalStatus === 'pending') {
         toast.error('Teacher has not approved this booking yet.');
         return;
       }
-
-      const response = await paymentAPI.createUPIPayment({ sessionId: latestSession._id });
-      
-      if (response.data.success) {
-        if (response.data.testMode) {
-          setUpiPaymentData({ testMode: true, message: response.data.message, sessionId: session._id });
-        } else {
-          setUpiPaymentData(response.data.transaction);
-        }
-      } else {
-        toast.error(response.data.message || 'Failed to create UPI payment');
+      if (latestSession.approvalStatus === 'declined') {
+        toast.error('This booking was declined.');
+        return;
       }
-    } catch (error) {
-      console.error('UPI payment error:', error);
-      toast.error(error.response?.data?.message || 'Failed to create payment');
-    } finally {
-      setProcessing(false);
-    }
-  };
+      if (latestSession.paymentStatus === 'completed') {
+        toast.success('Session is already paid.');
+        onBooked(latestSession);
+        onClose();
+        return;
+      }
 
-  const handleTestModePayment = async () => {
-    if (!upiTransactionId.trim()) {
-      toast.error('Please enter a transaction ID');
-      return;
-    }
+      const scriptLoaded = await loadRazorpay();
+      if (!scriptLoaded || !window.Razorpay) {
+        toast.error('Could not load Razorpay checkout. Disable ad-blockers and retry.');
+        return;
+      }
 
-    setVerifying(true);
-    try {
-      const response = await paymentAPI.testBookSession({
-        sessionId: session._id,
-        transactionId: upiTransactionId,
+      const orderRes = await razorpayAPI.createOrder(latestSession._id);
+      const payload = orderRes.data;
+
+      if (!payload?.success) {
+        toast.error(payload?.message || 'Failed to create payment order.');
+        return;
+      }
+
+      const { orderId, amount, currency, keyId } = payload;
+      if (!orderId || !keyId || !amount) {
+        toast.error('Invalid payment order from server. Check Razorpay keys in backend .env');
+        return;
+      }
+
+      setPaying(false);
+
+      const result = await openRazorpayCheckout({
+        key: keyId,
+        amount: Number(amount),
+        currency: currency || 'INR',
+        name: 'SkillSwap',
+        description: latestSession.title || `Learn ${skill?.name || 'a skill'}`,
+        order_id: orderId,
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+        },
+        theme: { color: '#4f46e5' },
+        modal: {
+          ondismiss: () => toast('Payment window closed'),
+        },
       });
-      
-      if (response.data.success) {
-        toast.success('Session booked successfully!', { duration: 4000, icon: '✅' });
-        setTimeout(() => {
-          onBooked(session);
-          onClose();
-        }, 1000);
+
+      if (result.type === 'dismissed') {
+        return;
+      }
+
+      setPaying(true);
+      const { response } = result;
+
+      const verifyRes = await razorpayAPI.verifyPayment({
+        razorpay_order_id: response.razorpay_order_id,
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_signature: response.razorpay_signature,
+        sessionId: latestSession._id,
+      });
+
+      if (verifyRes.data.success) {
+        toast.success('Payment successful! Your session is confirmed.');
+        onBooked({ ...latestSession, paymentStatus: 'completed' });
+        onClose();
       } else {
-        toast.error(response.data.message || 'Booking failed');
+        toast.error(verifyRes.data.message || 'Payment verification failed');
       }
     } catch (error) {
-      console.error('Test mode booking error:', error);
-      toast.error(error.response?.data?.message || 'Failed to book session');
+      console.error('Razorpay payment error:', error);
+      const msg =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to start payment';
+      toast.error(msg);
     } finally {
-      setVerifying(false);
+      setPaying(false);
     }
   };
 
@@ -521,7 +548,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
                 </div>
               )}
 
-              {session.approvalStatus === 'approved' && session.paymentStatus !== 'completed' && (
+              {canPaySession(session) && (
                 <>
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                 <FiCheckCircle className="text-green-600" />
@@ -544,151 +571,35 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                 <div className="flex items-center gap-2">
-                  <FiVideo className="text-blue-500" />
-                  <span className="text-sm font-medium">Video Call Session</span>
+                  <FiCreditCard className="text-indigo-600" />
+                  <span className="text-sm font-medium text-indigo-900">Secure payment via Razorpay</span>
                 </div>
-                <FiCheckCircle className="text-green-500" />
+                <span className="text-xs text-indigo-600 font-medium">UPI · Card · Netbanking</span>
               </div>
 
-              {/* UPI Payment Option */}
-              {!upiPaymentData ? (
-                <button
-                  onClick={createUPIPayment}
-                  disabled={processing}
-                  className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                >
-                  {processing ? 'Creating payment...' : 'Pay with UPI'}
-                </button>
-              ) : upiPaymentData.testMode ? (
-                // TEST MODE UI
-                <div className="border-2 border-yellow-400 bg-yellow-50 rounded-lg p-4 space-y-4">
-                  <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">⚠️</div>
-                      <div>
-                        <h3 className="font-bold text-yellow-800">TEST MODE - No Real Payment</h3>
-                        <p className="text-sm text-yellow-700 mt-1">
-                          This is a test booking. Real-time payment is not active yet.
-                        </p>
-                        <p className="text-sm text-yellow-700 mt-2">
-                          You will be notified when live payments are enabled.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white border border-yellow-200 rounded-lg p-3">
-                    <p className="text-sm text-gray-600 mb-2">📌 Instructions for testing:</p>
-                    <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside">
-                      <li>No real payment will be charged</li>
-                      <li>Teacher wallet will be credited after payment</li>
-                      <li>Enter any fake transaction ID below</li>
-                      <li>Click "Book Session" to proceed</li>
-                    </ul>
-                  </div>
+              <button
+                onClick={handleRazorpayPayment}
+                disabled={paying}
+                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+              >
+                {paying ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Opening Razorpay…
+                  </>
+                ) : (
+                  <>
+                    <FiCreditCard className="w-5 h-5" />
+                    Pay ₹{totals.total} with Razorpay
+                  </>
+                )}
+              </button>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Enter Any Transaction ID (for testing)
-                    </label>
-                    <input
-                      type="text"
-                      value={upiTransactionId}
-                      onChange={(e) => setUpiTransactionId(e.target.value)}
-                      placeholder="e.g., TEST-12345 or any fake ID"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">You can type anything - it's just for testing</p>
-                  </div>
-                  
-                  <button
-                    onClick={handleTestModePayment}
-                    disabled={verifying}
-                    className="w-full py-3 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:opacity-50"
-                  >
-                    {verifying ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Booking Session...
-                      </div>
-                    ) : (
-                      'Book Session (Test Mode)'
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={() => setUpiPaymentData(null)}
-                    className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
-                  >
-                    Back
-                  </button>
-                </div>
-              ) : (
-                // Real Payment UI (QR Code)
-                <div className="border rounded-lg p-4 space-y-4">
-                  <h3 className="font-semibold text-center">Scan QR to Pay</h3>
-                  
-                  <div className="text-center">
-                    <img 
-                      src={upiPaymentData.upiQRCode} 
-                      alt="UPI QR Code" 
-                      className="w-48 h-48 mx-auto border rounded-lg"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">Scan with any UPI app</p>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-600">Pay to UPI ID:</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="font-mono font-medium">{upiPaymentData.upiId}</p>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(upiPaymentData.upiId);
-                          toast.success('UPI ID copied!');
-                        }}
-                        className="text-blue-500 hover:text-blue-600"
-                      >
-                        <FiCopy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Amount to Pay</p>
-                    <p className="text-2xl font-bold text-green-600">₹{upiPaymentData.amount}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      UPI Transaction ID
-                    </label>
-                    <input
-                      type="text"
-                      value={upiTransactionId}
-                      onChange={(e) => setUpiTransactionId(e.target.value)}
-                      placeholder="Enter transaction ID after payment"
-                      className="w-full px-4 py-2 border rounded-lg"
-                    />
-                  </div>
-                  
-                  <button
-                    onClick={handleUPIPayment}
-                    disabled={verifying}
-                    className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                  >
-                    {verifying ? 'Verifying...' : 'Verify Payment'}
-                  </button>
-                  
-                  <button
-                    onClick={() => setUpiPaymentData(null)}
-                    className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
-                  >
-                    Back
-                  </button>
-                </div>
-              )}
+              <p className="text-xs text-center text-gray-500">
+                You will be redirected to Razorpay to complete payment securely.
+              </p>
 
                 </>
               )}
@@ -709,7 +620,7 @@ const BookingModal = ({ teacher, skill, onClose, onBooked, existingSession = nul
               </button>
               )}
 
-              {session.approvalStatus === 'approved' && session.paymentStatus !== 'completed' && (
+              {canPaySession(session) && (
               <button
                 onClick={() => setStep(1)}
                 className="w-full py-2 text-gray-600 hover:text-gray-800 text-sm"

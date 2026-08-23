@@ -17,6 +17,7 @@ import TeacherProfile from './pages/TeacherProfile';
 import Sessions from './pages/Sessions';
 import Messages from './pages/Messages';
 import ForgotPassword from './pages/ForgotPassword';
+import AuthCallback from './pages/AuthCallback';
 import CreateExam from './pages/teacher/CreateExam';
 import TeacherExams from './pages/teacher/TeacherExams';
 import ExamMonitor from './pages/teacher/ExamMonitor';
@@ -183,6 +184,8 @@ function AppContent() {
               <ForgotPassword />
             </PublicRoute>
           } />
+
+          <Route path="/auth/callback" element={<AuthCallback />} />
           
           {/* Admin routes */}
           <Route path="/admin" element={

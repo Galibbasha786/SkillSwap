@@ -10,11 +10,11 @@ import {
   FiSmartphone, FiCalendar, FiUsers, FiUserCheck, FiAward,
   FiShield, FiVideo, FiRefreshCw, FiStar
 } from 'react-icons/fi';
-import { GoogleLogin } from '@react-oauth/google';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
+import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
-import SkillSwapVideoScene from '../components/common/SkillSwapVideoScene';
+import MeetAndHandshakeScene from '../components/common/MeetAndHandshakeScene';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -352,7 +352,7 @@ const Register = () => {
               transition={{ delay: 0.2, duration: 0.6 }}
               className="mb-6 w-full"
             >
-              <SkillSwapVideoScene />
+              <MeetAndHandshakeScene compact theme="dark" />
             </motion.div>
 
             <motion.h1
@@ -407,7 +407,7 @@ const Register = () => {
                 Create Your Account
               </h1>
               <div className="mt-4 flex justify-center">
-                <SkillSwapVideoScene />
+                <MeetAndHandshakeScene compact theme="light" />
               </div>
             </div>
 
@@ -423,18 +423,11 @@ const Register = () => {
 
             {currentStep === 1 && (
               <div className="mb-6">
-                <div className="flex justify-center">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    useOneTap={false}
-                    theme="outline"
-                    size="large"
-                    shape="rectangular"
-                    text="signup_with"
-                    width="100%"
-                  />
-                </div>
+                <SocialLoginButtons
+                  onGoogleSuccess={handleGoogleSuccess}
+                  onGoogleError={handleGoogleError}
+                  disabled={loading}
+                />
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
                   <div className="relative flex justify-center text-sm"><span className="px-4 bg-white/80 text-gray-500">Or sign up with email</span></div>

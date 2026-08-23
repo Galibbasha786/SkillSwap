@@ -7,8 +7,9 @@ import { motion } from 'framer-motion';
 import { 
   FiUser, FiMail, FiPhone, FiCalendar, FiMapPin, FiAward, 
   FiBook, FiBriefcase, FiStar, FiClock, FiArrowLeft, FiEdit2,
-  FiSave, FiX, FiCreditCard, FiAlertCircle
+  FiSave, FiX, FiCreditCard, FiAlertCircle, FiLink
 } from 'react-icons/fi';
+import { FaGithub, FaLinkedin } from 'react-icons/fa';
 import { userAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import ImageUpload from '../components/profile/ImageUpload';
@@ -40,7 +41,9 @@ const Profile = () => {
       degree: '',
       fieldOfStudy: '',
       graduationYear: ''
-    }
+    },
+    githubProfile: '',
+    linkedinProfile: '',
   });
 
   // Bank Form State
@@ -61,7 +64,6 @@ const Profile = () => {
       const userId = getUserId() || user?.id || user?._id;
       if (userId) {
         const response = await userAPI.getProfile(userId);
-        console.log('📥 Fetched user data:', response.data);
         setUserData(response.data);
         setProfileImage(response.data.profileImage);
         setFormData({
@@ -82,7 +84,9 @@ const Profile = () => {
             degree: response.data.education?.degree || '',
             fieldOfStudy: response.data.education?.fieldOfStudy || '',
             graduationYear: response.data.education?.graduationYear || ''
-          }
+          },
+          githubProfile: response.data.githubProfile || '',
+          linkedinProfile: response.data.linkedinProfile || '',
         });
         
         // Set bank form data
@@ -111,17 +115,15 @@ const Profile = () => {
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
         location: formData.location,
-        education: formData.education
+        education: formData.education,
+        githubProfile: formData.githubProfile.trim(),
+        linkedinProfile: formData.linkedinProfile.trim(),
       };
       
-      console.log('📤 Sending update:', updateData);
-      
       const response = await userAPI.updateProfile(updateData);
-      console.log('✅ Update response:', response.data);
       
       if (response.data.success) {
         const updatedUser = response.data.user;
-        console.log('📥 Updated user data:', updatedUser);
         
         setUserData(updatedUser);
         setProfileImage(updatedUser.profileImage);
@@ -144,7 +146,9 @@ const Profile = () => {
             degree: updatedUser.education?.degree || '',
             fieldOfStudy: updatedUser.education?.fieldOfStudy || '',
             graduationYear: updatedUser.education?.graduationYear || ''
-          }
+          },
+          githubProfile: updatedUser.githubProfile || '',
+          linkedinProfile: updatedUser.linkedinProfile || '',
         });
         
         toast.success('Profile updated successfully!');
@@ -170,10 +174,7 @@ const Profile = () => {
         upiId: bankForm.upiId
       };
       
-      console.log('📤 Sending bank update:', updateData);
-      
       const response = await userAPI.updateProfile(updateData);
-      console.log('✅ Bank update response:', response.data);
       
       if (response.data.success) {
         const updatedUser = response.data.user;
@@ -364,6 +365,62 @@ const Profile = () => {
                       />
                     ) : (
                       <p className="text-gray-900">{userData?.phone || 'Not added'}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Social Profiles */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FaGithub className="w-4 h-4" /> GitHub Profile
+                    </h3>
+                    {editing ? (
+                      <input
+                        type="url"
+                        value={formData.githubProfile}
+                        onChange={(e) => setFormData({ ...formData, githubProfile: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="https://github.com/username"
+                      />
+                    ) : userData?.githubProfile ? (
+                      <a
+                        href={userData.githubProfile}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <FiLink className="w-4 h-4" />
+                        {userData.githubProfile}
+                      </a>
+                    ) : (
+                      <p className="text-gray-500">Not added</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FaLinkedin className="w-4 h-4 text-[#0A66C2]" /> LinkedIn Profile
+                    </h3>
+                    {editing ? (
+                      <input
+                        type="url"
+                        value={formData.linkedinProfile}
+                        onChange={(e) => setFormData({ ...formData, linkedinProfile: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="https://linkedin.com/in/username"
+                      />
+                    ) : userData?.linkedinProfile ? (
+                      <a
+                        href={userData.linkedinProfile}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <FiLink className="w-4 h-4" />
+                        {userData.linkedinProfile}
+                      </a>
+                    ) : (
+                      <p className="text-gray-500">Not added</p>
                     )}
                   </div>
                 </div>

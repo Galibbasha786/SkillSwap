@@ -5,17 +5,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { FiMail, FiLock, FiArrowRight, FiUser, FiAlertCircle, FiEye, FiEyeOff, FiStar, FiTrendingUp, FiUsers } from 'react-icons/fi';
-import { FcGoogle } from 'react-icons/fc';
-import { GoogleLogin } from '@react-oauth/google';
 import ReCAPTCHA from 'react-google-recaptcha';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
+import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import skillswapLogo from '../assets/skillswaplogo.jpg';
-import LearningScene from '../components/common/LearningScene';
+import MeetAndHandshakeScene from '../components/common/MeetAndHandshakeScene';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const CAPTCHA_ENABLED = Boolean(RECAPTCHA_SITE_KEY);
+const HAS_SOCIAL_LOGIN = Boolean(
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  import.meta.env.VITE_GITHUB_LOGIN_ENABLED !== 'false'
+);
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -374,7 +376,7 @@ const Login = () => {
               transition={{ delay: 0.35, duration: 0.6 }}
               className="relative mb-8 w-full max-w-sm shrink-0"
             >
-              <LearningScene variant="login" />
+              <MeetAndHandshakeScene compact theme="dark" />
             </motion.div>
 
             {/* Stats Section */}
@@ -424,6 +426,9 @@ const Login = () => {
               <h2 className="text-2xl font-bold mt-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Welcome Back!
               </h2>
+              <div className="mt-5 flex justify-center">
+                <MeetAndHandshakeScene compact theme="light" />
+              </div>
             </div>
 
             {/* Header */}
@@ -446,7 +451,7 @@ const Login = () => {
               </motion.div>
             )}
 
-            {GOOGLE_CLIENT_ID && (
+            {HAS_SOCIAL_LOGIN && (
               <>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -454,18 +459,11 @@ const Login = () => {
                   transition={{ delay: 0.25 }}
                   className="mb-6"
                 >
-                  <div className="flex justify-center">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                      useOneTap={false}
-                      theme="outline"
-                      size="large"
-                      shape="rectangular"
-                      text="continue_with"
-                      width={380}
-                    />
-                  </div>
+                  <SocialLoginButtons
+                    onGoogleSuccess={handleGoogleSuccess}
+                    onGoogleError={handleGoogleError}
+                    disabled={loading}
+                  />
                 </motion.div>
 
                 <motion.div

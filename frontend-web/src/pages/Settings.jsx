@@ -25,6 +25,8 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState(null);
   const [timeSlotManagerOpen, setTimeSlotManagerOpen] = useState(false);
+
+  const isOAuthUser = Boolean(userData?.isOAuth || user?.isOAuth);
   
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -145,10 +147,7 @@ const handleProfileUpdate = async (e) => {
       }
     };
     
-    console.log('📤 Updating profile from settings:', updateData);
-    
     const response = await userAPI.updateProfile(updateData);
-    console.log('✅ Settings update response:', response.data);
     
     if (response.data.success) {
       const updatedUser = response.data.user;
@@ -208,8 +207,6 @@ const handleBankUpdate = async (e) => {
       upiId: bankForm.upiId || ''
     };
     
-    console.log('Updating bank details:', updateData);
-    
     await userAPI.updateProfile(updateData);
     toast.success('Bank details updated successfully!');
     fetchUserData();
@@ -241,7 +238,7 @@ const handleBankUpdate = async (e) => {
         newPassword: passwordForm.newPassword
       };
       
-      if (!user?.isOAuth) {
+      if (!isOAuthUser) {
         passwordData.currentPassword = passwordForm.currentPassword;
       }
       
@@ -696,10 +693,15 @@ const handleBankUpdate = async (e) => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Change Password</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Change Password</h2>
+            {isOAuthUser && (
+              <p className="text-sm text-blue-600 dark:text-blue-400 mb-6">
+                You signed in with Google or another social account. Enter a new password below — no current password needed.
+              </p>
+            )}
             
             <form onSubmit={handlePasswordChange} className="space-y-5">
-              {!user?.isOAuth && (
+              {!isOAuthUser && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
                   <div className="relative">
@@ -709,7 +711,7 @@ const handleBankUpdate = async (e) => {
                       value={passwordForm.currentPassword}
                       onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required={!user?.isOAuth}
+                      required={!isOAuthUser}
                     />
                   </div>
                 </div>

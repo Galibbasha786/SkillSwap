@@ -105,6 +105,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const completeOAuthLogin = async (token) => {
+    try {
+      localStorage.setItem('token', token);
+      const response = await authAPI.getMe();
+      const userData = response.data.user;
+      const normalizedUser = {
+        ...userData,
+        id: userData.id || userData._id,
+        _id: userData._id || userData.id,
+      };
+
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
+      markLoggedIn();
+      return { success: true, user: normalizedUser };
+    } catch (error) {
+      localStorage.removeItem('token');
+      return { success: false, error: error.response?.data?.message || 'Login failed' };
+    }
+  };
+
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
@@ -150,6 +171,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     getUserId,
     googleLogin,
+    completeOAuthLogin,
     loginSignal,
     isAuthenticated: !!user,
   };

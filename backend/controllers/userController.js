@@ -45,16 +45,11 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    // ✅ DEBUG: Log everything
-    console.log('📥 UPDATE PROFILE REQUEST:');
-    console.log('User ID:', userId);
-    console.log('Request Body:', JSON.stringify(req.body, null, 2));
-    
-    // Fields that can be updated
+
     const allowedUpdates = [
       'name', 'bio', 'phone', 'dateOfBirth', 'gender', 'location',
-      'education', 'bankAccount', 'upiId', 'userType'
+      'education', 'bankAccount', 'upiId', 'userType',
+      'githubProfile', 'linkedinProfile',
     ];
     
     // Build update object
@@ -63,7 +58,6 @@ exports.updateProfile = async (req, res) => {
     for (const field of allowedUpdates) {
       if (req.body[field] !== undefined && req.body[field] !== null) {
         updateData[field] = req.body[field];
-        console.log(`✅ Adding field to update: ${field} =`, req.body[field]);
       }
     }
     
@@ -75,7 +69,6 @@ exports.updateProfile = async (req, res) => {
         country: req.body.location.country || 'India',
         pincode: req.body.location.pincode || ''
       };
-      console.log('📍 Location update:', updateData.location);
     }
     
     // Handle nested education object properly
@@ -87,7 +80,6 @@ exports.updateProfile = async (req, res) => {
         fieldOfStudy: req.body.education.fieldOfStudy || '',
         graduationYear: req.body.education.graduationYear || null
       };
-      console.log('🎓 Education update:', updateData.education);
     }
     
     // Handle nested bankAccount object
@@ -99,7 +91,6 @@ exports.updateProfile = async (req, res) => {
         ifscCode: req.body.bankAccount.ifscCode || '',
         isVerified: false
       };
-      console.log('🏦 Bank update:', updateData.bankAccount);
     }
     
     // Handle upiId separately
@@ -107,11 +98,7 @@ exports.updateProfile = async (req, res) => {
       updateData.upiId = req.body.upiId || '';
     }
     
-    console.log('📦 Final updateData:', JSON.stringify(updateData, null, 2));
-    
-    // ✅ Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
-      console.log('⚠️ No fields to update');
       return res.status(400).json({ message: 'No fields to update' });
     }
     
@@ -125,18 +112,7 @@ exports.updateProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
-    // ✅ Log the updated user data
-    console.log('✅ User after update:', {
-      id: user._id,
-      name: user.name,
-      phone: user.phone,
-      dateOfBirth: user.dateOfBirth,
-      gender: user.gender,
-      location: user.location,
-      education: user.education
-    });
-    
+
     res.json({
       success: true,
       user,

@@ -5,8 +5,6 @@ import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-console.log('🔌 API URL:', API_URL);
-
 let lastBackendDownToastAt = 0;
 
 const api = axios.create({
@@ -29,15 +27,6 @@ api.interceptors.request.use(
       delete config.headers['Content-Type'];
     }
 
-    if (import.meta.env.DEV) {
-      console.log('🚀 Request:', {
-        method: config.method.toUpperCase(),
-        url: config.url,
-        baseURL: config.baseURL,
-        fullURL: `${config.baseURL}${config.url}`,
-        token: token ? 'Present' : 'Missing'
-      });
-    }
     return config;
   },
   (error) => {
@@ -48,14 +37,7 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => {
-    console.log('✅ Response:', {
-      status: response.status,
-      url: response.config.url,
-      data: response.data
-    });
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.code === 'ECONNABORTED') {
       console.error('❌ Timeout Error');
@@ -120,19 +102,10 @@ export const userAPI = {
     }
     return api.get(`/users/profile/${userId}`);
   },
-  updateProfile: (data) => {
-    console.log('📤 Updating profile with data:', data);
-    return api.put('/users/profile', data);
-  },
+  updateProfile: (data) => api.put('/users/profile', data),
   getAllTeachers: () => api.get('/users/teachers'),
-  addTeachingSkill: (skillData) => {
-    console.log('Adding teaching skill:', skillData);
-    return api.post('/users/skills/teach', skillData);
-  },
-  addLearningSkill: (skillData) => {
-    console.log('Adding learning skill:', skillData);
-    return api.post('/users/skills/learn', skillData);
-  },
+  addTeachingSkill: (skillData) => api.post('/users/skills/teach', skillData),
+  addLearningSkill: (skillData) => api.post('/users/skills/learn', skillData),
   removeTeachingSkill: (skillName) => api.delete(`/users/skills/teach/${encodeURIComponent(skillName)}`),
   removeLearningSkill: (skillName) => api.delete(`/users/skills/learn/${encodeURIComponent(skillName)}`),
   uploadProfileImage: (formData) => api.post('/users/upload-profile-image', formData),

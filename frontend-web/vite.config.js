@@ -58,10 +58,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    // ✅ Allow WebRTC connections
+    // COOP allows Razorpay popup; avoid COEP require-corp — it blocks checkout.razorpay.com
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   }
 })

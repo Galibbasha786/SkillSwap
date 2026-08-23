@@ -6,6 +6,15 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const { sendOTPEmail, generateOTP } = require('../utils/emailService');
+const {
+  getApiBaseUrl,
+  createOAuthState,
+  verifyOAuthState,
+  redirectWithError,
+  redirectWithToken,
+  serializeUser,
+  findOrCreateOAuthUser,
+} = require('../utils/oauthHelper');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -186,7 +195,8 @@ exports.login = async (req, res) => {
         email: user.email,
         role: user.role,
         profileImage: user.profileImage,
-        isEmailVerified: user.isEmailVerified
+        isEmailVerified: user.isEmailVerified,
+        isOAuth: Boolean(user.isOAuth),
       }
     });
   } catch (error) {
@@ -213,8 +223,6 @@ exports.googleLogin = async (req, res) => {
         message: 'Missing Google credential'
       });
     }
-
-    console.log('🔐 Google login attempt with credential');
     
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
@@ -223,13 +231,10 @@ exports.googleLogin = async (req, res) => {
     
     const payload = ticket.getPayload();
     const { name, email, picture } = payload;
-    
-    console.log(`✅ Google verified: ${email}`);
 
     let user = await User.findOne({ email });
     
     if (!user) {
-      console.log(`📝 Creating new user from Google: ${email}`);
       user = await User.create({
         name,
         email,
@@ -239,28 +244,19 @@ exports.googleLogin = async (req, res) => {
         isOAuth: true
       });
     } else {
-      // Update profile image if not set
+      user.isOAuth = true;
       if (!user.profileImage && picture) {
         user.profileImage = picture;
-        await user.save();
       }
+      await user.save();
     }
     
     const token = await issueAuthToken(user);
-    
-    console.log(`✅ Google login successful for: ${email}`);
 
     res.json({
       success: true,
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileImage: user.profileImage,
-        isEmailVerified: user.isEmailVerified
-      }
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error('❌ Google auth error:', error.message);
@@ -294,8 +290,6 @@ exports.resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
 
-    console.log('🔐 Reset password attempt for:', email);
-
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ message: 'All fields required' });
     }
@@ -311,17 +305,10 @@ exports.resetPassword = async (req, res) => {
 
     // ✅ Verify OTP exists and matches
     if (!user.otp || user.otp.code !== otp || user.otp.type !== 'reset') {
-      console.log('❌ Invalid OTP:', { 
-        stored: user.otp?.code, 
-        received: otp,
-        type: user.otp?.type 
-      });
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
-    // Check expiration
     if (user.otp.expiresAt < new Date()) {
-      console.log('❌ OTP expired at:', user.otp.expiresAt);
       return res.status(400).json({ message: 'OTP expired' });
     }
 
@@ -332,8 +319,6 @@ exports.resetPassword = async (req, res) => {
     // ✅ Clear OTP only after successful password change
     user.otp = undefined;
     await user.save();
-
-    console.log('✅ Password reset successful for:', email);
 
     res.json({ 
       success: true, 
@@ -396,5 +381,174 @@ exports.changePassword = async (req, res) => {
   } catch (error) {
     console.error('Error changing password:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.githubAuth = (req, res) => {
+  if (!process.env.GITHUB_CLIENT_ID) {
+    return res.status(503).json({ message: 'GitHub login is not configured' });
+  }
+
+  const redirectUri = `${getApiBaseUrl()}/api/auth/github/callback`;
+  const state = createOAuthState('github');
+  const params = new URLSearchParams({
+    client_id: process.env.GITHUB_CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'user:email',
+    state,
+  });
+
+  res.redirect(`https://github.com/login/oauth/authorize?${params}`);
+};
+
+exports.githubCallback = async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    if (error) {
+      return redirectWithError(res, 'GitHub login was cancelled');
+    }
+    if (!code || !state) {
+      return redirectWithError(res, 'Invalid GitHub login response');
+    }
+
+    verifyOAuthState(state, 'github');
+
+    if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+      return redirectWithError(res, 'GitHub login is not configured on the server');
+    }
+
+    const redirectUri = `${getApiBaseUrl()}/api/auth/github/callback`;
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      return redirectWithError(res, tokenData.error_description || 'GitHub authentication failed');
+    }
+
+    const [profileRes, emailsRes] = await Promise.all([
+      fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          Accept: 'application/json',
+          'User-Agent': 'SkillSwap',
+        },
+      }),
+      fetch('https://api.github.com/user/emails', {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          Accept: 'application/json',
+          'User-Agent': 'SkillSwap',
+        },
+      }),
+    ]);
+
+    const profile = await profileRes.json();
+    const emailsPayload = await emailsRes.json();
+    const emails = Array.isArray(emailsPayload) ? emailsPayload : [];
+    const primaryEmail =
+      emails.find((entry) => entry.primary && entry.verified)?.email ||
+      emails.find((entry) => entry.verified)?.email ||
+      profile.email;
+
+    const user = await findOrCreateOAuthUser({
+      email: primaryEmail,
+      name: profile.name || profile.login,
+      picture: profile.avatar_url,
+      githubProfile: profile.login ? `https://github.com/${profile.login}` : '',
+    });
+
+    const token = await issueAuthToken(user);
+    return redirectWithToken(res, token);
+  } catch (err) {
+    console.error('GitHub auth error:', err.message);
+    return redirectWithError(res, 'GitHub login failed');
+  }
+};
+
+exports.linkedinAuth = (req, res) => {
+  if (!process.env.LINKEDIN_CLIENT_ID) {
+    return res.status(503).json({ message: 'LinkedIn login is not configured' });
+  }
+
+  const redirectUri = `${getApiBaseUrl()}/api/auth/linkedin/callback`;
+  const state = createOAuthState('linkedin');
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.LINKEDIN_CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'openid profile email',
+    state,
+  });
+
+  res.redirect(`https://www.linkedin.com/oauth/v2/authorization?${params}`);
+};
+
+exports.linkedinCallback = async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    if (error) {
+      return redirectWithError(res, 'LinkedIn login was cancelled');
+    }
+    if (!code || !state) {
+      return redirectWithError(res, 'Invalid LinkedIn login response');
+    }
+
+    verifyOAuthState(state, 'linkedin');
+
+    if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_CLIENT_SECRET) {
+      return redirectWithError(res, 'LinkedIn login is not configured on the server');
+    }
+
+    const redirectUri = `${getApiBaseUrl()}/api/auth/linkedin/callback`;
+    const tokenParams = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      client_id: process.env.LINKEDIN_CLIENT_ID,
+      client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+    });
+
+    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString(),
+    });
+
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      return redirectWithError(res, tokenData.error_description || 'LinkedIn authentication failed');
+    }
+
+    const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const profile = await profileRes.json();
+
+    const linkedinProfile = profile.profile || '';
+
+    const user = await findOrCreateOAuthUser({
+      email: profile.email,
+      name: profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim(),
+      picture: profile.picture,
+      linkedinProfile,
+    });
+
+    const token = await issueAuthToken(user);
+    return redirectWithToken(res, token);
+  } catch (err) {
+    console.error('LinkedIn auth error:', err.message);
+    return redirectWithError(res, 'LinkedIn login failed');
   }
 };
