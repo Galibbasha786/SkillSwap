@@ -15,7 +15,31 @@ const buildCombinedStream = (cameraStream, screenStream) => {
   return combined;
 };
 
-const PREP_SECONDS = 4 * 60; // 4-minute prep window after permissions
+const PREP_SECONDS = 1 * 60; // 1-minute prep window after permissions
+const PERMISSION_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+
+const requestMediaWithTimeout = (mediaRequest, timeoutMs) => new Promise((resolve, reject) => {
+  let requestSettled = false;
+  const timeoutId = setTimeout(() => {
+    requestSettled = true;
+    reject(new Error('Camera and microphone permission request timed out.'));
+  }, timeoutMs);
+
+  mediaRequest.then((stream) => {
+    if (requestSettled) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    requestSettled = true;
+    clearTimeout(timeoutId);
+    resolve(stream);
+  }).catch((error) => {
+    if (requestSettled) return;
+    requestSettled = true;
+    clearTimeout(timeoutId);
+    reject(error);
+  });
+});
 
 const ProctoringSetup = ({ onReady, onCancel, onProctoringLive }) => {
   const [cameraStatus, setCameraStatus] = useState('pending');
@@ -43,7 +67,7 @@ const ProctoringSetup = ({ onReady, onCancel, onProctoringLive }) => {
     setCameraStatus('pending');
     try {
       stopStreams();
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await requestMediaWithTimeout(navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
@@ -54,7 +78,7 @@ const ProctoringSetup = ({ onReady, onCancel, onProctoringLive }) => {
           noiseSuppression: true,
           autoGainControl: true
         }
-      });
+      }), PERMISSION_REQUEST_TIMEOUT_MS);
       if (!mountedRef.current) {
         stream.getTracks().forEach((t) => t.stop());
         return false;
