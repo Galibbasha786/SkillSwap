@@ -304,6 +304,15 @@ exports.rejectWithdrawal = async (req, res) => {
     withdrawal.processedAt = new Date();
     
     await withdrawal.save();
+
+    // Return reserved funds to the user's wallet and clear the pending amount.
+    await User.findByIdAndUpdate(withdrawal.userId._id, {
+      $inc: {
+        'wallet.balance': withdrawal.amount,
+        'wallet.pendingWithdrawals': -withdrawal.amount
+      },
+      $set: { 'wallet.lastTransactionAt': new Date() }
+    });
     
     // Create rejection notification for user
     await Notification.create({
